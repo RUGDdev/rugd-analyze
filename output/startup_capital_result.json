@@ -1,0 +1,127 @@
+{
+  "model_version": "0.1-pilot",
+  "methodology_refs": [
+    "Methodology \u00a7 Core Principles",
+    "Methodology \u00a7 Evaluation Dimensions \u2014 Financial Feasibility & Capital Requirements",
+    "Methodology \u00a7 Output Requirements \u2014 base and downside"
+  ],
+  "is_final": false,
+  "requires_human_review": true,
+  "human_review_status": "pending",
+  "recommendation": null,
+  "scoring_applied": false,
+  "uses_coded_defaults": true,
+  "inputs": {
+    "construction_cost": {
+      "value": 1000000.0,
+      "source": "user"
+    },
+    "soft_cost_pct": {
+      "value": 0.15,
+      "source": "coded_model_default"
+    },
+    "contingency_pct": {
+      "value": 0.1,
+      "source": "coded_model_default"
+    },
+    "debt_share": {
+      "value": 0.7,
+      "source": "coded_model_default"
+    },
+    "annual_interest_rate": {
+      "value": 0.08,
+      "source": "coded_model_default"
+    },
+    "amortization_years": {
+      "value": 20,
+      "source": "coded_model_default"
+    },
+    "seats": {
+      "value": 200,
+      "source": "coded_model_default"
+    },
+    "average_ticket": {
+      "value": 28.0,
+      "source": "coded_model_default"
+    },
+    "weekday_occupancy": {
+      "value": 0.45,
+      "source": "coded_model_default"
+    },
+    "weekend_occupancy": {
+      "value": 0.75,
+      "source": "coded_model_default"
+    },
+    "operating_days": {
+      "value": 360,
+      "source": "coded_model_default"
+    },
+    "ticketed_events": {
+      "value": 350000.0,
+      "source": "coded_model_default"
+    },
+    "other_revenue_pct": {
+      "value": 0.02,
+      "source": "coded_model_default"
+    },
+    "ebitda_margin": {
+      "value": 0.2,
+      "source": "coded_model_default"
+    },
+    "downside_revenue_multiplier": {
+      "value": 0.6,
+      "source": "coded_model_default"
+    }
+  },
+  "results": {
+    "total_project_cost": 1265000.0,
+    "soft_costs": 150000.0,
+    "contingency": 115000.0,
+    "debt": 885500.0,
+    "equity": 379500.0,
+    "monthly_debt_service": 7406.68,
+    "annual_debt_service": 88880.16,
+    "weekday_operating_days": 257.1429,
+    "weekend_operating_days": 102.8571,
+    "food_and_beverage_revenue_base": 1080000.0,
+    "food_and_beverage_revenue_downside": 648000.0,
+    "ticketed_events_base": 350000.0,
+    "ticketed_events_downside": 210000.0,
+    "other_revenue_base": 21600.0,
+    "other_revenue_downside": 12960.0,
+    "year1_revenue_base": 1451600.0,
+    "year1_revenue_downside": 870960.0,
+    "ebitda_base": 290320.0,
+    "ebitda_downside": 174192.0,
+    "cash_flow_before_debt_service_base": 290320.0,
+    "cash_flow_before_debt_service_downside": 174192.0,
+    "cash_flow_after_debt_service_base": 201439.84,
+    "cash_flow_after_debt_service_downside": 85311.84,
+    "dscr_base": 3.2664,
+    "dscr_downside": 1.9599,
+    "observations": [
+      "No cash-flow or DSCR observation fired on the rounded figures."
+    ]
+  },
+  "assumptions": [
+    "Soft costs equal soft_cost_pct times construction cost.",
+    "Contingency equals contingency_pct times (construction cost + soft costs).",
+    "Total project cost equals construction + soft costs + contingency. Land, FF&E, and working capital are not separate lines.",
+    "Debt equals debt_share times total project cost. Equity is the residual after debt is rounded to cents.",
+    "Annual debt service is twelve monthly level payments on the debt at the nominal annual interest rate, amortized over amortization_years. Each monthly payment is rounded half-even to cents, then multiplied by 12.",
+    "A zero interest rate sets the monthly payment to debt divided by the number of months.",
+    "Operating days are split 5/7 weekday and 2/7 weekend. The revenue formula uses that exact weight, not a rounded day count.",
+    "Food and beverage revenue equals seats \u00d7 average ticket \u00d7 operating days \u00d7 ((weekday occupancy \u00d7 5) + (weekend occupancy \u00d7 2)) / 7. That is one cover per occupied seat per operating day. Table turns are not in this model.",
+    "Other revenue equals other_revenue_pct times food and beverage revenue. The 0.02 default is a coded small share. It is not a figure from /docs.",
+    "Year-1 revenue equals food and beverage revenue + ticketed events + other revenue.",
+    "Downside food and beverage revenue and downside ticketed events equal the base amounts times downside_revenue_multiplier. Other revenue is then recalculated from downside food and beverage revenue. Debt service stays at the contractual amount. The default multiplier is 0.60, the same constant as FinancialInputs.downside_revenue_multiplier, and it is not a measured demand shock.",
+    "EBITDA equals ebitda_margin times that year's total revenue. The margin is the same in the base case and the downside case.",
+    "Cash flow before debt service equals EBITDA. Tax, depreciation, working capital, and replacement reserves are not in this model.",
+    "Cash flow after debt service equals cash flow before debt service minus annual debt service.",
+    "DSCR equals cash flow before debt service divided by annual debt service. DSCR is undefined when rounded annual debt service is zero.",
+    "Amounts have no currency unit.",
+    "Money is rounded half-even to cents. DSCR is rounded half-even to four decimal places.",
+    "Coded defaults are model assumptions. /docs contain no market study, so the defaults are not verified market benchmarks.",
+    "This calculator does not call scoring/rules.py and does not issue a recommendation. Human review is required before any capital decision (Methodology \u00a7 Core Principles)."
+  ]
+}

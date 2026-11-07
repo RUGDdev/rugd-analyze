@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rugd.local/intake/schema.json",
+  "title": "RUGD Assessment Intake",
+  "description": "Structured intake for business data and assumptions. Verified facts vs. assumptions must be distinguished. Methodology § Core Principles — evidence hierarchy.",
+  "type": "object",
+  "required": ["engagement_type", "business_name", "assumptions"],
+  "properties": {
+    "engagement_type": {
+      "type": "string",
+      "enum": ["startup_feasibility", "expansion_feasibility", "operational_diagnostic"],
+      "description": "Type of assessment"
+    },
+    "business_name": { "type": "string" },
+    "description": { "type": "string" },
+    "as_of_date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "Report date supplied by the intake. The runner does not read the system clock."
+    },
+    "verified_data": {
+      "type": "object",
+      "description": "Facts with evidence (not assumptions)",
+      "properties": {
+        "revenue_trailing_12m": { "type": ["number", "null"] },
+        "current_cash": { "type": ["number", "null"] },
+        "headcount": { "type": ["integer", "null"] },
+        "evidence_notes": { "type": "string" }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "description": "Explicit list of assumptions (user-supplied or model). Recognized keys, matched case-insensitively, are demand_evidence (boolean), operator_capacity_adequate (boolean), unresolved_regulatory_or_liability (boolean), and extraction_without_reinvestment (boolean). source ai_interpretation does not raise or clear recommend-against flags. Other keys are recorded and do not by themselves fire a flag.",
+      "items": {
+        "type": "object",
+        "required": ["key", "value", "source", "rationale"],
+        "properties": {
+          "key": { "type": "string" },
+          "value": {},
+          "source": { "type": "string", "enum": ["user", "verified", "ai_interpretation"] },
+          "rationale": { "type": "string" }
+        }
+      }
+    },
+    "financial_inputs": {
+      "type": "object",
+      "description": "Numeric inputs to the deterministic engine. When inputs_are_measured is false, scoring does not treat the arithmetic as a measured base or downside case.",
+      "properties": {
+        "initial_capital": { "type": "number", "minimum": 0 },
+        "monthly_fixed_costs": { "type": "number", "minimum": 0 },
+        "gross_margin_pct": { "type": "number", "minimum": 0, "maximum": 1 },
+        "projected_monthly_revenue_base": { "type": "number", "minimum": 0 },
+        "downside_revenue_multiplier": { "type": "number", "minimum": 0, "default": 0.6 },
+        "inputs_are_measured": { "type": "boolean" }
+      }
+    },
+    "startup_capital": {
+      "type": "object",
+      "description": "Cost-build worksheet. Construction cost is required when this object is present. Non-verified inputs are user-supplied assumptions. This object does not mark the assessment investor-ready.",
+      "required": [
+        "construction_cost",
+        "seats",
+        "average_ticket",
+        "weekday_occupancy",
+        "weekend_occupancy",
+        "operating_days",
+        "contribution_margin"
+      ],
+      "properties": {
+        "construction_cost": { "type": "number", "exclusiveMinimum": 0 },
+        "equipment": { "type": "number", "minimum": 0 },
+        "soft_costs": { "type": "number", "minimum": 0 },
+        "preopening_working_capital": { "type": "number", "minimum": 0 },
+        "contingency_pct": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.1 },
+        "debt_share": { "type": "number", "minimum": 0, "maximum": 1 },
+        "annual_interest_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "amortization_years": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "seats": { "type": "number", "minimum": 0 },
+        "average_ticket": { "type": "number", "minimum": 0 },
+        "weekday_occupancy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "weekend_occupancy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "operating_days": { "type": "number", "exclusiveMinimum": 0, "maximum": 366 },
+        "annual_fixed_costs": { "type": "number", "minimum": 0 },
+        "contribution_margin": { "type": "number", "minimum": 0, "maximum": 1 },
+        "downside_multiplier": { "type": "number", "minimum": 0, "default": 0.6 }
+      }
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "engagement_type": "startup_feasibility",
+  "business_name": "RUGD Intelligence",
+  "as_of_date": "2026-10-26",
+  "description": "Self-assessment of RUGD Intelligence during the October 2026 pilot. Approved pilot scope is this venture and Bunny Hive. This file is an intake for the assessment engine. It is not a final recommendation.",
+  "verified_data": {
+    "revenue_trailing_12m": null,
+    "current_cash": null,
+    "headcount": null,
+    "evidence_notes": "The only sources read for this intake are docs/00-RUGD-Methodology.md, docs/03-Architecture-MVP.md, docs/04-Pilot-Scope.md, and docs/05-Cursor-Rules.md (all Version 1.0, October 2026). Those documents establish the pilot scope and the methodology. They do not state revenue, cash, headcount, prices, costs, or gross margin."
+  },
+  "assumptions": [
+    {
+      "key": "approved_pilots",
+      "value": ["RUGD Intelligence", "Bunny Hive"],
+      "source": "verified",
+      "rationale": "docs/04-Pilot-Scope.md, Approved Pilots. This is evidence of project scope. It is not evidence of customer demand."
+    },
+    {
+      "key": "pricing_and_process_viability",
+      "value": "open",
+      "source": "verified",
+      "rationale": "docs/04-Pilot-Scope.md Success Criteria still calls for a clear statement of whether pricing and process are viable. No price is stated in /docs."
+    },
+    {
+      "key": "methodology_can_recommend_stop",
+      "value": true,
+      "source": "verified",
+      "rationale": "docs/00-RUGD-Methodology.md Purpose: the methodology must be capable of recommending against a proposed action when evidence does not support proceeding."
+    },
+    {
+      "key": "initial_capital",
+      "value": 0,
+      "source": "ai_interpretation",
+      "rationale": "No capital amount is stated in /docs. Zero is a placeholder so the engine can run. It is not a measured cash balance. inputs_are_measured is false."
+    },
+    {
+      "key": "monthly_fixed_costs",
+      "value": 0,
+      "source": "ai_interpretation",
+      "rationale": "No cost amount is stated in /docs. Zero is a placeholder, not a measured cost."
+    },
+    {
+      "key": "gross_margin_pct",
+      "value": 0,
+      "source": "ai_interpretation",
+      "rationale": "No gross margin is stated in /docs. Zero means the margin is not established. It is not a measured margin of zero percent in the market."
+    },
+    {
+      "key": "projected_monthly_revenue_base",
+      "value": 0,
+      "source": "ai_interpretation",
+      "rationale": "No revenue forecast is stated in /docs. Pricing viability is still an open pilot question. Zero is a placeholder, not a forecast."
+    },
+    {
+      "key": "downside_revenue_multiplier",
+      "value": 0.6,
+      "source": "ai_interpretation",
+      "rationale": "0.6 is the default argument on FinancialInputs in engine/financial.py. It is not a measured downside for this venture."
+    }
+  ],
+  "financial_inputs": {
+    "initial_capital": 0,
+    "monthly_fixed_costs": 0,
+    "gross_margin_pct": 0,
+    "projected_monthly_revenue_base": 0,
+    "downside_revenue_multiplier": 0.6,
+    "inputs_are_measured": false
+  }
+}
