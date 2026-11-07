@@ -4,7 +4,7 @@ Updated: 2026-11-07
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 77 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 80 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 77 tests passing
+- All 80 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -104,3 +104,10 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - The page has no form and no approval control. Results, the Markdown report, and the reviewer screen link to it. The JSON audit at `/assessments/{id}/audit` is unchanged.
 - Opening the HTML page does not write the assessment. The official baseline still renders do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE` present, investor readiness internal, and human review pending.
 - Reviewer events on the page are labeled prototype-grade. The unittest suite is 77 tests, all passing. The server is stopped.
+
+## Progress — 2026-11-07 dashboard, intake, and results presentation
+
+- The dashboard lists each saved assessment with Continue and View results. Official baseline is labeled separately from drafts. Each card shows recommendation, whether `INSUFFICIENT_DEMAND_EVIDENCE` is present, investor readiness, and human review. Unrun drafts say not run and pending. None of those cards are styled as approved or investor-ready.
+- Startup intake names user-supplied assumptions, verified data, and unmeasured placeholders. Missing required startup and monthly fields stay visible. A saved draft reloads the entered values, including a blank field and an edited worksheet default.
+- Results show sources and uses, base and downside, and DSCR from the engine when the startup build calculates. Missing monthly inputs still say Insufficient verified information to calculate. The report and HTML audit links stay on the results page.
+- The unittest suite is 80 tests, all passing. The server is stopped. The official baseline intake was not edited.

@@ -145,3 +145,11 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - The page is read-only. It has no form and no control that can change flags, approval, readiness, or the recommendation. A draft stays labeled draft. A recorded approval is labeled as approval only, and the page still shows the existing readiness status.
 - Results, the served Markdown report, and the reviewer screen link to this page. `/assessments/{id}/audit` remains the JSON audit and its fields are unchanged. Opening the HTML page does not write the assessment. The official baseline still renders do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE` present, investor readiness internal, and human review pending.
 - The reviewer-event section states that authentication remains prototype-grade and is not a customer feature. This page does not add production authentication.
+
+## Decision: Dashboard, intake, and results presentation
+
+- Date: 2026-11-07
+- Status: Accepted for the local prototype only
+- The dashboard lists saved assessments with Continue and View results. The official baseline is labeled separately from customer drafts and hypothetical drafts. A card shows the stored engine summary when a result exists. Before Analyze has been run, recommendation, demand evidence, and investor readiness say not run, and human review says pending. The list does not style a draft or the baseline as approved or investor-ready.
+- The startup intake keeps three labels: user-supplied assumptions, verified data, and unmeasured placeholders. Missing required startup fields and missing monthly fields are stated on the form. Saving writes the posted values. Returning to the draft shows those values again, including a blank field and a worksheet default the customer changed. The form does not fill a blank with an invented number.
+- The results page renders sources and uses, base and downside, and DSCR from the deterministic startup projection when that projection calculated. A simple bar compares the engine’s base and downside revenue. When monthly inputs are missing, the page says Insufficient verified information to calculate. The report and the HTML audit page stay linked from results. This presentation does not change scoring, flags, or the Investor Readiness Gate.

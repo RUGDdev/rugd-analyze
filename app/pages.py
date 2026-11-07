@@ -56,6 +56,10 @@ table {{ width: 100%; border-collapse: collapse; font-family: "Segoe UI", sans-s
 td, th {{ text-align: left; padding: 0.35rem 0.2rem; border-bottom: 1px solid var(--stone); }}
 .flag {{ color: #7a2e2e; }}
 pre {{ white-space: pre-wrap; font-family: Consolas, monospace; font-size: 0.86rem; }}
+details {{ margin: 0.8rem 0; }}
+summary {{ cursor: pointer; font-family: "Segoe UI", sans-serif; }}
+.bar-track {{ background: var(--stone); height: 0.7rem; margin: 0.25rem 0 0.7rem; }}
+.bar {{ background: var(--bronze); height: 0.7rem; }}
 </style>
 </head>
 <body>
@@ -72,11 +76,7 @@ pre {{ white-space: pre-wrap; font-family: Consolas, monospace; font-size: 0.86r
 
 
 def dashboard(records: list[dict[str, Any]]) -> str:
-    items = "".join(
-        f"<li><a href=\"/assessments/{escape(item['id'])}\">{escape(item['business_name'])}</a> "
-        f"<span class=\"muted\">{escape(item['tier'])} · {escape(item['pilot_label'])}</span></li>"
-        for item in records
-    )
+    items = "".join(_history_card(item) for item in records) or "<p>No assessments are saved.</p>"
     body = f"""
 <h1>Customer dashboard</h1>
 <p class="muted">Local test profile. This prototype has no accounts and no production security.</p>
@@ -86,9 +86,63 @@ def dashboard(records: list[dict[str, Any]]) -> str:
 </div>
 <p><a class="button" href="/assessments/new">Start a new assessment</a></p>
 <h2>Assessment history</h2>
-<ul>{items}</ul>
+<p class="muted">Official baseline stays separate from customer drafts. A draft is not approved or investor-ready.</p>
+{items}
 """
     return layout("Dashboard", body)
+
+
+def _history_card(item: dict[str, Any]) -> str:
+    from app.analysis import build_view_summary
+
+    result = item.get("result") or {}
+    if item.get("read_only"):
+        kind = "Official baseline"
+        progress = "Progress: official baseline stored. This list does not treat it as approved or investor-ready."
+    elif item.get("hypothetical"):
+        kind = "Hypothetical draft"
+        progress = _draft_progress(item, result)
+    else:
+        kind = "Draft"
+        progress = _draft_progress(item, result)
+    if result.get("engine_ran"):
+        summary = build_view_summary(result)
+        recommendation = summary.get("recommendation")
+        demand = summary.get("insufficient_demand_evidence")
+        readiness = summary.get("investor_readiness")
+        review = summary.get("human_review_status")
+    else:
+        recommendation = "not run"
+        demand = "not run"
+        readiness = "not run"
+        review = "pending"
+    assessment_id = escape(item["id"])
+    return f"""
+<div class="card">
+<p><strong>{escape(item['business_name'])}</strong> · {escape(kind)} · {escape(item['tier'])}</p>
+<p class="muted">{escape(item['pilot_label'])}</p>
+<p>{escape(progress)}</p>
+<p><strong>Recommendation:</strong> {escape(str(recommendation))}</p>
+<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> {escape(str(demand))}</p>
+<p><strong>Investor readiness:</strong> {escape(str(readiness))}</p>
+<p><strong>Human review status:</strong> {escape(str(review))}</p>
+<p><a class="button" href="/assessments/{assessment_id}">Continue</a>
+<a class="button" href="/assessments/{assessment_id}/results">View results</a></p>
+</div>
+"""
+
+
+def _draft_progress(item: dict[str, Any], result: dict[str, Any]) -> str:
+    filled = _filled_count(item.get("profile") or {}, _STARTUP_REQUIRED)
+    total = len(_STARTUP_REQUIRED)
+    if result.get("engine_ran"):
+        state = "engine result saved"
+    else:
+        state = "saved draft, engine result not run"
+    return (
+        f"Progress: {state}. Required startup fields filled: {filled} of {total}. "
+        "Not an approved or investor-ready result."
+    )
 
 
 def assessment_form(record: dict[str, Any], notice: str = "") -> str:
@@ -156,48 +210,93 @@ def _fields(profile: dict[str, Any], locked: str) -> str:
         return f"<label>{escape(label)}</label><select name=\"{name}\" {locked}>{''.join(options)}</select>"
 
     measured = "checked" if profile.get("inputs_are_measured") is True else ""
-    return "".join(
-        [
-            text("business_name", "Business name"),
-            text("concept", "Business concept", area=True),
-            text("industry", "Industry"),
-            text("market", "Geographic market"),
-            text("stage", "Development stage"),
-            text("products", "Products and services", area=True),
-            text("customers", "Target customers", area=True),
-            text("competition", "Competition", area=True),
-            choice("demand_evidence", "Is there demand evidence? A yes here is still only a user-supplied assumption."),
-            _verified_demand_fields(profile, locked),
-            choice("operator_capacity_adequate", "Is operator capacity adequate?"),
-            choice("unresolved_regulatory_or_liability", "Is there an unresolved regulatory or liability issue?"),
-            choice("extraction_without_reinvestment", "Do stewardship indicators show extraction without reinvestment?"),
-            "<h2>Startup capital</h2>",
-            "<p class=\"muted\">The primary revenue path remains seats × occupancy × average ticket. Blank fields are not filled with invented values.</p>",
-            text("construction_cost", "Construction cost"),
-            text("equipment", "Equipment"),
-            text("soft_costs", "Soft costs"),
-            text("preopening_working_capital", "Pre-opening working capital"),
-            text("contingency_pct", "Contingency percentage (0.10 = 10%)"),
-            text("debt_share", "Debt share"),
-            text("annual_interest_rate", "Annual interest rate"),
-            text("amortization_years", "Amortization years"),
-            text("seats", "Seats"),
-            text("average_ticket", "Average ticket"),
-            text("weekday_occupancy", "Weekday occupancy"),
-            text("weekend_occupancy", "Weekend occupancy"),
-            text("operating_days", "Operating days"),
-            text("annual_fixed_costs", "Annual fixed costs"),
-            text("contribution_margin", "Contribution margin"),
-            text("downside_multiplier", "Downside occupancy multiplier"),
-            "<h2>Monthly engine</h2>",
-            text("initial_capital", "Initial capital"),
-            text("monthly_fixed_costs", "Monthly fixed costs"),
-            text("gross_margin_pct", "Gross margin"),
-            text("projected_monthly_revenue_base", "Projected monthly base revenue"),
-            f'<label><input type="checkbox" name="inputs_are_measured" value="true" {measured} {locked}> These monthly figures are measured</label>',
-            text("evidence_notes", "Evidence notes", area=True),
-        ]
-    )
+    startup_missing = _missing_labels(profile, _STARTUP_REQUIRED)
+    monthly_missing = _missing_labels(profile, _MONTHLY_REQUIRED)
+    if startup_missing:
+        startup_note = (
+            "Missing required startup fields: "
+            + ", ".join(startup_missing)
+            + ". The startup cost build is not calculated until these are saved. "
+            "Blank fields are not replaced with invented values."
+        )
+    else:
+        startup_note = (
+            "Required startup fields are filled. They remain user-supplied assumptions, not verified data."
+        )
+    if monthly_missing:
+        monthly_note = (
+            "Missing monthly fields: "
+            + ", ".join(monthly_missing)
+            + ". Results will say Insufficient verified information to calculate. "
+            "No monthly figure is invented."
+        )
+    else:
+        monthly_note = (
+            "Monthly fields are filled. Leave “These monthly figures are measured” unchecked "
+            "when they are unmeasured placeholders."
+        )
+    return f"""
+<div class="card">
+<p><strong>User-supplied assumptions.</strong> Answers on this form are not verified data.</p>
+<p><strong>Verified data.</strong> Only the separate verified demand record is applied, and only when its source is verified and a rationale is present.</p>
+<p><strong>Unmeasured placeholders.</strong> A blank required field stays blank. A number already shown in a worksheet field is the stored assumption, not a silent substitution.</p>
+<p>{escape(startup_note)}</p>
+<p>{escape(monthly_note)}</p>
+</div>
+<details open>
+<summary>Concept</summary>
+{text("business_name", "Business name")}
+{text("concept", "Business concept", area=True)}
+{text("industry", "Industry")}
+{text("market", "Geographic market")}
+{text("stage", "Development stage")}
+{text("products", "Products and services", area=True)}
+{text("customers", "Target customers", area=True)}
+{text("competition", "Competition", area=True)}
+</details>
+<details open>
+<summary>Demand evidence</summary>
+{choice("demand_evidence", "Is there demand evidence? A yes here is still only a user-supplied assumption.")}
+{_verified_demand_fields(profile, locked)}
+{choice("operator_capacity_adequate", "Is operator capacity adequate?")}
+{choice("unresolved_regulatory_or_liability", "Is there an unresolved regulatory or liability issue?")}
+{choice("extraction_without_reinvestment", "Do stewardship indicators show extraction without reinvestment?")}
+</details>
+<details open>
+<summary>Startup capital</summary>
+<p class="muted">The primary revenue path remains seats × occupancy × average ticket. Required fields are construction cost, seats, average ticket, weekday occupancy, weekend occupancy, operating days, and contribution margin.</p>
+{text("construction_cost", "Construction cost")}
+{text("seats", "Seats")}
+{text("average_ticket", "Average ticket")}
+{text("weekday_occupancy", "Weekday occupancy")}
+{text("weekend_occupancy", "Weekend occupancy")}
+{text("operating_days", "Operating days")}
+{text("contribution_margin", "Contribution margin")}
+</details>
+<details>
+<summary>Optional startup worksheet lines</summary>
+<p class="muted">Values already in these fields are stored with the draft. They are user-supplied worksheet assumptions, not verified data.</p>
+{text("equipment", "Equipment")}
+{text("soft_costs", "Soft costs")}
+{text("preopening_working_capital", "Pre-opening working capital")}
+{text("contingency_pct", "Contingency percentage (0.10 = 10%)")}
+{text("debt_share", "Debt share")}
+{text("annual_interest_rate", "Annual interest rate")}
+{text("amortization_years", "Amortization years")}
+{text("annual_fixed_costs", "Annual fixed costs")}
+{text("downside_multiplier", "Downside occupancy multiplier")}
+</details>
+<details>
+<summary>Monthly engine</summary>
+<p class="muted">All four monthly fields are required before the monthly engine calculates. Unchecked measured status keeps the figures unmeasured.</p>
+{text("initial_capital", "Initial capital")}
+{text("monthly_fixed_costs", "Monthly fixed costs")}
+{text("gross_margin_pct", "Gross margin")}
+{text("projected_monthly_revenue_base", "Projected monthly base revenue")}
+<label><input type="checkbox" name="inputs_are_measured" value="true" {measured} {locked}> These monthly figures are measured</label>
+</details>
+{text("evidence_notes", "Evidence notes", area=True)}
+"""
 
 
 def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:
@@ -244,24 +343,37 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
     gaps = "".join(f"<li>{escape(flag)}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
     missing = "".join(f"<li>{escape(item)}</li>" for item in result.get("missing") or []) or "<li>None listed</li>"
     financial = _financial_table(result.get("financial"))
-    projection = f"<pre>{escape(result.get('projection_text') or '')}</pre>"
+    projection = _projection_view(result)
+    summary_approved = (result.get("human_review_approved") is True and result.get("human_review_status") == "approved")
+    if summary_approved:
+        standing = (
+            "Reviewer approval is recorded. Approval does not clear flags and does not by itself "
+            "mark this result investor-ready."
+        )
+    else:
+        standing = "Draft recommendation. Human review is pending. This is not a final or investor-ready result."
+    links = f"""
+<p><a class="button" href="/assessments/{escape(record['id'])}/report">Open report</a>
+<a class="button" href="/assessments/{escape(record['id'])}/audit/html">HTML audit view</a>
+<a class="button" href="/assessments/{escape(record['id'])}/audit">Inspect audit</a></p>
+"""
     body = f"""
-<h1>Draft results for {escape(record['business_name'])}</h1>
-<div class="banner">Draft recommendation. Human review is pending. This is not a final or investor-ready result.</div>
+<h1>Results for {escape(record['business_name'])}</h1>
+<div class="banner">{escape(standing)}</div>
+{links}
 <div class="card">
 {_view_summary_block(result)}
-<p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}.</p>
+<p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Figures below are deterministic engine outputs.</p>
 </div>
 <h2>Demand evidence</h2>
 {_demand_status(result.get("demand") or {})}
 <h2>Recommend-against flags</h2><ul>{flags}</ul>
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
 <h2>Missing information</h2><ul>{missing}</ul>
-<h2>Monthly engine</h2>{financial}
-<h2>Startup capital views</h2>{projection}
-<p><a class="button" href="/assessments/{escape(record['id'])}/report">Open report</a>
-<a class="button" href="/assessments/{escape(record['id'])}/audit/html">HTML audit view</a>
-<a class="button" href="/assessments/{escape(record['id'])}/audit">Inspect audit</a></p>
+<h2>Monthly base and downside</h2>{financial}
+<h2>Sources and uses, scenarios, and DSCR</h2>
+{projection}
+{links}
 """
     return layout("Results", body)
 
@@ -303,6 +415,123 @@ def _demand_status(demand: dict[str, Any]) -> str:
 <p>{evidence}</p>
 <p class="muted">Clearing or leaving this flag does not mark the result investor-ready.</p>
 </div>
+"""
+
+
+_STARTUP_REQUIRED = (
+    ("construction_cost", "Construction cost"),
+    ("seats", "Seats"),
+    ("average_ticket", "Average ticket"),
+    ("weekday_occupancy", "Weekday occupancy"),
+    ("weekend_occupancy", "Weekend occupancy"),
+    ("operating_days", "Operating days"),
+    ("contribution_margin", "Contribution margin"),
+)
+_MONTHLY_REQUIRED = (
+    ("initial_capital", "Initial capital"),
+    ("monthly_fixed_costs", "Monthly fixed costs"),
+    ("gross_margin_pct", "Gross margin"),
+    ("projected_monthly_revenue_base", "Projected monthly base revenue"),
+)
+
+
+def _missing_labels(profile: dict[str, Any], fields: tuple[tuple[str, str], ...]) -> list[str]:
+    return [label for key, label in fields if not str(profile.get(key) or "").strip()]
+
+
+def _filled_count(profile: dict[str, Any], fields: tuple[tuple[str, str], ...]) -> int:
+    return len(fields) - len(_missing_labels(profile, fields))
+
+
+def _projection_view(result: dict[str, Any]) -> str:
+    projection = result.get("projection") or {}
+    engine_text = f"<details><summary>Engine text</summary><pre>{escape(result.get('projection_text') or '')}</pre></details>"
+    if not projection.get("calculated"):
+        note = str(projection.get("note") or result.get("projection_text") or "")
+        return (
+            "<p>No sources-and-uses table is shown. The engine did not calculate the startup cost build.</p>"
+            f"<p>{escape(note)}</p>{engine_text}"
+        )
+    uses = (projection.get("sources_and_uses") or {}).get("uses") or {}
+    sources = (projection.get("sources_and_uses") or {}).get("sources") or {}
+    views = projection.get("views") or {}
+    base = views.get("base") or {}
+    downside = views.get("downside") or {}
+    break_even = views.get("break_even") or {}
+    use_rows = "".join(
+        f"<tr><td>{escape(key)}</td><td>{escape(_amount_text(uses.get(key)))}</td></tr>"
+        for key in (
+            "construction_cost",
+            "equipment",
+            "soft_costs",
+            "preopening_working_capital",
+            "contingency",
+            "total_project_cost",
+        )
+    )
+    source_rows = "".join(
+        f"<tr><td>{escape(key)}</td><td>{escape(_amount_text(sources.get(key)))}</td></tr>"
+        for key in ("debt", "equity", "total_sources", "annual_debt_service")
+    )
+    scenario = f"""
+<table>
+<tr><th>Scenario</th><th>Revenue</th><th>Cash flow before debt service</th><th>DSCR</th></tr>
+<tr><td>Base</td><td>{escape(_plain_number(base.get('revenue')))}</td><td>{escape(_plain_number(base.get('cash_flow_before_debt_service')))}</td><td>{escape(_dscr_label(base.get('dscr')))}</td></tr>
+<tr><td>Downside</td><td>{escape(_plain_number(downside.get('revenue')))}</td><td>{escape(_plain_number(downside.get('cash_flow_before_debt_service')))}</td><td>{escape(_dscr_label(downside.get('dscr')))}</td></tr>
+</table>
+<p>Break-even revenue from the engine: {escape(_plain_number(break_even.get('revenue')))}</p>
+{_revenue_bars(base.get('revenue'), downside.get('revenue'))}
+"""
+    return f"""
+<h3>Sources and uses</h3>
+<table><tr><th>Use</th><th>Amount</th></tr>{use_rows}</table>
+<table><tr><th>Source</th><th>Amount</th></tr>{source_rows}</table>
+<h3>Base and downside</h3>
+{scenario}
+{engine_text}
+"""
+
+
+def _amount_text(value: Any) -> str:
+    if isinstance(value, dict):
+        amount = value.get("amount")
+        label = value.get("evidence_label") or ""
+        if amount is None:
+            return "not defined"
+        return f"{amount} ({label})" if label else str(amount)
+    if value is None:
+        return "not defined"
+    return str(value)
+
+
+def _plain_number(value: Any) -> str:
+    if value is None:
+        return "not defined"
+    return str(value)
+
+
+def _dscr_label(value: Any) -> str:
+    if value is None:
+        return "undefined"
+    return str(value)
+
+
+def _revenue_bars(base: Any, downside: Any) -> str:
+    if isinstance(base, bool) or isinstance(downside, bool):
+        return ""
+    if not isinstance(base, (int, float)) or not isinstance(downside, (int, float)):
+        return ""
+    span = max(abs(base), abs(downside))
+    if span == 0:
+        return ""
+    base_width = round(abs(base) / span * 100)
+    downside_width = round(abs(downside) / span * 100)
+    return f"""
+<p>Base revenue and downside revenue from the engine.</p>
+<p>Base {escape(str(base))}</p>
+<div class="bar-track"><div class="bar" style="width: {base_width}%"></div></div>
+<p>Downside {escape(str(downside))}</p>
+<div class="bar-track"><div class="bar" style="width: {downside_width}%"></div></div>
 """
 
 
