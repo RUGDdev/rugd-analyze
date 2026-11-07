@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import uuid
@@ -83,6 +84,20 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         connection.execute(
             "UPDATE reviewer_sessions SET expires_at = created_at WHERE expires_at IS NULL"
         )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reviewer_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT NOT NULL,
+            assessment_id TEXT,
+            reviewer_identity TEXT NOT NULL,
+            recorded_at TEXT NOT NULL,
+            authentication_method TEXT,
+            session_id TEXT NOT NULL,
+            note TEXT NOT NULL
+        )
+        """
+    )
     return connection
 
 
@@ -411,6 +426,115 @@ def list_approvals(connection: sqlite3.Connection, assessment_id: str) -> list[d
         (assessment_id,),
     ).fetchall()
     return [_approval_from_row(row) for row in rows]
+
+
+def session_public_id(token: str) -> str:
+    """Short hash for audit display. The raw session token stays out of the trail."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+
+
+def record_reviewer_event(
+    connection: sqlite3.Connection,
+    *,
+    action: str,
+    reviewer_identity: str,
+    session_token: str,
+    authentication_method: str | None,
+    assessment_id: str | None = None,
+    note: str = "",
+) -> dict[str, Any]:
+    recorded_at = _now()
+    session_id = session_public_id(session_token)
+    connection.execute(
+        """
+        INSERT INTO reviewer_events (
+            action, assessment_id, reviewer_identity, recorded_at,
+            authentication_method, session_id, note
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            action,
+            assessment_id,
+            reviewer_identity,
+            recorded_at,
+            authentication_method,
+            session_id,
+            note,
+        ),
+    )
+    connection.commit()
+    row = connection.execute(
+        """
+        SELECT action, assessment_id, reviewer_identity, recorded_at,
+               authentication_method, session_id, note
+        FROM reviewer_events
+        WHERE id = last_insert_rowid()
+        """
+    ).fetchone()
+    assert row is not None
+    return _event_from_row(row)
+
+
+def list_reviewer_events(
+    connection: sqlite3.Connection,
+    assessment_id: str | None = None,
+) -> list[dict[str, Any]]:
+    if assessment_id is None:
+        rows = connection.execute(
+            """
+            SELECT action, assessment_id, reviewer_identity, recorded_at,
+                   authentication_method, session_id, note
+            FROM reviewer_events
+            ORDER BY id
+            """
+        ).fetchall()
+    else:
+        rows = connection.execute(
+            """
+            SELECT action, assessment_id, reviewer_identity, recorded_at,
+                   authentication_method, session_id, note
+            FROM reviewer_events
+            WHERE assessment_id IS NULL OR assessment_id = ?
+            ORDER BY id
+            """,
+            (assessment_id,),
+        ).fetchall()
+    return [_event_from_row(row) for row in rows]
+
+
+def session_activity(connection: sqlite3.Connection) -> dict[str, str | None]:
+    return {
+        "last_sign_in": _latest_event_time(connection, "sign-in"),
+        "last_sign_out": _latest_event_time(connection, "sign-out"),
+    }
+
+
+def _latest_event_time(connection: sqlite3.Connection, action: str) -> str | None:
+    row = connection.execute(
+        """
+        SELECT recorded_at FROM reviewer_events
+        WHERE action = ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (action,),
+    ).fetchone()
+    if row is None:
+        return None
+    return row["recorded_at"]
+
+
+def _event_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "action": row["action"],
+        "assessment_id": row["assessment_id"],
+        "reviewer_identity": row["reviewer_identity"],
+        "recorded_at": row["recorded_at"],
+        "authentication_method": row["authentication_method"],
+        "session_id": row["session_id"],
+        "note": row["note"],
+    }
 
 
 def start_reviewer_session(

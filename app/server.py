@@ -44,6 +44,8 @@ from app.store import (
     get_assessment,
     list_approvals,
     list_assessments,
+    list_reviewer_events,
+    session_activity,
     request_review,
     save_profile,
     save_result,
@@ -145,6 +147,7 @@ class AppHandler(BaseHTTPRequestHandler):
             result = self._ensure_result(connection, record)
             payload = dict(result.get("audit") or {"human_review_approved": False, "message": result.get("message")})
             payload["approvals"] = [] if record["read_only"] else list_approvals(connection, record["id"])
+            payload["reviewer_events"] = list_reviewer_events(connection, record["id"])
             payload["human_review_approved"] = bool(record["human_review_approved"])
             if not record["human_review_approved"]:
                 readiness = payload.get("investor_readiness")
@@ -208,7 +211,12 @@ class AppHandler(BaseHTTPRequestHandler):
     def _reviewer_get(self, connection: Any, path: str) -> None:
         parts = [part for part in path.split("/") if part]
         if path == "/reviewer" or parts == ["reviewer"]:
-            self._html(reviewer_home(self._reviewer_session_state(connection)))
+            self._html(
+                reviewer_home(
+                    self._reviewer_session_state(connection),
+                    session_activity(connection),
+                )
+            )
             return
         if len(parts) < 3 or parts[0] != "reviewer" or parts[1] != "assessments":
             self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
@@ -218,7 +226,14 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
             return
         result = record.get("result")
-        self._html(reviewer_page(record, result, self._reviewer_session_state(connection)))
+        self._html(
+            reviewer_page(
+                record,
+                result,
+                self._reviewer_session_state(connection),
+                session_activity(connection),
+            )
+        )
 
     def _reviewer_post(self, connection: Any, parts: list[str], form: dict[str, str]) -> None:
         if len(parts) < 4 or parts[1] != "assessments" or parts[3] != "approve":

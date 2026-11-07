@@ -361,12 +361,13 @@ def reviewer_page(
     record: dict[str, Any],
     result: dict[str, Any] | None,
     session: dict[str, Any] | None = None,
+    activity: dict[str, Any] | None = None,
 ) -> str:
     result = result or {}
     flags = ", ".join(result.get("blocking_flags") or []) or "none loaded"
     readiness = result.get("readiness_status") or "not loaded"
     approved = "true" if record.get("human_review_approved") else "false"
-    auth_state, signed_in, expired = _session_status(session)
+    auth_state, signed_in, expired, status_word = _session_status(session)
     next_path = f"/reviewer/assessments/{record['id']}"
     if record.get("read_only"):
         control = "<p>The official baseline cannot be approved from this prototype.</p>"
@@ -387,6 +388,7 @@ def reviewer_page(
 <h1>Reviewer control</h1>
 <div class="banner">Reviewer control. Not a customer feature. Prototype-grade local session. This is not production authentication.</div>
 <p><strong>Authentication state:</strong> {escape(auth_state)}</p>
+{_session_activity_block(activity, status_word)}
 <p>Assessment: {escape(record['business_name'])} ({escape(record['id'])})</p>
 <p><strong>Recommendation:</strong> {escape(str(result.get('recommendation') or 'not loaded'))}</p>
 <p><strong>INSUFFICIENT_DEMAND_EVIDENCE and other blocking flags:</strong> {escape(flags)}</p>
@@ -398,8 +400,11 @@ def reviewer_page(
     return layout("Reviewer control", body)
 
 
-def reviewer_home(session: dict[str, Any] | None) -> str:
-    state, signed_in, expired = _session_status(session)
+def reviewer_home(
+    session: dict[str, Any] | None,
+    activity: dict[str, Any] | None = None,
+) -> str:
+    state, signed_in, expired, status_word = _session_status(session)
     form = "" if signed_in else _reviewer_sign_in_form("/reviewer")
     if signed_in or expired:
         form += _reviewer_sign_out_form("/reviewer")
@@ -409,13 +414,26 @@ def reviewer_home(session: dict[str, Any] | None) -> str:
 <h1>Reviewer</h1>
 <div class="banner">Prototype-grade local session. Not a customer feature. Not production authentication.</div>
 <p><strong>Authentication state:</strong> {escape(state)}</p>
+{_session_activity_block(activity, status_word)}
 {form}
 <p class="muted">Open a saved assessment reviewer screen after signing in.</p>
 """,
     )
 
 
-def _session_status(session: dict[str, Any] | None) -> tuple[str, bool, bool]:
+def _session_activity_block(activity: dict[str, Any] | None, status_word: str) -> str:
+    activity = activity or {}
+    last_sign_in = activity.get("last_sign_in") or "none recorded"
+    last_sign_out = activity.get("last_sign_out") or "none recorded"
+    return f"""
+<p class="muted">Prototype session activity. Not a customer feature. Not production authentication.</p>
+<p><strong>Last sign-in:</strong> {escape(str(last_sign_in))}</p>
+<p><strong>Last sign-out:</strong> {escape(str(last_sign_out))}</p>
+<p><strong>Current session status:</strong> {escape(status_word)}</p>
+"""
+
+
+def _session_status(session: dict[str, Any] | None) -> tuple[str, bool, bool, str]:
     session = session or {}
     state_name = str(session.get("state") or "")
     signed_in = bool(session.get("active")) and state_name != "expired"
@@ -426,10 +444,10 @@ def _session_status(session: dict[str, Any] | None) -> tuple[str, bool, bool]:
             f"({session.get('authentication_method')}). "
             f"Remaining lifetime: {_format_remaining(session.get('remaining_seconds'))}."
         )
-        return label, True, False
+        return label, True, False, "signed in"
     if expired:
-        return "expired", False, True
-    return "signed out", False, False
+        return "expired", False, True, "expired"
+    return "signed out", False, False, "signed out"
 
 
 def _format_remaining(seconds: Any) -> str:

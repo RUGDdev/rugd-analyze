@@ -124,3 +124,15 @@ This is not production authentication. There is no OAuth provider, no external i
 ### Prototype limitations
 
 This lifetime and sign-out are still prototype-grade. There is no password hash, no OAuth or external identity provider, no per-person account, and no revocation list beyond deleting the local token. The passphrase remains the source constant. The cookie is still not `Secure`. A person who can read the source and reach the local server can sign in again until a later decision replaces this mechanism.
+
+## Decision: Reviewer session audit events
+
+- Date: 2026-11-07
+- Status: Accepted for the local prototype only
+- A successful sign-in writes a `sign-in` event. Sign-out writes a `sign-out` event. Approval writes an `approve` event in the same `reviewer_events` trail. Each event stores the reviewer identity, timestamp, authentication method, and a 12-character SHA-256 prefix of the session token (`session_id`). The raw token is not stored in the trail and is not shown in the audit JSON or on the reviewer screen.
+- The assessment audit at `/assessments/{id}/audit` includes `reviewer_events` for that assessment and for session events that are not tied to one assessment. `sign-in`, `sign-out`, and `approve` stay distinguishable. The reviewer screen shows the last sign-in time, the last sign-out time, and the current session status, labeled prototype and not a customer feature.
+- These events do not clear `INSUFFICIENT_DEMAND_EVIDENCE`, change the recommendation, mark a result final, or change investor readiness. A failed sign-in writes no event. An expired or signed-out session still cannot approve. The official baseline stays unapprovable, and `approvals` on that audit stays empty.
+
+### Prototype limitations
+
+This audit is still prototype-grade. It is a local SQLite log, not a production identity system. There is no password hash, no OAuth or external identity provider, and no per-person account. The passphrase remains the source constant. The session hash is a short display identifier, not a second secret. The cookie is still not `Secure`. A person who can read the source and reach the local server can sign in again until a later decision replaces this mechanism.

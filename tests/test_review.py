@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from app.analysis import analyze_record
 from app.pages import reviewer_page, validate_page
 from app.review import (
     PROTOTYPE_REVIEWER_IDENTITY,
@@ -20,7 +21,19 @@ from app.review import (
     reviewer_session_state,
 )
 from app.server import make_server
-from app.store import BASELINE_ID, SAMPLE, connect, create_assessment, get_assessment, save_profile, seed
+from app.store import (
+    BASELINE_ID,
+    SAMPLE,
+    connect,
+    create_assessment,
+    get_assessment,
+    list_reviewer_events,
+    save_profile,
+    save_result,
+    seed,
+    session_activity,
+    session_public_id,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "reports" / "output"
@@ -104,6 +117,90 @@ class TestReviewerApproval(unittest.TestCase):
         self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before)
         self.assertEqual(sorted(path.name for path in OUTPUT.iterdir()), output_before)
 
+    def test_sign_in_and_sign_out_write_audit_events(self) -> None:
+        assessment_id = create_assessment(
+            self.connection,
+            business_name="Audit Cafe",
+            purpose="startup_feasibility",
+            tier="analyze",
+        )
+        current = get_assessment(self.connection, assessment_id)
+        assert current is not None
+        save_profile(
+            self.connection,
+            assessment_id,
+            {**current["profile"], "operator_capacity_adequate": "no"},
+        )
+        analyzed = analyze_record(get_assessment(self.connection, assessment_id))
+        save_result(self.connection, assessment_id, analyzed.get("intake"), analyzed)
+        before = get_assessment(self.connection, assessment_id)
+        assert before is not None
+        with self.assertRaises(PermissionError):
+            open_reviewer_session(
+                self.connection,
+                reviewer_identity=PROTOTYPE_REVIEWER_IDENTITY,
+                reviewer_passphrase="wrong",
+            )
+        self.assertEqual(list_reviewer_events(self.connection, assessment_id), [])
+        session = open_reviewer_session(
+            self.connection,
+            reviewer_identity=PROTOTYPE_REVIEWER_IDENTITY,
+            reviewer_passphrase=PROTOTYPE_REVIEWER_PASSPHRASE,
+        )
+        events = list_reviewer_events(self.connection, assessment_id)
+        self.assertEqual([item["action"] for item in events], ["sign-in"])
+        event = events[0]
+        self.assertEqual(event["reviewer_identity"], "Local prototype reviewer")
+        self.assertEqual(event["authentication_method"], "local-session")
+        self.assertTrue(event["recorded_at"])
+        self.assertEqual(event["session_id"], session_public_id(session["token"]))
+        self.assertNotIn("token", event)
+        self.assertNotIn(session["token"], json.dumps(events))
+        after_sign_in = get_assessment(self.connection, assessment_id)
+        assert after_sign_in is not None
+        self.assertEqual(after_sign_in["result"]["recommendation"], before["result"]["recommendation"])
+        self.assertEqual(after_sign_in["result"]["blocking_flags"], before["result"]["blocking_flags"])
+        self.assertEqual(after_sign_in["result"]["readiness_status"], before["result"]["readiness_status"])
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", after_sign_in["result"]["blocking_flags"])
+        self.assertEqual(after_sign_in["result"]["readiness_status"], "internal")
+        self.assertFalse(after_sign_in["human_review_approved"])
+        activity = session_activity(self.connection)
+        page = reviewer_page(after_sign_in, after_sign_in["result"], session, activity)
+        self.assertIn(f"Last sign-in:</strong> {activity['last_sign_in']}", page)
+        self.assertIn("Last sign-out:</strong> none recorded", page)
+        self.assertIn("Current session status:</strong> signed in", page)
+        self.assertIn("Not a customer feature", page)
+        self.assertIn("Record reviewer approval", page)
+        close_reviewer_session(self.connection, session["token"])
+        events = list_reviewer_events(self.connection, assessment_id)
+        self.assertEqual([item["action"] for item in events], ["sign-in", "sign-out"])
+        signed_out_event = events[1]
+        self.assertEqual(signed_out_event["reviewer_identity"], "Local prototype reviewer")
+        self.assertEqual(signed_out_event["session_id"], event["session_id"])
+        self.assertTrue(signed_out_event["recorded_at"])
+        self.assertNotIn(session["token"], json.dumps(events))
+        with self.assertRaises(PermissionError):
+            approve_assessment(self.connection, assessment_id, session=session)
+        activity = session_activity(self.connection)
+        closed = reviewer_page(
+            after_sign_in,
+            after_sign_in["result"],
+            reviewer_session_state(self.connection, session["token"]),
+            activity,
+        )
+        self.assertIn("Current session status:</strong> signed out", closed)
+        self.assertIn(f"Last sign-out:</strong> {activity['last_sign_out']}", closed)
+        self.assertNotIn("Record reviewer approval", closed)
+        unchanged = get_assessment(self.connection, assessment_id)
+        assert unchanged is not None
+        self.assertEqual(unchanged["result"]["recommendation"], "do-not-proceed")
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", unchanged["result"]["blocking_flags"])
+        self.assertEqual(unchanged["result"]["readiness_status"], "internal")
+        self.assertFalse(unchanged["human_review_approved"])
+        with self.assertRaises(PermissionError):
+            approve_assessment(self.connection, BASELINE_ID, session=session)
+        self.assertFalse(get_assessment(self.connection, BASELINE_ID)["human_review_approved"])
+
     def test_http_customer_path_stays_forbidden_and_reviewer_path_approves(self) -> None:
         server = make_server(self.db, port=0)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -151,6 +248,19 @@ class TestReviewerApproval(unittest.TestCase):
             self.assertIn("signed out", unsigned)
             self.assertNotIn("Record reviewer approval", unsigned)
             cookie = self._sign_in(base, f"/reviewer/assessments/{assessment_id}")
+            with urllib.request.urlopen(assessment_url + "/audit") as response:
+                before_audit = json.loads(response.read().decode("utf-8"))
+            self.assertEqual(before_audit["recommendation"]["draft_recommendation"], "do-not-proceed")
+            self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", before_audit["recommendation"]["blocking_flags"])
+            self.assertEqual(before_audit["investor_readiness"]["status"], "internal")
+            self.assertFalse(before_audit["human_review_approved"])
+            sign_in_events = [item for item in before_audit["reviewer_events"] if item["action"] == "sign-in"]
+            self.assertTrue(sign_in_events)
+            self.assertEqual(sign_in_events[-1]["reviewer_identity"], "Local prototype reviewer")
+            self.assertEqual(sign_in_events[-1]["authentication_method"], "local-session")
+            self.assertTrue(sign_in_events[-1]["recorded_at"])
+            self.assertEqual(len(sign_in_events[-1]["session_id"]), 12)
+            self.assertNotIn(cookie.split("=", 1)[1], json.dumps(before_audit))
             approved = urllib.request.Request(
                 f"{base}/reviewer/assessments/{assessment_id}/approve",
                 data=b"",
@@ -187,6 +297,19 @@ class TestReviewerApproval(unittest.TestCase):
             self.assertEqual(audit["approvals"][0]["assessment_id"], assessment_id)
             self.assertEqual(audit["approvals"][0]["reviewer_identity"], "Local prototype reviewer")
             self.assertEqual(audit["approvals"][0]["authentication_method"], "local-session")
+            self.assertEqual(
+                audit["recommendation"]["draft_recommendation"],
+                before_audit["recommendation"]["draft_recommendation"],
+            )
+            self.assertEqual(
+                audit["recommendation"]["blocking_flags"],
+                before_audit["recommendation"]["blocking_flags"],
+            )
+            self.assertEqual(audit["investor_readiness"]["status"], "internal")
+            actions = [item["action"] for item in audit["reviewer_events"]]
+            self.assertIn("sign-in", actions)
+            self.assertIn("approve", actions)
+            self.assertNotIn(cookie.split("=", 1)[1], json.dumps(audit))
             with urllib.request.urlopen(base + "/assessments/rugd-intelligence-baseline/audit") as response:
                 baseline_audit = json.loads(response.read().decode("utf-8"))
             self.assertFalse(baseline_audit["human_review_approved"])
@@ -290,6 +413,15 @@ class TestReviewerApproval(unittest.TestCase):
                 403,
                 "signed out",
             )
+            with urllib.request.urlopen(f"{base}/assessments/{assessment_id}/audit") as response:
+                trail = json.loads(response.read().decode("utf-8"))
+            trail_actions = [item["action"] for item in trail["reviewer_events"]]
+            self.assertIn("sign-in", trail_actions)
+            self.assertIn("sign-out", trail_actions)
+            self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", trail["recommendation"]["blocking_flags"])
+            self.assertEqual(trail["investor_readiness"]["status"], "internal")
+            self.assertNotEqual(trail["investor_readiness"]["status"], "investor-ready")
+            self.assertNotIn(token, json.dumps(trail))
             self._expect_status_with_cookie(
                 f"{base}/reviewer/assessments/{BASELINE_ID}/approve",
                 b"",

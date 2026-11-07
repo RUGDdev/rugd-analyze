@@ -4,7 +4,7 @@ Updated: 2026-11-07
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 74 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 75 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 74 tests passing
+- All 75 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -90,3 +90,10 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - The reviewer screen shows signed in, signed out, or expired, plus the remaining lifetime while signed in. The approve control stays hidden when the session is missing or expired. Sign out is labeled prototype and not a customer feature. Validate still only requests review and shows pending.
 - Approval still does not clear `INSUFFICIENT_DEMAND_EVIDENCE` or grant investor-ready. The official baseline cannot be approved. Customer posts that include `human_review_approved` still return 403.
 - Authentication remains prototype-grade. The unittest suite is 74 tests, all passing. The server is stopped.
+
+## Progress — 2026-11-07 reviewer session audit
+
+- Successful sign-in and sign-out write events on the local reviewer trail, with reviewer identity, timestamp, authentication method, and a short session hash. The raw session token is not shown.
+- The assessment audit JSON lists those events beside approvals. Actions are `sign-in`, `sign-out`, and `approve`. The reviewer screen shows the last sign-in, the last sign-out, and the current session status.
+- Session events do not change the recommendation, `INSUFFICIENT_DEMAND_EVIDENCE`, or investor readiness. Expired and signed-out sessions still cannot approve. The official baseline stays unapprovable. Customer posts that include `human_review_approved` still return 403.
+- Authentication remains prototype-grade. The unittest suite is 75 tests, all passing. The server is stopped.

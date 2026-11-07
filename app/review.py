@@ -15,6 +15,7 @@ from app.store import (
     latest_approval,
     load_reviewer_session,
     record_approval,
+    record_reviewer_event,
     save_result,
     start_reviewer_session,
 )
@@ -48,13 +49,22 @@ def open_reviewer_session(
         raise ReviewError("Reviewer sign-in refused. This is not a customer approval control.")
     created = datetime.now(timezone.utc).replace(microsecond=0)
     expires = created + timedelta(hours=SESSION_LIFETIME_HOURS)
-    return start_reviewer_session(
+    session = start_reviewer_session(
         connection,
         token=secrets.token_urlsafe(32),
         reviewer_identity=identity,
         authentication_method=AUTHENTICATION_METHOD,
         expires_at=expires.isoformat(),
     )
+    record_reviewer_event(
+        connection,
+        action="sign-in",
+        reviewer_identity=identity,
+        session_token=session["token"],
+        authentication_method=AUTHENTICATION_METHOD,
+        note="Prototype reviewer sign-in. This does not change an assessment.",
+    )
+    return session
 
 
 def session_from_token(connection: Any, token: str) -> dict[str, Any] | None:
@@ -81,7 +91,17 @@ def reviewer_session_state(connection: Any, token: str) -> dict[str, Any]:
 
 
 def close_reviewer_session(connection: Any, token: str) -> None:
-    """Delete the stored token. The caller also clears the cookie."""
+    """Record sign-out, then delete the stored token. The caller also clears the cookie."""
+    loaded = load_reviewer_session(connection, token)
+    if loaded is not None:
+        record_reviewer_event(
+            connection,
+            action="sign-out",
+            reviewer_identity=str(loaded.get("reviewer_identity") or ""),
+            session_token=token,
+            authentication_method=str(loaded.get("authentication_method") or ""),
+            note="Prototype reviewer sign-out. This does not change an assessment.",
+        )
     end_reviewer_session(connection, token)
 
 
@@ -117,6 +137,15 @@ def approve_assessment(
         reviewer_identity=identity,
         note=APPROVAL_NOTE,
         authentication_method=AUTHENTICATION_METHOD,
+    )
+    record_reviewer_event(
+        connection,
+        action="approve",
+        reviewer_identity=identity,
+        session_token=str(current["token"]),
+        authentication_method=AUTHENTICATION_METHOD,
+        assessment_id=assessment_id,
+        note=APPROVAL_NOTE,
     )
     result = _with_approval(pending, approval)
     save_result(connection, assessment_id, result.get("intake"), result)
