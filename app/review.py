@@ -1,21 +1,28 @@
-"""Reviewer-only approval. This is a local prototype gate, not production authentication."""
+"""Prototype reviewer session and approval. This is not production authentication."""
 
 from __future__ import annotations
 
+import secrets
 from typing import Any
 
 from app.analysis import analyze_intake, analyze_record
 from app.store import (
     BASELINE_ID,
     get_assessment,
+    get_reviewer_session,
     latest_approval,
     record_approval,
     save_result,
+    start_reviewer_session,
 )
 
-LOCAL_REVIEWER_GATE = "local-prototype-reviewer"
+PROTOTYPE_REVIEWER_IDENTITY = "Local prototype reviewer"
+PROTOTYPE_REVIEWER_PASSPHRASE = "local-prototype-reviewer"
+LOCAL_REVIEWER_GATE = PROTOTYPE_REVIEWER_PASSPHRASE
+AUTHENTICATION_METHOD = "local-session"
 APPROVAL_NOTE = (
-    "Reviewer approval recorded. It does not clear recommend-against flags, "
+    "Reviewer approval recorded by a local-session reviewer. "
+    "It does not clear recommend-against flags, "
     "does not change the draft recommendation, and does not grant investor-ready."
 )
 
@@ -24,19 +31,40 @@ class ReviewError(PermissionError):
     """The reviewer gate refused the action."""
 
 
+def open_reviewer_session(
+    connection: Any,
+    *,
+    reviewer_identity: str,
+    reviewer_passphrase: str,
+) -> dict[str, Any]:
+    """Open a local reviewer session. The passphrase is a prototype constant, not a user password store."""
+    identity = reviewer_identity.strip()
+    if identity != PROTOTYPE_REVIEWER_IDENTITY or reviewer_passphrase != PROTOTYPE_REVIEWER_PASSPHRASE:
+        raise ReviewError("Reviewer sign-in refused. This is not a customer approval control.")
+    return start_reviewer_session(
+        connection,
+        token=secrets.token_urlsafe(32),
+        reviewer_identity=identity,
+        authentication_method=AUTHENTICATION_METHOD,
+    )
+
+
+def session_from_token(connection: Any, token: str) -> dict[str, Any] | None:
+    return get_reviewer_session(connection, token)
+
+
 def approve_assessment(
     connection: Any,
     assessment_id: str,
     *,
-    reviewer_identity: str,
-    reviewer_gate: str,
+    session: dict[str, Any],
 ) -> dict[str, Any]:
-    """Record approval and refresh the stored result. Customer forms cannot call this."""
-    if reviewer_gate != LOCAL_REVIEWER_GATE:
-        raise ReviewError("Reviewer gate refused. This is not a customer approval control.")
-    identity = reviewer_identity.strip()
-    if not identity:
-        raise ValueError("A reviewer identity is required.")
+    """Record approval for an authenticated reviewer session. Customer forms cannot call this."""
+    if session.get("role") != "reviewer" or session.get("authentication_method") != AUTHENTICATION_METHOD:
+        raise ReviewError("Reviewer authentication refused. This is not a customer approval control.")
+    identity = str(session.get("reviewer_identity") or "").strip()
+    if identity != PROTOTYPE_REVIEWER_IDENTITY:
+        raise ReviewError("Reviewer authentication refused. This is not a customer approval control.")
     record = get_assessment(connection, assessment_id)
     if record is None:
         raise KeyError(assessment_id)
@@ -50,6 +78,7 @@ def approve_assessment(
         assessment_id,
         reviewer_identity=identity,
         note=APPROVAL_NOTE,
+        authentication_method=AUTHENTICATION_METHOD,
     )
     result = _with_approval(pending, approval)
     save_result(connection, assessment_id, result.get("intake"), result)

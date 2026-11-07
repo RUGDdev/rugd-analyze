@@ -51,7 +51,26 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
             assessment_id TEXT NOT NULL,
             reviewer_identity TEXT NOT NULL,
             approved_at TEXT NOT NULL,
-            note TEXT NOT NULL
+            note TEXT NOT NULL,
+            authentication_method TEXT NOT NULL DEFAULT 'local-prototype-gate'
+        )
+        """
+    )
+    approval_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(review_approvals)")
+    }
+    if "authentication_method" not in approval_columns:
+        connection.execute(
+            "ALTER TABLE review_approvals ADD COLUMN authentication_method TEXT NOT NULL DEFAULT 'local-prototype-gate'"
+        )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reviewer_sessions (
+            token TEXT PRIMARY KEY,
+            reviewer_identity TEXT NOT NULL,
+            role TEXT NOT NULL,
+            authentication_method TEXT NOT NULL,
+            created_at TEXT NOT NULL
         )
         """
     )
@@ -327,14 +346,17 @@ def record_approval(
     *,
     reviewer_identity: str,
     note: str,
+    authentication_method: str,
 ) -> dict[str, Any]:
     approved_at = _now()
     connection.execute(
         """
-        INSERT INTO review_approvals (assessment_id, reviewer_identity, approved_at, note)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO review_approvals (
+            assessment_id, reviewer_identity, approved_at, note, authentication_method
+        )
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (assessment_id, reviewer_identity, approved_at, note),
+        (assessment_id, reviewer_identity, approved_at, note, authentication_method),
     )
     connection.commit()
     approval = latest_approval(connection, assessment_id)
@@ -342,10 +364,21 @@ def record_approval(
     return approval
 
 
+def _approval_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "assessment_id": row["assessment_id"],
+        "reviewer_identity": row["reviewer_identity"],
+        "approved_at": row["approved_at"],
+        "action": "approve",
+        "authentication_method": row["authentication_method"],
+        "note": row["note"],
+    }
+
+
 def latest_approval(connection: sqlite3.Connection, assessment_id: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
-        SELECT assessment_id, reviewer_identity, approved_at, note
+        SELECT assessment_id, reviewer_identity, approved_at, note, authentication_method
         FROM review_approvals
         WHERE assessment_id = ?
         ORDER BY id DESC
@@ -355,35 +388,65 @@ def latest_approval(connection: sqlite3.Connection, assessment_id: str) -> dict[
     ).fetchone()
     if row is None:
         return None
-    return {
-        "assessment_id": row["assessment_id"],
-        "reviewer_identity": row["reviewer_identity"],
-        "approved_at": row["approved_at"],
-        "action": "approve",
-        "note": row["note"],
-    }
+    return _approval_from_row(row)
 
 
 def list_approvals(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
     rows = connection.execute(
         """
-        SELECT assessment_id, reviewer_identity, approved_at, note
+        SELECT assessment_id, reviewer_identity, approved_at, note, authentication_method
         FROM review_approvals
         WHERE assessment_id = ?
         ORDER BY id
         """,
         (assessment_id,),
     ).fetchall()
-    return [
-        {
-            "assessment_id": row["assessment_id"],
-            "reviewer_identity": row["reviewer_identity"],
-            "approved_at": row["approved_at"],
-            "action": "approve",
-            "note": row["note"],
-        }
-        for row in rows
-    ]
+    return [_approval_from_row(row) for row in rows]
+
+
+def start_reviewer_session(
+    connection: sqlite3.Connection,
+    *,
+    token: str,
+    reviewer_identity: str,
+    authentication_method: str,
+) -> dict[str, Any]:
+    created_at = _now()
+    connection.execute(
+        """
+        INSERT INTO reviewer_sessions (
+            token, reviewer_identity, role, authentication_method, created_at
+        )
+        VALUES (?, ?, 'reviewer', ?, ?)
+        """,
+        (token, reviewer_identity, authentication_method, created_at),
+    )
+    connection.commit()
+    session = get_reviewer_session(connection, token)
+    assert session is not None
+    return session
+
+
+def get_reviewer_session(connection: sqlite3.Connection, token: str) -> dict[str, Any] | None:
+    if not token:
+        return None
+    row = connection.execute(
+        """
+        SELECT token, reviewer_identity, role, authentication_method, created_at
+        FROM reviewer_sessions
+        WHERE token = ?
+        """,
+        (token,),
+    ).fetchone()
+    if row is None or row["role"] != "reviewer":
+        return None
+    return {
+        "token": row["token"],
+        "reviewer_identity": row["reviewer_identity"],
+        "role": row["role"],
+        "authentication_method": row["authentication_method"],
+        "created_at": row["created_at"],
+    }
 
 
 def _attach_approval(connection: sqlite3.Connection, record: dict[str, Any]) -> dict[str, Any]:

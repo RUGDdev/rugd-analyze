@@ -97,3 +97,16 @@ Clearing this flag does not set `human_review_approved`, does not mark the resul
 - The audit records the assessment identifier, reviewer identity, and timestamp. The prototype identity may be the placeholder “Local prototype reviewer.”
 - Approval does not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other recommend-against flag, does not change the draft recommendation, does not mark the result final, and does not write an investor summary.
 - Investor readiness still uses the existing gate. Approval alone cannot make the status investor-ready while any gate condition fails. The official baseline cannot be approved and stays `human_review_approved` false.
+
+## Decision: Prototype reviewer authentication
+
+- Date: 2026-11-07
+- Status: Accepted for the local prototype only
+- The shared gate value is no longer enough to approve. Approval at `/reviewer/assessments/{id}/approve` requires a reviewer session. A request with no session, a customer request, and any POST that includes `human_review_approved` still return 403.
+- Sign-in is `POST /reviewer/session`. The only accepted identity is `Local prototype reviewer`. The passphrase is the source constant `local-prototype-reviewer`. A matching sign-in stores a random token in the local SQLite table `reviewer_sessions` and sets an `HttpOnly` cookie named `rugd_reviewer` (`Path=/`, `SameSite=Lax`). The role is `reviewer` and the authentication method is `local-session`.
+- The reviewer screen shows that authentication state. The approve control is absent until the session exists. The customer Validate screen still only offers “Request review” and shows pending.
+- A successful approval audit includes the assessment id, reviewer identity, timestamp, and authentication method `local-session`. Approval still does not clear `INSUFFICIENT_DEMAND_EVIDENCE`, change the recommendation, mark the result final, or grant investor-ready. The official baseline stays unapprovable.
+
+### Prototype limitations
+
+This is not production authentication. There is no OAuth provider, no external identity system, no password hash, no account directory, and no session expiry or revocation screen. The passphrase is written in source and in this decision, so anyone who can read the repository and reach the local server can sign in. The cookie is not marked `Secure` because the prototype is localhost HTTP. A customer has no reviewer account. Replacing this mechanism with production authentication is a later decision.

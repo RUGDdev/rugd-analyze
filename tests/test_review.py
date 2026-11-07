@@ -11,7 +11,12 @@ import urllib.request
 from pathlib import Path
 
 from app.pages import reviewer_page, validate_page
-from app.review import LOCAL_REVIEWER_GATE, approve_assessment
+from app.review import (
+    PROTOTYPE_REVIEWER_IDENTITY,
+    PROTOTYPE_REVIEWER_PASSPHRASE,
+    approve_assessment,
+    open_reviewer_session,
+)
 from app.server import make_server
 from app.store import BASELINE_ID, SAMPLE, connect, create_assessment, get_assessment, save_profile, seed
 
@@ -46,12 +51,12 @@ class TestReviewerApproval(unittest.TestCase):
             assessment_id,
             {**current["profile"], "operator_capacity_adequate": "no"},
         )
-        result = approve_assessment(
+        session = open_reviewer_session(
             self.connection,
-            assessment_id,
-            reviewer_identity="Local prototype reviewer",
-            reviewer_gate=LOCAL_REVIEWER_GATE,
+            reviewer_identity=PROTOTYPE_REVIEWER_IDENTITY,
+            reviewer_passphrase=PROTOTYPE_REVIEWER_PASSPHRASE,
         )
+        result = approve_assessment(self.connection, assessment_id, session=session)
         self.assertTrue(result["human_review_approved"])
         self.assertEqual(result["human_review_status"], "approved")
         self.assertFalse(result["is_final"])
@@ -65,6 +70,7 @@ class TestReviewerApproval(unittest.TestCase):
         approval = result["audit"]["approvals"][0]
         self.assertEqual(approval["assessment_id"], assessment_id)
         self.assertEqual(approval["reviewer_identity"], "Local prototype reviewer")
+        self.assertEqual(approval["authentication_method"], "local-session")
         self.assertTrue(approval["approved_at"])
         self.assertIn("does not grant investor-ready", approval["note"])
         stored = get_assessment(self.connection, assessment_id)
@@ -72,21 +78,22 @@ class TestReviewerApproval(unittest.TestCase):
         self.assertTrue(stored["human_review_approved"])
         self.assertEqual(stored["result"]["recommendation"], "do-not-proceed")
         customer = validate_page(stored)
-        self.assertIn("Human review status:</strong> approved", customer)
+        self.assertIn("Human review status:</strong> pending", customer)
+        self.assertIn("Request review", customer)
         self.assertNotIn("Record reviewer approval", customer)
-        reviewer = reviewer_page(stored, stored["result"])
+        self.assertNotIn("Sign in as reviewer", customer)
+        unsigned = reviewer_page(stored, stored["result"], None)
+        self.assertIn("Authentication state:</strong> not signed in", unsigned)
+        self.assertNotIn("Record reviewer approval", unsigned)
+        reviewer = reviewer_page(stored, stored["result"], session)
         self.assertIn("Not a customer feature", reviewer)
         self.assertIn("not production authentication", reviewer)
+        self.assertIn("Authentication state:</strong> signed in as Local prototype reviewer (local-session)", reviewer)
         self.assertIn("Record reviewer approval", reviewer)
         baseline = get_assessment(self.connection, BASELINE_ID)
         assert baseline is not None
         with self.assertRaises(PermissionError):
-            approve_assessment(
-                self.connection,
-                BASELINE_ID,
-                reviewer_identity="Local prototype reviewer",
-                reviewer_gate=LOCAL_REVIEWER_GATE,
-            )
+            approve_assessment(self.connection, BASELINE_ID, session=session)
         self.assertFalse(get_assessment(self.connection, BASELINE_ID)["human_review_approved"])
         self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before)
         self.assertEqual(sorted(path.name for path in OUTPUT.iterdir()), output_before)
@@ -119,28 +126,42 @@ class TestReviewerApproval(unittest.TestCase):
             )
             self._expect_status(
                 f"{base}/reviewer/assessments/{assessment_id}/approve",
-                b"reviewer_identity=Local+prototype+reviewer&reviewer_gate=wrong",
+                b"reviewer_gate=local-prototype-reviewer",
                 403,
             )
-            approved = urllib.request.Request(
-                f"{base}/reviewer/assessments/{assessment_id}/approve",
-                data=urllib.parse.urlencode(
+            self._expect_status(
+                base + "/reviewer/session",
+                urllib.parse.urlencode(
                     {
-                        "reviewer_identity": "Local prototype reviewer",
-                        "reviewer_gate": LOCAL_REVIEWER_GATE,
+                        "reviewer_identity": PROTOTYPE_REVIEWER_IDENTITY,
+                        "reviewer_passphrase": "wrong",
+                        "next": f"/reviewer/assessments/{assessment_id}",
                     }
                 ).encode(),
+                403,
+            )
+            with urllib.request.urlopen(f"{base}/reviewer/assessments/{assessment_id}") as response:
+                unsigned = response.read().decode("utf-8")
+            self.assertIn("not signed in", unsigned)
+            self.assertNotIn("Record reviewer approval", unsigned)
+            cookie = self._sign_in(base, f"/reviewer/assessments/{assessment_id}")
+            approved = urllib.request.Request(
+                f"{base}/reviewer/assessments/{assessment_id}/approve",
+                data=b"",
                 method="POST",
+                headers={"Cookie": cookie},
             )
             with opener.open(approved) as response:
                 page = response.read().decode("utf-8")
             self.assertIn("Not a customer feature", page)
+            self.assertIn("signed in as Local prototype reviewer (local-session)", page)
             self.assertIn("human_review_approved:</strong> true", page)
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", page)
             self.assertNotIn("Investor readiness:</strong> investor-ready", page)
             with urllib.request.urlopen(assessment_url + "/validate") as response:
                 validate = response.read().decode("utf-8")
             self.assertIn("Request review", validate)
+            self.assertIn("Human review status:</strong> pending", validate)
             self.assertNotIn("Record reviewer approval", validate)
             with urllib.request.urlopen(assessment_url + "/results") as response:
                 results = response.read().decode("utf-8")
@@ -156,6 +177,7 @@ class TestReviewerApproval(unittest.TestCase):
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", audit["recommendation"]["blocking_flags"])
             self.assertEqual(audit["approvals"][0]["assessment_id"], assessment_id)
             self.assertEqual(audit["approvals"][0]["reviewer_identity"], "Local prototype reviewer")
+            self.assertEqual(audit["approvals"][0]["authentication_method"], "local-session")
             with urllib.request.urlopen(base + "/assessments/rugd-intelligence-baseline/audit") as response:
                 baseline_audit = json.loads(response.read().decode("utf-8"))
             self.assertFalse(baseline_audit["human_review_approved"])
@@ -164,6 +186,33 @@ class TestReviewerApproval(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
+
+    def _sign_in(self, base: str, next_path: str) -> str:
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+
+        opener = urllib.request.build_opener(NoRedirect)
+        request = urllib.request.Request(
+            base + "/reviewer/session",
+            data=urllib.parse.urlencode(
+                {
+                    "reviewer_identity": PROTOTYPE_REVIEWER_IDENTITY,
+                    "reviewer_passphrase": PROTOTYPE_REVIEWER_PASSPHRASE,
+                    "next": next_path,
+                }
+            ).encode(),
+            method="POST",
+        )
+        try:
+            opener.open(request)
+        except urllib.error.HTTPError as exc:
+            self.assertEqual(exc.code, 303)
+            cookie = exc.headers.get("Set-Cookie") or ""
+        else:
+            self.fail("sign-in should redirect")
+        self.assertTrue(cookie.startswith("rugd_reviewer="))
+        return cookie.split(";", 1)[0]
 
     def _expect_status(self, url: str, body: bytes, status: int) -> None:
         request = urllib.request.Request(url, data=body, method="POST")

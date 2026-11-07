@@ -344,18 +344,12 @@ def validate_page(record: dict[str, Any] | None) -> str:
         body = "<h1>Validate</h1><p>Open an assessment from My Assessments to request a review.</p>"
         return layout("Validate", body)
     requested = "A review has been requested." if record["review_requested"] else "No review has been requested."
-    if record.get("human_review_approved"):
-        review_status = "approved"
-        review_note = "A reviewer recorded approval. This customer screen cannot approve or revoke it."
-    else:
-        review_status = "pending"
-        review_note = "Human review status stays pending until a reviewer uses the separate reviewer control."
     body = f"""
 <h1>Validate</h1>
 <div class="banner">Prototype only. Customers can request review. This screen cannot set human_review_approved.</div>
 <p>{escape(record['business_name'])}: {escape(requested)}</p>
-<p><strong>Human review status:</strong> {escape(review_status)}</p>
-<p>{escape(review_note)} Investor readiness stays on the existing gate.</p>
+<p><strong>Human review status:</strong> pending</p>
+<p>Human review status stays pending on this customer screen. Requesting a review does not approve it. Investor readiness stays on the existing gate.</p>
 <form method="post" action="/assessments/{escape(record['id'])}/review-request">
 <button type="submit">Request review</button>
 </form>
@@ -363,32 +357,37 @@ def validate_page(record: dict[str, Any] | None) -> str:
     return layout("Validate", body)
 
 
-def reviewer_page(record: dict[str, Any], result: dict[str, Any] | None) -> str:
-    from app.review import LOCAL_REVIEWER_GATE
-
+def reviewer_page(
+    record: dict[str, Any],
+    result: dict[str, Any] | None,
+    session: dict[str, Any] | None = None,
+) -> str:
     result = result or {}
     flags = ", ".join(result.get("blocking_flags") or []) or "none loaded"
     readiness = result.get("readiness_status") or "not loaded"
     approved = "true" if record.get("human_review_approved") else "false"
-    identity = ""
-    approval = record.get("review_approval") or {}
-    if approval:
-        identity = str(approval.get("reviewer_identity") or "")
-    control = ""
+    signed_in = bool(session and session.get("role") == "reviewer")
+    if signed_in:
+        auth_state = (
+            f"signed in as {session.get('reviewer_identity')} "
+            f"({session.get('authentication_method')})"
+        )
+    else:
+        auth_state = "not signed in"
     if record.get("read_only"):
         control = "<p>The official baseline cannot be approved from this prototype.</p>"
+    elif not signed_in:
+        control = _reviewer_sign_in_form(f"/reviewer/assessments/{record['id']}")
     else:
         control = f"""
 <form method="post" action="/reviewer/assessments/{escape(record['id'])}/approve">
-<input type="hidden" name="reviewer_gate" value="{escape(LOCAL_REVIEWER_GATE)}">
-<label>Reviewer identity (local prototype placeholder)</label>
-<input name="reviewer_identity" value="{escape(identity or "Local prototype reviewer")}">
 <button type="submit">Record reviewer approval</button>
 </form>
 """
     body = f"""
 <h1>Reviewer control</h1>
-<div class="banner">Reviewer control. Not a customer feature. Local prototype gate only. This is not production authentication.</div>
+<div class="banner">Reviewer control. Not a customer feature. Prototype-grade local session. This is not production authentication.</div>
+<p><strong>Authentication state:</strong> {escape(auth_state)}</p>
 <p>Assessment: {escape(record['business_name'])} ({escape(record['id'])})</p>
 <p><strong>Recommendation:</strong> {escape(str(result.get('recommendation') or 'not loaded'))}</p>
 <p><strong>INSUFFICIENT_DEMAND_EVIDENCE and other blocking flags:</strong> {escape(flags)}</p>
@@ -398,6 +397,40 @@ def reviewer_page(record: dict[str, Any], result: dict[str, Any] | None) -> str:
 {control}
 """
     return layout("Reviewer control", body)
+
+
+def reviewer_home(session: dict[str, Any] | None) -> str:
+    signed_in = bool(session and session.get("role") == "reviewer")
+    state = (
+        f"signed in as {session.get('reviewer_identity')} ({session.get('authentication_method')})"
+        if signed_in
+        else "not signed in"
+    )
+    form = "" if signed_in else _reviewer_sign_in_form("/reviewer")
+    return layout(
+        "Reviewer",
+        f"""
+<h1>Reviewer</h1>
+<div class="banner">Prototype-grade local session. Not a customer feature. Not production authentication.</div>
+<p><strong>Authentication state:</strong> {escape(state)}</p>
+{form}
+<p class="muted">Open a saved assessment reviewer screen after signing in.</p>
+""",
+    )
+
+
+def _reviewer_sign_in_form(next_path: str) -> str:
+    return f"""
+<form method="post" action="/reviewer/session">
+<input type="hidden" name="next" value="{escape(next_path)}">
+<label>Reviewer identity</label>
+<input name="reviewer_identity" value="Local prototype reviewer">
+<label>Prototype passphrase</label>
+<input name="reviewer_passphrase" type="password">
+<button type="submit">Sign in as reviewer</button>
+</form>
+<p class="muted">Prototype sign-in. Not a customer feature. Not production authentication.</p>
+"""
 
 
 def partner_page() -> str:

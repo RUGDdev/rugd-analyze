@@ -23,11 +23,18 @@ from app.pages import (
     partner_page,
     reports_page,
     results_page,
+    reviewer_home,
     reviewer_page,
     settings_page,
     validate_page,
 )
-from app.review import ReviewError, approve_assessment, result_with_stored_approval
+from app.review import (
+    ReviewError,
+    approve_assessment,
+    open_reviewer_session,
+    result_with_stored_approval,
+    session_from_token,
+)
 from app.store import (
     DEFAULT_DB,
     connect,
@@ -69,7 +76,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._html(dashboard(list_assessments(connection)))
             elif path == "/assessments/new":
                 self._html(new_assessment_page())
-            elif path.startswith("/reviewer/"):
+            elif path == "/reviewer" or path.startswith("/reviewer/"):
                 self._reviewer_get(connection, path)
             elif path.startswith("/assessments/"):
                 self._assessment_get(connection, path)
@@ -99,6 +106,9 @@ class AppHandler(BaseHTTPRequestHandler):
                     pilot_label="Customer draft. Not a completed assessment.",
                 )
                 self._redirect(f"/assessments/{assessment_id}")
+                return
+            if path == "/reviewer/session":
+                self._reviewer_sign_in(connection, form)
                 return
             parts = [part for part in path.split("/") if part]
             if len(parts) >= 3 and parts[0] == "reviewer":
@@ -192,6 +202,9 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _reviewer_get(self, connection: Any, path: str) -> None:
         parts = [part for part in path.split("/") if part]
+        if path == "/reviewer" or parts == ["reviewer"]:
+            self._html(reviewer_home(self._reviewer_session(connection)))
+            return
         if len(parts) < 3 or parts[0] != "reviewer" or parts[1] != "assessments":
             self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
             return
@@ -200,20 +213,25 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
             return
         result = record.get("result")
-        self._html(reviewer_page(record, result))
+        self._html(reviewer_page(record, result, self._reviewer_session(connection)))
 
     def _reviewer_post(self, connection: Any, parts: list[str], form: dict[str, str]) -> None:
         if len(parts) < 4 or parts[1] != "assessments" or parts[3] != "approve":
             self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
             return
         assessment_id = parts[2]
-        try:
-            approve_assessment(
-                connection,
-                assessment_id,
-                reviewer_identity=form.get("reviewer_identity") or "",
-                reviewer_gate=form.get("reviewer_gate") or "",
+        session = self._reviewer_session(connection)
+        if session is None:
+            self._html(
+                layout(
+                    "Not allowed",
+                    "<h1>Not allowed</h1><p>Reviewer sign-in is required. This is not a customer approval control.</p>",
+                ),
+                status=403,
             )
+            return
+        try:
+            approve_assessment(connection, assessment_id, session=session)
         except ReviewError as exc:
             self._html(layout("Not allowed", f"<h1>Not allowed</h1><p>{escape(str(exc))}</p>"), status=403)
             return
@@ -224,6 +242,34 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(layout("Reviewer", f"<h1>Reviewer</h1><p>{escape(str(exc))}</p>"), status=400)
             return
         self._redirect(f"/reviewer/assessments/{assessment_id}")
+
+    def _reviewer_sign_in(self, connection: Any, form: dict[str, str]) -> None:
+        try:
+            session = open_reviewer_session(
+                connection,
+                reviewer_identity=form.get("reviewer_identity") or "",
+                reviewer_passphrase=form.get("reviewer_passphrase") or "",
+            )
+        except ReviewError as exc:
+            self._html(layout("Not allowed", f"<h1>Not allowed</h1><p>{escape(str(exc))}</p>"), status=403)
+            return
+        target = form.get("next") or "/reviewer"
+        if not target.startswith("/reviewer/") or "\\" in target:
+            target = "/reviewer"
+        self._redirect(target, session["token"])
+
+    def _reviewer_session(self, connection: Any) -> dict[str, Any] | None:
+        token = self._cookies().get("rugd_reviewer", "")
+        return session_from_token(connection, token)
+
+    def _cookies(self) -> dict[str, str]:
+        jar: dict[str, str] = {}
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            jar[key.strip()] = value.strip()
+        return jar
 
     def _run(self, connection: Any, record: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -273,9 +319,14 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    def _redirect(self, target: str) -> None:
+    def _redirect(self, target: str, session_token: str | None = None) -> None:
         self.send_response(303)
         self.send_header("Location", target)
+        if session_token:
+            self.send_header(
+                "Set-Cookie",
+                f"rugd_reviewer={session_token}; HttpOnly; Path=/; SameSite=Lax",
+            )
         self.end_headers()
 
     def log_message(self, fmt: str, *args: Any) -> None:

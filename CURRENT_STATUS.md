@@ -28,7 +28,7 @@ Run Analyze submits the same intake form as Save draft, so unsaved entries reach
 
 ## Unfinished
 
-Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring is not running. Market data providers are not connected. No production accounts, billing, reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred.
+Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring is not running. Market data providers are not connected. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
 
 ## Git Checkpoint
 
@@ -74,3 +74,11 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - A local reviewer action can set `human_review_approved`. Customer posts that include the field still return 403. Validate only requests review. The reviewer screen is labeled as not a customer feature and not production authentication.
 - Approval is stored with the assessment id, reviewer identity, and timestamp. It does not clear `INSUFFICIENT_DEMAND_EVIDENCE`, change the recommendation, mark the result final, or grant investor-ready.
 - The official baseline cannot be approved. The unittest suite is 73 tests, all passing. The server is stopped.
+
+## Progress — 2026-11-07 reviewer authentication
+
+- Approval now requires a local reviewer session. The shared gate on the approve form is gone. Unauthenticated and customer requests to the approval endpoint still return 403.
+- Sign-in is prototype-grade: one source-constant identity and passphrase, a SQLite session, and an HttpOnly cookie. It is not production authentication.
+- The reviewer screen shows the authentication state and hides the approve control until sign-in. Validate still only requests review and shows pending.
+- The approval audit adds authentication method `local-session`. Approval still does not clear `INSUFFICIENT_DEMAND_EVIDENCE` or grant investor-ready. The official baseline cannot be approved.
+- The unittest suite remains 73 tests, all passing. The server is stopped.
