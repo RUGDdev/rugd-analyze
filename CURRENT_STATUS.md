@@ -4,7 +4,7 @@ Updated: 2026-11-07
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 73 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 74 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 73 tests passing
+- All 74 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -82,3 +82,11 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - The reviewer screen shows the authentication state and hides the approve control until sign-in. Validate still only requests review and shows pending.
 - The approval audit adds authentication method `local-session`. Approval still does not clear `INSUFFICIENT_DEMAND_EVIDENCE` or grant investor-ready. The official baseline cannot be approved.
 - The unittest suite remains 73 tests, all passing. The server is stopped.
+
+## Progress — 2026-11-07 reviewer session lifetime
+
+- A reviewer session lasts 4 hours (`SESSION_LIFETIME_HOURS`). Approval reloads the stored token and returns 403 when the session is missing, signed out, or expired.
+- Sign-out is `POST /reviewer/session/sign-out`. It deletes the token and clears the cookie. That cookie cannot approve afterward.
+- The reviewer screen shows signed in, signed out, or expired, plus the remaining lifetime while signed in. The approve control stays hidden when the session is missing or expired. Sign out is labeled prototype and not a customer feature. Validate still only requests review and shows pending.
+- Approval still does not clear `INSUFFICIENT_DEMAND_EVIDENCE` or grant investor-ready. The official baseline cannot be approved. Customer posts that include `human_review_approved` still return 403.
+- Authentication remains prototype-grade. The unittest suite is 74 tests, all passing. The server is stopped.

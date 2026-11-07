@@ -109,4 +109,18 @@ Clearing this flag does not set `human_review_approved`, does not mark the resul
 
 ### Prototype limitations
 
-This is not production authentication. There is no OAuth provider, no external identity system, no password hash, no account directory, and no session expiry or revocation screen. The passphrase is written in source and in this decision, so anyone who can read the repository and reach the local server can sign in. The cookie is not marked `Secure` because the prototype is localhost HTTP. A customer has no reviewer account. Replacing this mechanism with production authentication is a later decision.
+This is not production authentication. There is no OAuth provider, no external identity system, no password hash, and no account directory. The passphrase is written in source and in this decision, so anyone who can read the repository and reach the local server can sign in. The cookie is not marked `Secure` because the prototype is localhost HTTP. A customer has no reviewer account. Session lifetime and sign-out are recorded in the following decision. Replacing this mechanism with production authentication is a later decision.
+
+## Decision: Reviewer session lifetime and sign-out
+
+- Date: 2026-11-07
+- Status: Accepted for the local prototype only
+- A reviewer session lasts `SESSION_LIFETIME_HOURS` (4 hours), measured from sign-in and stored as `expires_at` on the SQLite session row. The cookie `Max-Age` matches that lifetime. The server expiry is what approval checks.
+- Every approval reloads the token from `reviewer_sessions` and rejects a missing, deleted, or expired token with 403. An old cookie cannot approve after that lifetime.
+- Sign-out is `POST /reviewer/session/sign-out`. It deletes the current token and clears the cookie with `Max-Age=0`. A later approve attempt with that cookie returns 403.
+- The reviewer screen shows signed in, signed out, or expired, and the remaining lifetime while the session is active. The approve control is hidden when the session is missing or expired. Sign out is labeled prototype and not a customer feature. Validate still only offers “Request review” and shows pending.
+- A successful approval audit still includes the assessment id, reviewer identity, timestamp, and authentication method `local-session`. Approval still does not clear `INSUFFICIENT_DEMAND_EVIDENCE`, change the recommendation, mark the result final, or grant investor-ready. The official baseline stays unapprovable.
+
+### Prototype limitations
+
+This lifetime and sign-out are still prototype-grade. There is no password hash, no OAuth or external identity provider, no per-person account, and no revocation list beyond deleting the local token. The passphrase remains the source constant. The cookie is still not `Secure`. A person who can read the source and reach the local server can sign in again until a later decision replaces this mechanism.

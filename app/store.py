@@ -70,10 +70,19 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
             reviewer_identity TEXT NOT NULL,
             role TEXT NOT NULL,
             authentication_method TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL
         )
         """
     )
+    session_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(reviewer_sessions)")
+    }
+    if "expires_at" not in session_columns:
+        connection.execute("ALTER TABLE reviewer_sessions ADD COLUMN expires_at TEXT")
+        connection.execute(
+            "UPDATE reviewer_sessions SET expires_at = created_at WHERE expires_at IS NULL"
+        )
     return connection
 
 
@@ -410,16 +419,17 @@ def start_reviewer_session(
     token: str,
     reviewer_identity: str,
     authentication_method: str,
+    expires_at: str,
 ) -> dict[str, Any]:
     created_at = _now()
     connection.execute(
         """
         INSERT INTO reviewer_sessions (
-            token, reviewer_identity, role, authentication_method, created_at
+            token, reviewer_identity, role, authentication_method, created_at, expires_at
         )
-        VALUES (?, ?, 'reviewer', ?, ?)
+        VALUES (?, ?, 'reviewer', ?, ?, ?)
         """,
-        (token, reviewer_identity, authentication_method, created_at),
+        (token, reviewer_identity, authentication_method, created_at, expires_at),
     )
     connection.commit()
     session = get_reviewer_session(connection, token)
@@ -427,18 +437,18 @@ def start_reviewer_session(
     return session
 
 
-def get_reviewer_session(connection: sqlite3.Connection, token: str) -> dict[str, Any] | None:
+def load_reviewer_session(connection: sqlite3.Connection, token: str) -> dict[str, Any] | None:
     if not token:
         return None
     row = connection.execute(
         """
-        SELECT token, reviewer_identity, role, authentication_method, created_at
+        SELECT token, reviewer_identity, role, authentication_method, created_at, expires_at
         FROM reviewer_sessions
         WHERE token = ?
         """,
         (token,),
     ).fetchone()
-    if row is None or row["role"] != "reviewer":
+    if row is None:
         return None
     return {
         "token": row["token"],
@@ -446,7 +456,40 @@ def get_reviewer_session(connection: sqlite3.Connection, token: str) -> dict[str
         "role": row["role"],
         "authentication_method": row["authentication_method"],
         "created_at": row["created_at"],
+        "expires_at": row["expires_at"],
     }
+
+
+def get_reviewer_session(connection: sqlite3.Connection, token: str) -> dict[str, Any] | None:
+    loaded = load_reviewer_session(connection, token)
+    if loaded is None or loaded["role"] != "reviewer":
+        return None
+    remaining = _remaining_seconds(loaded.get("expires_at"))
+    if remaining is None or remaining <= 0:
+        return None
+    loaded["remaining_seconds"] = remaining
+    loaded["state"] = "signed-in"
+    loaded["active"] = True
+    return loaded
+
+
+def end_reviewer_session(connection: sqlite3.Connection, token: str) -> None:
+    if not token:
+        return
+    connection.execute("DELETE FROM reviewer_sessions WHERE token = ?", (token,))
+    connection.commit()
+
+
+def _remaining_seconds(expires_at: str | None) -> int | None:
+    if not expires_at:
+        return None
+    try:
+        expires = datetime.fromisoformat(expires_at)
+    except ValueError:
+        return None
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    return int((expires - datetime.now(timezone.utc)).total_seconds())
 
 
 def _attach_approval(connection: sqlite3.Connection, record: dict[str, Any]) -> dict[str, Any]:

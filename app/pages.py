@@ -366,24 +366,23 @@ def reviewer_page(
     flags = ", ".join(result.get("blocking_flags") or []) or "none loaded"
     readiness = result.get("readiness_status") or "not loaded"
     approved = "true" if record.get("human_review_approved") else "false"
-    signed_in = bool(session and session.get("role") == "reviewer")
-    if signed_in:
-        auth_state = (
-            f"signed in as {session.get('reviewer_identity')} "
-            f"({session.get('authentication_method')})"
-        )
-    else:
-        auth_state = "not signed in"
+    auth_state, signed_in, expired = _session_status(session)
+    next_path = f"/reviewer/assessments/{record['id']}"
     if record.get("read_only"):
         control = "<p>The official baseline cannot be approved from this prototype.</p>"
-    elif not signed_in:
-        control = _reviewer_sign_in_form(f"/reviewer/assessments/{record['id']}")
-    else:
+        if signed_in or expired:
+            control += _reviewer_sign_out_form(next_path)
+    elif signed_in:
         control = f"""
 <form method="post" action="/reviewer/assessments/{escape(record['id'])}/approve">
 <button type="submit">Record reviewer approval</button>
 </form>
+{_reviewer_sign_out_form(next_path)}
 """
+    else:
+        control = _reviewer_sign_in_form(next_path)
+        if expired:
+            control += _reviewer_sign_out_form(next_path)
     body = f"""
 <h1>Reviewer control</h1>
 <div class="banner">Reviewer control. Not a customer feature. Prototype-grade local session. This is not production authentication.</div>
@@ -400,13 +399,10 @@ def reviewer_page(
 
 
 def reviewer_home(session: dict[str, Any] | None) -> str:
-    signed_in = bool(session and session.get("role") == "reviewer")
-    state = (
-        f"signed in as {session.get('reviewer_identity')} ({session.get('authentication_method')})"
-        if signed_in
-        else "not signed in"
-    )
+    state, signed_in, expired = _session_status(session)
     form = "" if signed_in else _reviewer_sign_in_form("/reviewer")
+    if signed_in or expired:
+        form += _reviewer_sign_out_form("/reviewer")
     return layout(
         "Reviewer",
         f"""
@@ -417,6 +413,47 @@ def reviewer_home(session: dict[str, Any] | None) -> str:
 <p class="muted">Open a saved assessment reviewer screen after signing in.</p>
 """,
     )
+
+
+def _session_status(session: dict[str, Any] | None) -> tuple[str, bool, bool]:
+    session = session or {}
+    state_name = str(session.get("state") or "")
+    signed_in = bool(session.get("active")) and state_name != "expired"
+    expired = state_name == "expired"
+    if signed_in:
+        label = (
+            f"signed in as {session.get('reviewer_identity')} "
+            f"({session.get('authentication_method')}). "
+            f"Remaining lifetime: {_format_remaining(session.get('remaining_seconds'))}."
+        )
+        return label, True, False
+    if expired:
+        return "expired", False, True
+    return "signed out", False, False
+
+
+def _format_remaining(seconds: Any) -> str:
+    try:
+        remaining = max(0, int(seconds))
+    except (TypeError, ValueError):
+        return "unknown"
+    hours, leftover = divmod(remaining, 3600)
+    minutes = leftover // 60
+    if hours and minutes:
+        return f"{hours} hours {minutes} minutes"
+    if hours:
+        return f"{hours} hours"
+    return f"{minutes} minutes"
+
+
+def _reviewer_sign_out_form(next_path: str) -> str:
+    return f"""
+<form method="post" action="/reviewer/session/sign-out">
+<input type="hidden" name="next" value="{escape(next_path)}">
+<button type="submit">Sign out</button>
+</form>
+<p class="muted">Prototype sign-out. Not a customer feature. Not production authentication.</p>
+"""
 
 
 def _reviewer_sign_in_form(next_path: str) -> str:

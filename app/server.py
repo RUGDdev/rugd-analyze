@@ -29,11 +29,13 @@ from app.pages import (
     validate_page,
 )
 from app.review import (
+    SESSION_LIFETIME_SECONDS,
     ReviewError,
     approve_assessment,
+    close_reviewer_session,
     open_reviewer_session,
     result_with_stored_approval,
-    session_from_token,
+    reviewer_session_state,
 )
 from app.store import (
     DEFAULT_DB,
@@ -109,6 +111,9 @@ class AppHandler(BaseHTTPRequestHandler):
                 return
             if path == "/reviewer/session":
                 self._reviewer_sign_in(connection, form)
+                return
+            if path == "/reviewer/session/sign-out":
+                self._reviewer_sign_out(connection, form)
                 return
             parts = [part for part in path.split("/") if part]
             if len(parts) >= 3 and parts[0] == "reviewer":
@@ -203,7 +208,7 @@ class AppHandler(BaseHTTPRequestHandler):
     def _reviewer_get(self, connection: Any, path: str) -> None:
         parts = [part for part in path.split("/") if part]
         if path == "/reviewer" or parts == ["reviewer"]:
-            self._html(reviewer_home(self._reviewer_session(connection)))
+            self._html(reviewer_home(self._reviewer_session_state(connection)))
             return
         if len(parts) < 3 or parts[0] != "reviewer" or parts[1] != "assessments":
             self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
@@ -213,23 +218,26 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
             return
         result = record.get("result")
-        self._html(reviewer_page(record, result, self._reviewer_session(connection)))
+        self._html(reviewer_page(record, result, self._reviewer_session_state(connection)))
 
     def _reviewer_post(self, connection: Any, parts: list[str], form: dict[str, str]) -> None:
         if len(parts) < 4 or parts[1] != "assessments" or parts[3] != "approve":
             self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
             return
         assessment_id = parts[2]
-        session = self._reviewer_session(connection)
-        if session is None:
+        state = self._reviewer_session_state(connection)
+        if not state.get("active"):
+            reason = "expired" if state.get("state") == "expired" else "missing or signed out"
             self._html(
                 layout(
                     "Not allowed",
-                    "<h1>Not allowed</h1><p>Reviewer sign-in is required. This is not a customer approval control.</p>",
+                    "<h1>Not allowed</h1>"
+                    f"<p>Reviewer session is {escape(reason)}. This is not a customer approval control.</p>",
                 ),
                 status=403,
             )
             return
+        session = state
         try:
             approve_assessment(connection, assessment_id, session=session)
         except ReviewError as exc:
@@ -258,9 +266,15 @@ class AppHandler(BaseHTTPRequestHandler):
             target = "/reviewer"
         self._redirect(target, session["token"])
 
-    def _reviewer_session(self, connection: Any) -> dict[str, Any] | None:
-        token = self._cookies().get("rugd_reviewer", "")
-        return session_from_token(connection, token)
+    def _reviewer_sign_out(self, connection: Any, form: dict[str, str]) -> None:
+        close_reviewer_session(connection, self._cookies().get("rugd_reviewer", ""))
+        target = form.get("next") or "/reviewer"
+        if not target.startswith("/reviewer/") or "\\" in target:
+            target = "/reviewer"
+        self._redirect(target, clear_session=True)
+
+    def _reviewer_session_state(self, connection: Any) -> dict[str, Any]:
+        return reviewer_session_state(connection, self._cookies().get("rugd_reviewer", ""))
 
     def _cookies(self) -> dict[str, str]:
         jar: dict[str, str] = {}
@@ -319,13 +333,18 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    def _redirect(self, target: str, session_token: str | None = None) -> None:
+    def _redirect(self, target: str, session_token: str | None = None, clear_session: bool = False) -> None:
         self.send_response(303)
         self.send_header("Location", target)
         if session_token:
             self.send_header(
                 "Set-Cookie",
-                f"rugd_reviewer={session_token}; HttpOnly; Path=/; SameSite=Lax",
+                f"rugd_reviewer={session_token}; HttpOnly; Path=/; SameSite=Lax; Max-Age={SESSION_LIFETIME_SECONDS}",
+            )
+        elif clear_session:
+            self.send_header(
+                "Set-Cookie",
+                "rugd_reviewer=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0",
             )
         self.end_headers()
 

@@ -15,7 +15,9 @@ from app.review import (
     PROTOTYPE_REVIEWER_IDENTITY,
     PROTOTYPE_REVIEWER_PASSPHRASE,
     approve_assessment,
+    close_reviewer_session,
     open_reviewer_session,
+    reviewer_session_state,
 )
 from app.server import make_server
 from app.store import BASELINE_ID, SAMPLE, connect, create_assessment, get_assessment, save_profile, seed
@@ -83,13 +85,17 @@ class TestReviewerApproval(unittest.TestCase):
         self.assertNotIn("Record reviewer approval", customer)
         self.assertNotIn("Sign in as reviewer", customer)
         unsigned = reviewer_page(stored, stored["result"], None)
-        self.assertIn("Authentication state:</strong> not signed in", unsigned)
+        self.assertIn("Authentication state:</strong> signed out", unsigned)
         self.assertNotIn("Record reviewer approval", unsigned)
+        self.assertNotIn("Sign out", unsigned)
         reviewer = reviewer_page(stored, stored["result"], session)
         self.assertIn("Not a customer feature", reviewer)
         self.assertIn("not production authentication", reviewer)
         self.assertIn("Authentication state:</strong> signed in as Local prototype reviewer (local-session)", reviewer)
+        self.assertIn("Remaining lifetime:", reviewer)
         self.assertIn("Record reviewer approval", reviewer)
+        self.assertIn("Sign out", reviewer)
+        self.assertIn("Not a customer feature", reviewer)
         baseline = get_assessment(self.connection, BASELINE_ID)
         assert baseline is not None
         with self.assertRaises(PermissionError):
@@ -142,7 +148,7 @@ class TestReviewerApproval(unittest.TestCase):
             )
             with urllib.request.urlopen(f"{base}/reviewer/assessments/{assessment_id}") as response:
                 unsigned = response.read().decode("utf-8")
-            self.assertIn("not signed in", unsigned)
+            self.assertIn("signed out", unsigned)
             self.assertNotIn("Record reviewer approval", unsigned)
             cookie = self._sign_in(base, f"/reviewer/assessments/{assessment_id}")
             approved = urllib.request.Request(
@@ -155,6 +161,9 @@ class TestReviewerApproval(unittest.TestCase):
                 page = response.read().decode("utf-8")
             self.assertIn("Not a customer feature", page)
             self.assertIn("signed in as Local prototype reviewer (local-session)", page)
+            self.assertIn("Remaining lifetime:", page)
+            self.assertIn("Sign out", page)
+            self.assertIn("Not a customer feature", page)
             self.assertIn("human_review_approved:</strong> true", page)
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", page)
             self.assertNotIn("Investor readiness:</strong> investor-ready", page)
@@ -187,6 +196,112 @@ class TestReviewerApproval(unittest.TestCase):
             server.server_close()
             thread.join(timeout=3)
 
+    def test_expired_and_signed_out_sessions_cannot_approve(self) -> None:
+        assessment_id = create_assessment(
+            self.connection,
+            business_name="Lifetime Cafe",
+            purpose="startup_feasibility",
+            tier="analyze",
+        )
+        session = open_reviewer_session(
+            self.connection,
+            reviewer_identity=PROTOTYPE_REVIEWER_IDENTITY,
+            reviewer_passphrase=PROTOTYPE_REVIEWER_PASSPHRASE,
+        )
+        self.connection.execute(
+            "UPDATE reviewer_sessions SET expires_at = ? WHERE token = ?",
+            ("2020-01-01T00:00:00+00:00", session["token"]),
+        )
+        self.connection.commit()
+        with self.assertRaises(PermissionError):
+            approve_assessment(self.connection, assessment_id, session=session)
+        stored = get_assessment(self.connection, assessment_id)
+        assert stored is not None
+        self.assertFalse(stored["human_review_approved"])
+        expired = reviewer_session_state(self.connection, session["token"])
+        expired_page = reviewer_page(stored, None, expired)
+        self.assertIn("Authentication state:</strong> expired", expired_page)
+        self.assertNotIn("Record reviewer approval", expired_page)
+        self.assertIn("Sign out", expired_page)
+        self.assertIn("Not a customer feature", expired_page)
+        close_reviewer_session(self.connection, session["token"])
+        with self.assertRaises(PermissionError):
+            approve_assessment(self.connection, assessment_id, session=session)
+        signed_out = reviewer_session_state(self.connection, session["token"])
+        self.assertEqual(signed_out["state"], "signed-out")
+        fresh = open_reviewer_session(
+            self.connection,
+            reviewer_identity=PROTOTYPE_REVIEWER_IDENTITY,
+            reviewer_passphrase=PROTOTYPE_REVIEWER_PASSPHRASE,
+        )
+        result = approve_assessment(self.connection, assessment_id, session=fresh)
+        self.assertTrue(result["human_review_approved"])
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", result["blocking_flags"])
+        self.assertEqual(result["readiness_status"], "internal")
+        self.assertFalse(result["investor_summary_written"])
+        approval = result["audit"]["approvals"][0]
+        self.assertEqual(approval["reviewer_identity"], "Local prototype reviewer")
+        self.assertEqual(approval["authentication_method"], "local-session")
+        self.assertTrue(approval["approved_at"])
+        with self.assertRaises(PermissionError):
+            approve_assessment(self.connection, BASELINE_ID, session=fresh)
+        self.assertFalse(get_assessment(self.connection, BASELINE_ID)["human_review_approved"])
+
+        server = make_server(self.db, port=0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        host, port = server.server_address
+        base = f"http://{host}:{port}"
+        try:
+            self._expect_status(
+                base + "/assessments",
+                b"business_name=Cafe&human_review_approved=true",
+                403,
+            )
+            cookie = self._sign_in(base, f"/reviewer/assessments/{assessment_id}")
+            token = cookie.split("=", 1)[1]
+            self.connection.execute(
+                "UPDATE reviewer_sessions SET expires_at = ? WHERE token = ?",
+                ("2020-01-01T00:00:00+00:00", token),
+            )
+            self.connection.commit()
+            with urllib.request.urlopen(
+                urllib.request.Request(
+                    f"{base}/reviewer/assessments/{assessment_id}",
+                    headers={"Cookie": cookie},
+                )
+            ) as response:
+                expired_http = response.read().decode("utf-8")
+            self.assertIn("Authentication state:</strong> expired", expired_http)
+            self.assertNotIn("Record reviewer approval", expired_http)
+            self._expect_status_with_cookie(
+                f"{base}/reviewer/assessments/{assessment_id}/approve",
+                b"",
+                cookie,
+                403,
+                "expired",
+            )
+            cleared = self._sign_out(base, cookie, f"/reviewer/assessments/{assessment_id}")
+            self.assertIn("Max-Age=0", cleared)
+            self._expect_status_with_cookie(
+                f"{base}/reviewer/assessments/{assessment_id}/approve",
+                b"",
+                cookie,
+                403,
+                "signed out",
+            )
+            self._expect_status_with_cookie(
+                f"{base}/reviewer/assessments/{BASELINE_ID}/approve",
+                b"",
+                self._sign_in(base, f"/reviewer/assessments/{BASELINE_ID}"),
+                403,
+                "official baseline",
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
+
     def _sign_in(self, base: str, next_path: str) -> str:
         class NoRedirect(urllib.request.HTTPRedirectHandler):
             def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -213,6 +328,43 @@ class TestReviewerApproval(unittest.TestCase):
             self.fail("sign-in should redirect")
         self.assertTrue(cookie.startswith("rugd_reviewer="))
         return cookie.split(";", 1)[0]
+
+    def _sign_out(self, base: str, cookie: str, next_path: str) -> str:
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+
+        opener = urllib.request.build_opener(NoRedirect)
+        request = urllib.request.Request(
+            base + "/reviewer/session/sign-out",
+            data=urllib.parse.urlencode({"next": next_path}).encode(),
+            method="POST",
+            headers={"Cookie": cookie},
+        )
+        try:
+            opener.open(request)
+        except urllib.error.HTTPError as exc:
+            self.assertEqual(exc.code, 303)
+            return exc.headers.get("Set-Cookie") or ""
+        self.fail("sign-out should redirect")
+        return ""
+
+    def _expect_status_with_cookie(
+        self,
+        url: str,
+        body: bytes,
+        cookie: str,
+        status: int,
+        text: str,
+    ) -> None:
+        request = urllib.request.Request(url, data=body, method="POST", headers={"Cookie": cookie})
+        try:
+            urllib.request.urlopen(request)
+        except urllib.error.HTTPError as exc:
+            self.assertEqual(exc.code, status)
+            self.assertIn(text, exc.read().decode("utf-8"))
+            return
+        self.fail(f"expected HTTP {status}")
 
     def _expect_status(self, url: str, body: bytes, status: int) -> None:
         request = urllib.request.Request(url, data=body, method="POST")
