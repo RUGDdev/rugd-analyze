@@ -87,3 +87,13 @@ Clearing this flag does not set `human_review_approved`, does not mark the resul
 - A hypothetical demonstration does not apply that record. An AI interpretation is not an accepted source.
 - The application still passes human review as pending. Clearing the flag does not set `human_review_approved` and does not mark the result investor-ready.
 - The official baseline intake stays unchanged and read-only.
+
+## Decision: Reviewer-only approval
+
+- Date: 2026-11-07
+- Status: Accepted
+- Customer endpoints and the Validate screen cannot set `human_review_approved`. A customer POST that includes that field still returns 403.
+- Approval is a separate local action at `/reviewer/assessments/{id}/approve`. It requires the local prototype gate. That gate is not production authentication and is not a customer control.
+- The audit records the assessment identifier, reviewer identity, and timestamp. The prototype identity may be the placeholder “Local prototype reviewer.”
+- Approval does not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other recommend-against flag, does not change the draft recommendation, does not mark the result final, and does not write an investor summary.
+- Investor readiness still uses the existing gate. Approval alone cannot make the status investor-ready while any gate condition fails. The official baseline cannot be approved and stays `human_review_approved` false.

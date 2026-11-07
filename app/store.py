@@ -44,6 +44,17 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS review_approvals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id TEXT NOT NULL,
+            reviewer_identity TEXT NOT NULL,
+            approved_at TEXT NOT NULL,
+            note TEXT NOT NULL
+        )
+        """
+    )
     return connection
 
 
@@ -184,7 +195,7 @@ def list_assessments(connection: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = connection.execute(
         "SELECT * FROM assessments ORDER BY updated_at DESC"
     ).fetchall()
-    return [_public_row(row) for row in rows]
+    return [_attach_approval(connection, _public_row(row)) for row in rows]
 
 
 def get_assessment(connection: sqlite3.Connection, assessment_id: str) -> dict[str, Any] | None:
@@ -193,7 +204,7 @@ def get_assessment(connection: sqlite3.Connection, assessment_id: str) -> dict[s
     ).fetchone()
     if row is None:
         return None
-    return _public_row(row)
+    return _attach_approval(connection, _public_row(row))
 
 
 def save_profile(
@@ -269,7 +280,6 @@ def request_review(connection: sqlite3.Connection, assessment_id: str) -> dict[s
     connection.commit()
     saved = get_assessment(connection, assessment_id)
     assert saved is not None
-    saved["human_review_approved"] = False
     return saved
 
 
@@ -309,6 +319,78 @@ def _insert(
         ),
     )
     connection.commit()
+
+
+def record_approval(
+    connection: sqlite3.Connection,
+    assessment_id: str,
+    *,
+    reviewer_identity: str,
+    note: str,
+) -> dict[str, Any]:
+    approved_at = _now()
+    connection.execute(
+        """
+        INSERT INTO review_approvals (assessment_id, reviewer_identity, approved_at, note)
+        VALUES (?, ?, ?, ?)
+        """,
+        (assessment_id, reviewer_identity, approved_at, note),
+    )
+    connection.commit()
+    approval = latest_approval(connection, assessment_id)
+    assert approval is not None
+    return approval
+
+
+def latest_approval(connection: sqlite3.Connection, assessment_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT assessment_id, reviewer_identity, approved_at, note
+        FROM review_approvals
+        WHERE assessment_id = ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (assessment_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "assessment_id": row["assessment_id"],
+        "reviewer_identity": row["reviewer_identity"],
+        "approved_at": row["approved_at"],
+        "action": "approve",
+        "note": row["note"],
+    }
+
+
+def list_approvals(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT assessment_id, reviewer_identity, approved_at, note
+        FROM review_approvals
+        WHERE assessment_id = ?
+        ORDER BY id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [
+        {
+            "assessment_id": row["assessment_id"],
+            "reviewer_identity": row["reviewer_identity"],
+            "approved_at": row["approved_at"],
+            "action": "approve",
+            "note": row["note"],
+        }
+        for row in rows
+    ]
+
+
+def _attach_approval(connection: sqlite3.Connection, record: dict[str, Any]) -> dict[str, Any]:
+    approval = None if record["read_only"] else latest_approval(connection, record["id"])
+    record["review_approval"] = approval
+    record["human_review_approved"] = approval is not None
+    return record
 
 
 def _public_row(row: sqlite3.Row) -> dict[str, Any]:

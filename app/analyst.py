@@ -76,5 +76,11 @@ def _explain(record: dict[str, Any], result: dict[str, Any] | None) -> list[str]
         )
     if not result.get("blocking_flags") and result.get("gap_flags"):
         lines.append("Open evidence gaps remain. A silent or incomplete intake cannot become a go recommendation.")
-    lines.append("human_review_approved remains false. This explanation is not evidence and is not final.")
+    if result.get("human_review_approved") is True:
+        lines.append(
+            "human_review_approved is true on this stored result. "
+            "The analyst did not set it and cannot change investor readiness."
+        )
+    else:
+        lines.append("human_review_approved remains false. This explanation is not evidence and is not final.")
     return lines

@@ -300,7 +300,7 @@ def _demand_status(demand: dict[str, Any]) -> str:
 <p><strong>Status:</strong> {escape(status)}</p>
 <p>{escape(caption)}</p>
 <p>{evidence}</p>
-<p class="muted">human_review_approved remains false. Clearing or leaving this flag does not mark the result investor-ready.</p>
+<p class="muted">Clearing or leaving this flag does not mark the result investor-ready.</p>
 </div>
 """
 
@@ -344,16 +344,60 @@ def validate_page(record: dict[str, Any] | None) -> str:
         body = "<h1>Validate</h1><p>Open an assessment from My Assessments to request a review.</p>"
         return layout("Validate", body)
     requested = "A review has been requested." if record["review_requested"] else "No review has been requested."
+    if record.get("human_review_approved"):
+        review_status = "approved"
+        review_note = "A reviewer recorded approval. This customer screen cannot approve or revoke it."
+    else:
+        review_status = "pending"
+        review_note = "Human review status stays pending until a reviewer uses the separate reviewer control."
     body = f"""
 <h1>Validate</h1>
-<div class="banner">Prototype only. Requesting a review does not approve it. There is no control here that sets human_review_approved.</div>
+<div class="banner">Prototype only. Customers can request review. This screen cannot set human_review_approved.</div>
 <p>{escape(record['business_name'])}: {escape(requested)}</p>
-<p>Human review status: pending. Investor readiness stays on the existing gate.</p>
+<p><strong>Human review status:</strong> {escape(review_status)}</p>
+<p>{escape(review_note)} Investor readiness stays on the existing gate.</p>
 <form method="post" action="/assessments/{escape(record['id'])}/review-request">
 <button type="submit">Request review</button>
 </form>
 """
     return layout("Validate", body)
+
+
+def reviewer_page(record: dict[str, Any], result: dict[str, Any] | None) -> str:
+    from app.review import LOCAL_REVIEWER_GATE
+
+    result = result or {}
+    flags = ", ".join(result.get("blocking_flags") or []) or "none loaded"
+    readiness = result.get("readiness_status") or "not loaded"
+    approved = "true" if record.get("human_review_approved") else "false"
+    identity = ""
+    approval = record.get("review_approval") or {}
+    if approval:
+        identity = str(approval.get("reviewer_identity") or "")
+    control = ""
+    if record.get("read_only"):
+        control = "<p>The official baseline cannot be approved from this prototype.</p>"
+    else:
+        control = f"""
+<form method="post" action="/reviewer/assessments/{escape(record['id'])}/approve">
+<input type="hidden" name="reviewer_gate" value="{escape(LOCAL_REVIEWER_GATE)}">
+<label>Reviewer identity (local prototype placeholder)</label>
+<input name="reviewer_identity" value="{escape(identity or "Local prototype reviewer")}">
+<button type="submit">Record reviewer approval</button>
+</form>
+"""
+    body = f"""
+<h1>Reviewer control</h1>
+<div class="banner">Reviewer control. Not a customer feature. Local prototype gate only. This is not production authentication.</div>
+<p>Assessment: {escape(record['business_name'])} ({escape(record['id'])})</p>
+<p><strong>Recommendation:</strong> {escape(str(result.get('recommendation') or 'not loaded'))}</p>
+<p><strong>INSUFFICIENT_DEMAND_EVIDENCE and other blocking flags:</strong> {escape(flags)}</p>
+<p><strong>Investor readiness:</strong> {escape(str(readiness))}</p>
+<p><strong>human_review_approved:</strong> {approved}</p>
+<p class="muted">Recording approval does not clear demand evidence, change the recommendation, or grant investor-ready.</p>
+{control}
+"""
+    return layout("Reviewer control", body)
 
 
 def partner_page() -> str:

@@ -4,7 +4,7 @@ Updated: 2026-11-07
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 71 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 73 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 71 tests passing
+- All 73 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -68,3 +68,9 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Market Intelligence and Partner render one demonstration snapshot. Live feed and monitoring stay off. Examples are labeled synthetic.
 - Drafts can be saved, resumed, and listed. A tier change does not change the stored recommendation or flags. Pilot drafts stay separate from the official baseline.
 - The unittest suite is 71 tests, all passing. The server is stopped.
+
+## Progress — 2026-11-07 reviewer approval
+
+- A local reviewer action can set `human_review_approved`. Customer posts that include the field still return 403. Validate only requests review. The reviewer screen is labeled as not a customer feature and not production authentication.
+- Approval is stored with the assessment id, reviewer identity, and timestamp. It does not clear `INSUFFICIENT_DEMAND_EVIDENCE`, change the recommendation, mark the result final, or grant investor-ready.
+- The official baseline cannot be approved. The unittest suite is 73 tests, all passing. The server is stopped.

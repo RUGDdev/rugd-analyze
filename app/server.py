@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from html import escape
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -22,14 +23,17 @@ from app.pages import (
     partner_page,
     reports_page,
     results_page,
+    reviewer_page,
     settings_page,
     validate_page,
 )
+from app.review import ReviewError, approve_assessment, result_with_stored_approval
 from app.store import (
     DEFAULT_DB,
     connect,
     create_assessment,
     get_assessment,
+    list_approvals,
     list_assessments,
     request_review,
     save_profile,
@@ -65,6 +69,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._html(dashboard(list_assessments(connection)))
             elif path == "/assessments/new":
                 self._html(new_assessment_page())
+            elif path.startswith("/reviewer/"):
+                self._reviewer_get(connection, path)
             elif path.startswith("/assessments/"):
                 self._assessment_get(connection, path)
             else:
@@ -95,6 +101,9 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._redirect(f"/assessments/{assessment_id}")
                 return
             parts = [part for part in path.split("/") if part]
+            if len(parts) >= 3 and parts[0] == "reviewer":
+                self._reviewer_post(connection, parts, form)
+                return
             if len(parts) >= 3 and parts[0] == "assessments":
                 self._assessment_post(connection, parts, form)
                 return
@@ -119,8 +128,13 @@ class AppHandler(BaseHTTPRequestHandler):
             self._bytes(body.encode("utf-8"), "text/markdown; charset=utf-8")
         elif action == "audit":
             result = self._ensure_result(connection, record)
-            payload = result.get("audit") or {"human_review_approved": False, "message": result.get("message")}
-            payload["human_review_approved"] = False
+            payload = dict(result.get("audit") or {"human_review_approved": False, "message": result.get("message")})
+            payload["approvals"] = [] if record["read_only"] else list_approvals(connection, record["id"])
+            payload["human_review_approved"] = bool(record["human_review_approved"])
+            if not record["human_review_approved"]:
+                readiness = payload.get("investor_readiness")
+                if isinstance(readiness, dict):
+                    readiness["human_review_approved"] = False
             self._bytes(json.dumps(payload, indent=2).encode("utf-8"), "application/json")
         elif action == "validate":
             self._html(validate_page(record))
@@ -154,7 +168,7 @@ class AppHandler(BaseHTTPRequestHandler):
                     save_profile(connection, assessment_id, profile)
                     record = get_assessment(connection, assessment_id)
             assert record is not None
-            result = self._run(record)
+            result = self._run(connection, record)
             save_result(connection, assessment_id, record.get("intake") if record["read_only"] else result.get("intake"), result)
             self._redirect(f"/assessments/{assessment_id}/results")
             return
@@ -167,7 +181,7 @@ class AppHandler(BaseHTTPRequestHandler):
     def _ensure_result(self, connection: Any, record: dict[str, Any]) -> dict[str, Any]:
         if record.get("result"):
             return record["result"]
-        result = self._run(record)
+        result = self._run(connection, record)
         save_result(
             connection,
             record["id"],
@@ -176,7 +190,42 @@ class AppHandler(BaseHTTPRequestHandler):
         )
         return result
 
-    def _run(self, record: dict[str, Any]) -> dict[str, Any]:
+    def _reviewer_get(self, connection: Any, path: str) -> None:
+        parts = [part for part in path.split("/") if part]
+        if len(parts) < 3 or parts[0] != "reviewer" or parts[1] != "assessments":
+            self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
+            return
+        record = get_assessment(connection, parts[2])
+        if record is None:
+            self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
+            return
+        result = record.get("result")
+        self._html(reviewer_page(record, result))
+
+    def _reviewer_post(self, connection: Any, parts: list[str], form: dict[str, str]) -> None:
+        if len(parts) < 4 or parts[1] != "assessments" or parts[3] != "approve":
+            self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
+            return
+        assessment_id = parts[2]
+        try:
+            approve_assessment(
+                connection,
+                assessment_id,
+                reviewer_identity=form.get("reviewer_identity") or "",
+                reviewer_gate=form.get("reviewer_gate") or "",
+            )
+        except ReviewError as exc:
+            self._html(layout("Not allowed", f"<h1>Not allowed</h1><p>{escape(str(exc))}</p>"), status=403)
+            return
+        except KeyError:
+            self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
+            return
+        except ValueError as exc:
+            self._html(layout("Reviewer", f"<h1>Reviewer</h1><p>{escape(str(exc))}</p>"), status=400)
+            return
+        self._redirect(f"/reviewer/assessments/{assessment_id}")
+
+    def _run(self, connection: Any, record: dict[str, Any]) -> dict[str, Any]:
         try:
             result = analyze_record(record)
         except ValueError as exc:
@@ -189,6 +238,7 @@ class AppHandler(BaseHTTPRequestHandler):
             }
         result["human_review_approved"] = False
         result["is_final"] = False
+        result["human_review_status"] = "pending"
         if isinstance(result.get("demand"), dict):
             result["demand"]["human_review_approved"] = False
             result["demand"]["investor_ready"] = False
@@ -202,7 +252,7 @@ class AppHandler(BaseHTTPRequestHandler):
             if isinstance(demand, dict):
                 demand["human_review_approved"] = False
                 demand["investor_ready"] = False
-        return result
+        return result_with_stored_approval(record, result, connection)
 
     def _db(self):
         return connect(type(self).db_path)

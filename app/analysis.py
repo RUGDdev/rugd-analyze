@@ -87,7 +87,13 @@ def analyze_record(record: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]:
+def analyze_intake(
+    intake: dict[str, Any],
+    *,
+    as_of_date: str,
+    human_review: str = "pending",
+    approval: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     errors = validate_intake(intake)
     if errors:
         return {
@@ -100,9 +106,11 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
     financial = _monthly(intake)
     flags = list(financial["flags"]) if financial else []
     recommendation = build_recommendation(intake, flags, financial)
+    review_state = "approved" if human_review == "approved" and approval else "pending"
     readiness = assessment_investor_readiness(
-        intake, recommendation, financial, human_review="pending"
+        intake, recommendation, financial, human_review=review_state
     )
+    approved = review_state == "approved"
     startup = record_for_intake(intake, human_review_approved=False)
     startup["human_review_approved"] = False
     startup["is_final"] = False
@@ -110,7 +118,12 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
     context = report_context(
         intake, recommendation, financial, as_of_date=as_of_date
     )
-    context["human_review_approved"] = "false"
+    if approved:
+        context["human_review_approved"] = "true"
+        context["investor_readiness_status"] = readiness.status
+        context["investor_readiness_conditions"] = _conditions_text(readiness)
+    else:
+        context["human_review_approved"] = "false"
     context["startup_capital"] = format_projection(startup)
     report = render_template(TEMPLATE_PATH.read_text(encoding="utf-8"), context)
     missing = []
@@ -128,8 +141,8 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
             "recommendation": recommendation.draft_recommendation,
             "blocking_flags": list(recommendation.blocking_flags),
             "readiness_status": readiness.status,
-            "human_review_status": "pending",
-            "human_review_approved": False,
+            "human_review_status": "approved" if approved else "pending",
+            "human_review_approved": approved,
             "is_final": False,
             "demand": demand,
         }
@@ -137,11 +150,13 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
     report = report.rstrip() + "\n\n" + _demand_report(view_summary, demand)
     audit = {
         "model_version": MODEL_VERSION,
-        "human_review_approved": False,
+        "human_review_approved": approved,
         "is_final": False,
+        "approvals": [approval] if approval else [],
+        "investor_summary_written": False,
         "investor_readiness": {
             "status": readiness.status,
-            "human_review_approved": False,
+            "human_review_approved": approved,
             "investor_ready": readiness.status == "investor-ready",
         },
         "recommendation": {
@@ -161,8 +176,8 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
         "purpose_supported": True,
         "recommendation": recommendation.draft_recommendation,
         "score_line": "Not calculated — methodology pending approval.",
-        "human_review_status": "pending",
-        "human_review_approved": False,
+        "human_review_status": "approved" if approved else "pending",
+        "human_review_approved": approved,
         "is_final": False,
         "readiness_status": readiness.status,
         "blocking_flags": list(recommendation.blocking_flags),
@@ -431,7 +446,6 @@ def build_view_summary(result: dict[str, Any]) -> dict[str, Any]:
     approved = (
         result.get("human_review_approved") is True
         and result.get("human_review_status") == "approved"
-        and result.get("is_final") is True
     )
     blocking = result.get("blocking_flags") or []
     demand = result.get("demand") or {}
@@ -444,7 +458,7 @@ def build_view_summary(result: dict[str, Any]) -> dict[str, Any]:
         "investor_readiness": result.get("readiness_status"),
         "human_review_status": "approved" if approved else "pending",
         "human_review_approved": bool(approved),
-        "is_final": bool(approved),
+        "is_final": result.get("is_final") is True,
         "demand_provenance": list(demand.get("provenance") or []),
     }
 
@@ -470,9 +484,20 @@ def _demand_report(summary: dict[str, Any], demand: dict[str, Any]) -> str:
         "**Demand evidence provenance:**\n\n"
         f"{provenance}\n\n"
         "This status comes from the 0.1 demand rule. "
-        "human_review_approved remains false. "
-        "This report does not mark the assessment investor-ready.\n"
+        + (
+            "human_review_approved is true. Approval does not clear recommend-against flags and does not by itself mark the assessment investor-ready.\n"
+            if summary.get("human_review_approved")
+            else "human_review_approved remains false. This report does not mark the assessment investor-ready.\n"
+        )
     )
+
+
+def _conditions_text(readiness: Any) -> str:
+    lines = []
+    for item in readiness.conditions:
+        state = "passed" if item.passed else "failed"
+        lines.append(f"- **{item.name}:** {state}. {item.detail}")
+    return "\n".join(lines)
 
 
 def _optional_number(value: Any) -> float | None:
