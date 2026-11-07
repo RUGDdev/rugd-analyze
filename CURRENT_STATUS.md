@@ -4,7 +4,7 @@ Updated: 2026-11-07
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 62 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 67 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -29,3 +29,34 @@ Run Analyze submits the same intake form as Save draft, so unsaved entries reach
 ## Unfinished
 
 Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring is not running. Market data providers are not connected. No production accounts, billing, reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred.
+
+## Git Checkpoint
+
+- 0.1 baseline committed: `3be9719` — "checkpoint: 0.1 baseline before 0.2 platform" (28 files)
+- 0.2 application files committed: `d2a088c` — "add RUGD Analyze 0.2 application files" (13 files)
+- Branch: main
+- Working tree: clean
+- Author used for commits (local only, global config unchanged): RUGD Dev <dev@rugd.local>
+
+## Current Platform Status (0.2)
+
+- Server: stopped (Ctrl+C applied)
+- Explore + Analyze: functional against 0.1 engine
+- Validate / Partner / Market Intelligence: demonstration only
+- Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
+- All 67 tests passing
+- Sample intake and reports/output/rugd-intelligence-draft.md preserved
+
+## Progress — 2026-11-07 demand evidence criteria
+
+- Sufficient demand evidence and the exact conditions that clear `INSUFFICIENT_DEMAND_EVIDENCE` are documented in `DECISIONS.md`. No clearance path was added. The official baseline intake was not edited.
+- The Explore → Analyze journey still works over HTTP: create a draft, save it, run the engine, and open results, the report, and the audit. Unanswered demand stays do-not-proceed with `INSUFFICIENT_DEMAND_EVIDENCE`.
+- New tests lock a verified `demand_evidence` statement as a clear, a verification plan or non-boolean claim as not a clear, a customer “yes” as `DEMAND_EVIDENCE_UNVERIFIED`, and the existing 403 on `human_review_approved`.
+- Server remains stopped.
+
+## Progress — 2026-11-07 verified demand record
+
+- The intake form has a separate verified demand record. It is applied only when the source is exactly `verified` and a rationale is present. A customer yes, a hypothetical demonstration, and an AI interpretation do not clear the flag.
+- Results, the report, and the audit show demand status `cleared`, `unverified`, or `uncleared`. A cleared draft stays unapproved and not investor-ready.
+- The official baseline still renders do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, and demand status uncleared.
+- The unittest suite is 67 tests, all passing. The server was checked and then stopped.

@@ -50,6 +50,42 @@ class TestScoring(unittest.TestCase):
         self.assertEqual(recommendation.gap_flags, ())
         self.assertIn("No weights are approved", recommendation.score_note)
 
+    def test_verified_demand_statement_clears_when_trailing_revenue_is_absent(self):
+        intake = cleared_intake(
+            verified_data={"revenue_trailing_12m": None},
+            assumptions=[
+                assumption(" Demand_Evidence ", True, source="verified"),
+                assumption("operator_capacity_adequate", True),
+                assumption("unresolved_regulatory_or_liability", False),
+                assumption("extraction_without_reinvestment", False),
+            ],
+        )
+        recommendation = build_recommendation(intake, [])
+        self.assertEqual(recommendation.criteria[0].status, "clear")
+        self.assertNotIn("INSUFFICIENT_DEMAND_EVIDENCE", recommendation.blocking_flags)
+        self.assertNotIn("DEMAND_EVIDENCE_UNVERIFIED", recommendation.gap_flags)
+        self.assertFalse(recommendation.is_final)
+        self.assertIsNone(recommendation.overall_feasibility_score)
+
+    def test_verification_plan_and_non_boolean_claim_do_not_clear_demand(self):
+        for claim in (
+            assumption("demand_verification_plan", True, source="verified"),
+            assumption("demand_evidence", "true", source="verified"),
+            assumption("demand_evidence", 1, source="verified"),
+        ):
+            intake = cleared_intake(
+                verified_data={"revenue_trailing_12m": None},
+                assumptions=[
+                    claim,
+                    assumption("operator_capacity_adequate", True),
+                    assumption("unresolved_regulatory_or_liability", False),
+                    assumption("extraction_without_reinvestment", False),
+                ],
+            )
+            recommendation = build_recommendation(intake, [])
+            self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", recommendation.blocking_flags)
+            self.assertEqual(recommendation.draft_recommendation, "do-not-proceed")
+
     def test_user_demand_claim_is_conditional_not_a_clear(self):
         intake = cleared_intake(
             verified_data={"revenue_trailing_12m": None},

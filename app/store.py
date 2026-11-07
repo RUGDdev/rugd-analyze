@@ -120,6 +120,10 @@ def blank_profile(*, business_name: str, purpose: str, tier: str) -> dict[str, A
         "customers": "",
         "competition": "",
         "demand_evidence": "",
+        "verified_record_source": "",
+        "verified_revenue_trailing_12m": "",
+        "verified_demand_evidence": "",
+        "verified_demand_rationale": "",
         "operator_capacity_adequate": "",
         "unresolved_regulatory_or_liability": "",
         "extraction_without_reinvestment": "",
@@ -202,6 +206,8 @@ def save_profile(
         raise PermissionError("This assessment is read-only.")
     clean = {key: value for key, value in profile.items() if key not in FORBIDDEN_PROFILE_KEYS}
     clean["human_review_approved"] = False
+    if current["hypothetical"]:
+        clean["hypothetical"] = True
     tier = clean.get("tier") or current["tier"]
     if tier not in ("explore", "analyze", "validate", "partner"):
         tier = current["tier"]
@@ -218,7 +224,7 @@ def save_profile(
             str(clean.get("business_name") or current["business_name"]),
             str(clean.get("purpose") or current["purpose"]),
             tier,
-            1 if clean.get("hypothetical") else 0,
+            1 if clean.get("hypothetical") is True else 0,
             json.dumps(clean),
             now,
             assessment_id,

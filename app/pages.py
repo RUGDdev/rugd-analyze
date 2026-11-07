@@ -166,6 +166,7 @@ def _fields(profile: dict[str, Any], locked: str) -> str:
             text("customers", "Target customers", area=True),
             text("competition", "Competition", area=True),
             choice("demand_evidence", "Is there demand evidence? A yes here is still only a user-supplied assumption."),
+            _verified_demand_fields(profile, locked),
             choice("operator_capacity_adequate", "Is operator capacity adequate?"),
             choice("unresolved_regulatory_or_liability", "Is there an unresolved regulatory or liability issue?"),
             choice("extraction_without_reinvestment", "Do stewardship indicators show extraction without reinvestment?"),
@@ -198,6 +199,42 @@ def _fields(profile: dict[str, Any], locked: str) -> str:
     )
 
 
+def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:
+    source = str(profile.get("verified_record_source") or "")
+    claim = str(profile.get("verified_demand_evidence") or "")
+    source_options = [
+        ("", "Not a verified record"),
+        ("verified", "verified"),
+    ]
+    claim_options = [
+        ("", "Not recorded"),
+        ("true", "true"),
+        ("false", "false"),
+    ]
+
+    def options(current: str, choices: list[tuple[str, str]]) -> str:
+        rendered = []
+        for value, caption in choices:
+            selected = "selected" if current == value else ""
+            rendered.append(f'<option value="{escape(value)}" {selected}>{escape(caption)}</option>')
+        return "".join(rendered)
+
+    revenue = escape(str(profile.get("verified_revenue_trailing_12m") or ""))
+    rationale = escape(str(profile.get("verified_demand_rationale") or ""))
+    return f"""
+<h2>Verified demand record</h2>
+<p class="muted">Separate from the customer question above. These fields are applied only when the source is verified and a rationale is present. A customer yes, a hypothetical demonstration, and an AI interpretation cannot clear INSUFFICIENT_DEMAND_EVIDENCE. This record does not approve the assessment.</p>
+<label>Source for this record</label>
+<select name="verified_record_source" {locked}>{options(source, source_options)}</select>
+<label>Verified trailing revenue (revenue_trailing_12m)</label>
+<input name="verified_revenue_trailing_12m" value="{revenue}" {locked}>
+<label>Verified demand_evidence</label>
+<select name="verified_demand_evidence" {locked}>{options(claim, claim_options)}</select>
+<label>Rationale for the verified record</label>
+<textarea name="verified_demand_rationale" {locked}>{rationale}</textarea>
+"""
+
+
 def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
     if not result.get("engine_ran"):
         body = f"<h1>Analyze</h1><div class=\"banner\">{escape(result.get('message', 'Analyze did not run.'))}</div>"
@@ -217,6 +254,8 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 <p><strong>human_review_approved:</strong> false</p>
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}.</p>
 </div>
+<h2>Demand evidence</h2>
+{_demand_status(result.get("demand") or {})}
 <h2>Recommend-against flags</h2><ul>{flags}</ul>
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
 <h2>Missing information</h2><ul>{missing}</ul>
@@ -226,6 +265,25 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 <a class="button" href="/assessments/{escape(record['id'])}/audit">Inspect audit</a></p>
 """
     return layout("Results", body)
+
+
+def _demand_status(demand: dict[str, Any]) -> str:
+    status = str(demand.get("status") or "uncleared")
+    captions = {
+        "cleared": "Verified support met the documented rule. INSUFFICIENT_DEMAND_EVIDENCE is not active.",
+        "unverified": "A customer claim is on file. DEMAND_EVIDENCE_UNVERIFIED remains, and the blocking flag is not cleared.",
+        "uncleared": "INSUFFICIENT_DEMAND_EVIDENCE is active.",
+    }
+    caption = captions.get(status, captions["uncleared"])
+    evidence = escape(str(demand.get("evidence") or ""))
+    return f"""
+<div class="card">
+<p><strong>Status:</strong> {escape(status)}</p>
+<p>{escape(caption)}</p>
+<p>{evidence}</p>
+<p class="muted">human_review_approved remains false. Clearing or leaving this flag does not mark the result investor-ready.</p>
+</div>
+"""
 
 
 def _financial_table(financial: dict[str, Any] | None) -> str:

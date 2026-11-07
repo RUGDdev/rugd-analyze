@@ -23,3 +23,67 @@ Version 0.2 does not call Census, BLS, BEA, or any paid data API. Market pages s
 ## 2026-11-07 — Git author identity was not set
 
 `git init` created this repository and the 0.1 files were staged. The checkpoint commit did not run because Git has no author name or email. Git configuration was not changed.
+
+## Decision: Git Checkpoint Completed
+
+- Date: 2026-11-07
+- Status: Accepted
+- Context: Root commit of 0.1 engine + follow-on commit of 0.2 application files required before further platform work.
+- Decision: Commits made with temporary author identity (`-c user.name` / `-c user.email`) so global Git config remains unchanged.
+- Consequence: Clean baseline now exists on `main`. Future sessions can resume from `d2a088c`.
+
+## Decision: Demand Evidence Remains the Hard Gate
+
+- Status: Active / Unchanged
+- The flag `INSUFFICIENT_DEMAND_EVIDENCE` continues to block any recommendation other than do-not-proceed and keeps investor readiness at `internal`.
+- No new scoring, fabricated evidence, or AI-generated clearance is permitted.
+- Clearance criteria will be defined in a subsequent decision before any implementation that can change the flag.
+
+## Decision: Sufficient Demand Evidence
+
+- Date: 2026-11-07
+- Status: Accepted as documentation of the 0.1 rules. No new clearance path is implemented.
+- Authority: Methodology § Core Principles (evidence hierarchy), Methodology § Scoring Approach (insufficient evidence of demand), and `scoring/rules.py` `_assess_demand` as committed in `d2a088c`. This decision does not change scoring weights, recommend-against criteria, or Investor Readiness Gate conditions.
+- Context: `INSUFFICIENT_DEMAND_EVIDENCE` is an approved recommend-against flag. While it is active, the draft recommendation is do-not-proceed and investor readiness is internal. The official RUGD Intelligence intake does not meet any clear condition below, and this decision does not edit that intake.
+
+### What counts as sufficient demand evidence
+
+Sufficient demand evidence is verified support with no conflicting denial. It is one of these records, and neither may be accompanied by a conflicting false:
+
+1. `verified_data.revenue_trailing_12m` is a finite number strictly greater than zero. Zero does not qualify. Null and a missing value do not qualify. The number is trailing revenue evidence, not a market-size score.
+2. An assumption whose key matches `demand_evidence` after trimming whitespace and ignoring case, whose value is the boolean `true`, and whose source is exactly `verified`.
+
+The match is exact on that key. `approved_pilots`, `demand_notes`, `evidence_notes`, `hypothetical_demonstration`, projected revenue, seat × occupancy × average ticket, a startup cost build, and a secondary industry benchmark are not demand evidence.
+
+A conflicting denial is any assumption with that same key, source `user` or `verified`, and boolean value `false`. One denial keeps the flag on even when verified trailing revenue or a verified `true` is also present. Source `ai_interpretation` is not a denial and is not support.
+
+### Exact conditions that clear `INSUFFICIENT_DEMAND_EVIDENCE`
+
+The criterion status is `clear`, and the blocking flag is not raised, only when both are true:
+
+- No conflicting denial, as defined above.
+- At least one of the two sufficient-evidence records is present.
+
+Non-boolean values on `user` or `verified` assumptions are ignored. The string `"true"`, the number `1`, and a customer form token are not the boolean `true`. A negative, non-numeric, or boolean `revenue_trailing_12m` is invalid intake, not a clear.
+
+### Records that leave the flag in place
+
+The blocking flag stays on when verified support is absent and there is no boolean `true` from source `user` or `verified`. That includes silence, a null or zero trailing revenue, an unanswered customer question, an AI interpretation of demand, and a verified statement on a different key.
+
+A boolean `true` from source `user` only does not clear insufficient demand. The engine leaves gap flag `DEMAND_EVIDENCE_UNVERIFIED`. That gap can draft conditional when no recommend-against flag fired. It does not draft go by itself, and it is not verified evidence.
+
+A verification plan does not clear this flag. Methodology § Investor Readiness Gate can accept verified demand or a verification plan at the readiness gate. In the 0.1 engine, `demand_verification_plan` true with source `user` or `verified` can satisfy only that readiness condition. It does not remove `INSUFFICIENT_DEMAND_EVIDENCE`. While the blocking flag is active, readiness stays internal.
+
+### What clearance does not do
+
+Clearing this flag does not set `human_review_approved`, does not mark the result final, does not compute a feasibility score, and does not produce investor-ready. Any other active recommend-against flag still drafts do-not-proceed and keeps readiness internal. The customer application stores a yes or no as source `user` and keeps `verified_data.revenue_trailing_12m` null, so a customer control cannot meet the clear conditions. No later change may clear the official baseline unless the intake itself contains one of the two sufficient-evidence records and an authorized review accepts it.
+
+## Decision: Verified Demand Record in the Application
+
+- Date: 2026-11-07
+- Status: Accepted
+- The customer yes/no question remains source `user`. It cannot clear `INSUFFICIENT_DEMAND_EVIDENCE`.
+- A separate form, “Verified demand record,” may supply `revenue_trailing_12m` and boolean `demand_evidence` only when `verified_record_source` is exactly `verified` and a rationale is present. The 0.1 engine then applies the documented rule.
+- A hypothetical demonstration does not apply that record. An AI interpretation is not an accepted source.
+- The application still passes human review as pending. Clearing the flag does not set `human_review_approved` and does not mark the result investor-ready.
+- The official baseline intake stays unchanged and read-only.

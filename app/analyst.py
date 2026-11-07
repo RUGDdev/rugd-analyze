@@ -24,6 +24,12 @@ def explain(record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:
     recommendation = result.get("recommendation")
     if recommendation:
         lines.append(f"The deterministic draft recommendation is {recommendation}. It is not final.")
+    demand = result.get("demand") or {}
+    if demand.get("status"):
+        lines.append(
+            f"Demand evidence status is {demand['status']}. "
+            "The analyst cannot clear that flag."
+        )
     for flag in result.get("blocking_flags") or []:
         lines.append(f"Recommend-against flag still active: {flag}.")
     if result.get("readiness_status"):

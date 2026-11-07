@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from engine.financial import FinancialInputs, result_to_dict, run_financials
@@ -52,7 +53,10 @@ def analyze_record(record: dict[str, Any]) -> dict[str, Any]:
     if record.get("intake") and record.get("read_only"):
         stored = record["intake"].get("as_of_date") or _as_of(record)
         return analyze_intake(record["intake"], as_of_date=str(stored))
-    purpose = str(record["profile"].get("purpose") or record["purpose"])
+    profile = dict(record["profile"])
+    if record.get("hypothetical"):
+        profile["hypothetical"] = True
+    purpose = str(profile.get("purpose") or record["purpose"])
     if purpose in UNSUPPORTED_PURPOSES:
         return {
             "ok": True,
@@ -76,7 +80,7 @@ def analyze_record(record: dict[str, Any]) -> dict[str, Any]:
             "audit": None,
             "model_version": MODEL_VERSION,
         }
-    intake, missing = profile_to_intake(record["profile"], as_of_date=_as_of(record))
+    intake, missing = profile_to_intake(profile, as_of_date=_as_of(record))
     result = analyze_intake(intake, as_of_date=_as_of(record))
     result["missing"] = missing + result.get("missing", [])
     result["intake"] = intake
@@ -118,6 +122,8 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
         missing.append(
             "Insufficient information to calculate the startup cost build. Construction cost, seats, average ticket, occupancy, operating days, and contribution margin are required."
         )
+    demand = _demand_record(recommendation, intake)
+    report = report.rstrip() + "\n\n" + _demand_report(demand)
     audit = {
         "model_version": MODEL_VERSION,
         "human_review_approved": False,
@@ -125,6 +131,7 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
         "investor_readiness": {
             "status": readiness.status,
             "human_review_approved": False,
+            "investor_ready": readiness.status == "investor-ready",
         },
         "recommendation": {
             "draft_recommendation": recommendation.draft_recommendation,
@@ -132,6 +139,7 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
             "gap_flags": list(recommendation.gap_flags),
             "overall_feasibility_score": None,
         },
+        "demand_evidence": demand,
         "financial_result": financial,
         "startup_capital": startup,
     }
@@ -147,6 +155,7 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
         "readiness_status": readiness.status,
         "blocking_flags": list(recommendation.blocking_flags),
         "gap_flags": list(recommendation.gap_flags),
+        "demand": demand,
         "missing": missing,
         "financial": financial,
         "projection": startup if startup.get("calculated") else None,
@@ -172,6 +181,7 @@ def profile_to_intake(profile: dict[str, Any], *, as_of_date: str) -> tuple[dict
             assumptions.append(_user_assumption(key, False, "Entered by the customer. Not verified."))
         else:
             missing.append(f"{key} was not answered.")
+    verified_revenue, verified_notes = _apply_verified_demand(profile, assumptions, missing)
     notes = str(profile.get("evidence_notes") or "").strip()
     if notes:
         assumptions.append(_user_assumption("evidence_notes", notes, "Customer note. Not verified data."))
@@ -189,10 +199,10 @@ def profile_to_intake(profile: dict[str, Any], *, as_of_date: str) -> tuple[dict
         "description": str(profile.get("concept") or ""),
         "as_of_date": as_of_date[:10],
         "verified_data": {
-            "revenue_trailing_12m": None,
+            "revenue_trailing_12m": verified_revenue,
             "current_cash": None,
             "headcount": None,
-            "evidence_notes": "Customer entries are user-supplied assumptions. Nothing on this form was marked verified.",
+            "evidence_notes": verified_notes,
         },
         "assumptions": assumptions,
     }
@@ -232,6 +242,139 @@ def profile_to_intake(profile: dict[str, Any], *, as_of_date: str) -> tuple[dict
 
 def _user_assumption(key: str, value: Any, rationale: str) -> dict[str, Any]:
     return {"key": key, "value": value, "source": "user", "rationale": rationale}
+
+
+def _apply_verified_demand(
+    profile: dict[str, Any],
+    assumptions: list[dict[str, Any]],
+    missing: list[str],
+) -> tuple[float | None, str]:
+    """Record verified demand inputs only when the controlled source is exactly verified."""
+    customer_note = (
+        "Customer entries are user-supplied assumptions. Nothing on this form was marked verified."
+    )
+    attempted = any(
+        str(profile.get(key) or "").strip()
+        for key in (
+            "verified_record_source",
+            "verified_revenue_trailing_12m",
+            "verified_demand_evidence",
+            "verified_demand_rationale",
+        )
+    )
+    if not attempted:
+        return None, customer_note
+    if _is_true(profile.get("hypothetical")):
+        missing.append(
+            "Verified demand records are not applied on a hypothetical demonstration."
+        )
+        return None, customer_note
+    if str(profile.get("verified_record_source") or "").strip() != "verified":
+        missing.append(
+            "Verified demand fields were not applied because verified_record_source is not verified."
+        )
+        return None, customer_note
+    rationale = str(profile.get("verified_demand_rationale") or "").strip()
+    if not rationale:
+        missing.append(
+            "Verified demand fields were not applied because a rationale is required."
+        )
+        return None, customer_note
+    revenue = _verified_revenue(profile.get("verified_revenue_trailing_12m"))
+    claim = str(profile.get("verified_demand_evidence") or "").strip().lower()
+    applied = False
+    if revenue == "invalid":
+        missing.append(
+            "Verified trailing revenue was not applied because it is not a finite number >= 0."
+        )
+        revenue_value = None
+    else:
+        revenue_value = revenue
+        applied = revenue_value is not None
+    if claim in ("true", "false"):
+        assumptions.append(
+            {
+                "key": "demand_evidence",
+                "value": claim == "true",
+                "source": "verified",
+                "rationale": rationale,
+            }
+        )
+        applied = True
+    elif claim:
+        missing.append(
+            "Verified demand_evidence was ignored because it is not boolean true or false."
+        )
+    if not applied:
+        missing.append(
+            "No verified trailing revenue or verified demand_evidence value was supplied."
+        )
+        return None, customer_note
+    return revenue_value, f"Verified demand record, source verified. {rationale}"
+
+
+def _verified_revenue(value: Any) -> float | None | str:
+    if value is None or isinstance(value, bool):
+        return "invalid" if isinstance(value, bool) else None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        number = float(text)
+    except ValueError:
+        return "invalid"
+    if not math.isfinite(number) or number < 0:
+        return "invalid"
+    return number
+
+
+def _is_true(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value or "").strip().lower() in ("true", "1", "yes")
+
+
+def _demand_record(recommendation: Any, intake: dict[str, Any]) -> dict[str, Any]:
+    demand = next(
+        item for item in recommendation.criteria if item.criterion_id == "demand"
+    )
+    if demand.flag == "INSUFFICIENT_DEMAND_EVIDENCE":
+        status = "uncleared"
+    elif demand.flag == "DEMAND_EVIDENCE_UNVERIFIED":
+        status = "unverified"
+    elif demand.status == "clear":
+        status = "cleared"
+    else:
+        status = "uncleared"
+    verified = intake.get("verified_data") or {}
+    verified_claims = [
+        item["value"]
+        for item in intake.get("assumptions") or []
+        if str(item.get("key", "")).strip().lower() == "demand_evidence"
+        and item.get("source") == "verified"
+        and isinstance(item.get("value"), bool)
+    ]
+    return {
+        "status": status,
+        "criterion_status": demand.status,
+        "flag": demand.flag,
+        "evidence": demand.evidence,
+        "revenue_trailing_12m": verified.get("revenue_trailing_12m"),
+        "verified_demand_evidence": verified_claims,
+        "human_review_approved": False,
+        "investor_ready": False,
+    }
+
+
+def _demand_report(demand: dict[str, Any]) -> str:
+    return (
+        "## Demand evidence status\n\n"
+        f"**Status:** {demand['status']}\n\n"
+        f"{demand['evidence']}\n\n"
+        "This status comes from the 0.1 demand rule. "
+        "human_review_approved remains false. "
+        "This report does not mark the assessment investor-ready.\n"
+    )
 
 
 def _optional_number(value: Any) -> float | None:

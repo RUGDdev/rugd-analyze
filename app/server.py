@@ -189,8 +189,19 @@ class AppHandler(BaseHTTPRequestHandler):
             }
         result["human_review_approved"] = False
         result["is_final"] = False
-        if isinstance(result.get("audit"), dict):
-            result["audit"]["human_review_approved"] = False
+        if isinstance(result.get("demand"), dict):
+            result["demand"]["human_review_approved"] = False
+            result["demand"]["investor_ready"] = False
+        audit = result.get("audit")
+        if isinstance(audit, dict):
+            audit["human_review_approved"] = False
+            readiness = audit.get("investor_readiness")
+            if isinstance(readiness, dict):
+                readiness["human_review_approved"] = False
+            demand = audit.get("demand_evidence")
+            if isinstance(demand, dict):
+                demand["human_review_approved"] = False
+                demand["investor_ready"] = False
         return result
 
     def _db(self):
