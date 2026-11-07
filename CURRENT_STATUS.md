@@ -4,7 +4,7 @@ Updated: 2026-11-07
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 75 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 77 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 75 tests passing
+- All 77 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -97,3 +97,10 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - The assessment audit JSON lists those events beside approvals. Actions are `sign-in`, `sign-out`, and `approve`. The reviewer screen shows the last sign-in, the last sign-out, and the current session status.
 - Session events do not change the recommendation, `INSUFFICIENT_DEMAND_EVIDENCE`, or investor readiness. Expired and signed-out sessions still cannot approve. The official baseline stays unapprovable. Customer posts that include `human_review_approved` still return 403.
 - Authentication remains prototype-grade. The unittest suite is 75 tests, all passing. The server is stopped.
+
+## Progress — 2026-11-07 HTML audit view
+
+- `/assessments/{id}/audit/html` is a read-only audit page. It shows the recommendation, recommend-against and gap flags, whether `INSUFFICIENT_DEMAND_EVIDENCE` is present, investor readiness, human review status, demand provenance, and reviewer events with timestamps and the short session hash.
+- The page has no form and no approval control. Results, the Markdown report, and the reviewer screen link to it. The JSON audit at `/assessments/{id}/audit` is unchanged.
+- Opening the HTML page does not write the assessment. The official baseline still renders do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE` present, investor readiness internal, and human review pending.
+- Reviewer events on the page are labeled prototype-grade. The unittest suite is 77 tests, all passing. The server is stopped.

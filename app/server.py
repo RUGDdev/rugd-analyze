@@ -13,6 +13,7 @@ from app.analysis import analyze_record
 from app.analyst import explain
 from app.pages import (
     analyst_page,
+    audit_html_page,
     analyze_index,
     assessment_form,
     dashboard,
@@ -142,7 +143,13 @@ class AppHandler(BaseHTTPRequestHandler):
         elif action == "report":
             result = self._ensure_result(connection, record)
             body = result.get("report_markdown") or result.get("message") or "No report."
+            audit_link = f"/assessments/{record['id']}/audit/html"
+            if audit_link not in body:
+                body += f"\n\nHTML audit view: {audit_link}\n"
             self._bytes(body.encode("utf-8"), "text/markdown; charset=utf-8")
+        elif action == "audit" and len(parts) > 3 and parts[3] == "html":
+            result = record.get("result") or self._run(connection, record)
+            self._html(audit_html_page(record, result, list_reviewer_events(connection, record["id"])))
         elif action == "audit":
             result = self._ensure_result(connection, record)
             payload = dict(result.get("audit") or {"human_review_approved": False, "message": result.get("message")})

@@ -136,3 +136,12 @@ This lifetime and sign-out are still prototype-grade. There is no password hash,
 ### Prototype limitations
 
 This audit is still prototype-grade. It is a local SQLite log, not a production identity system. There is no password hash, no OAuth or external identity provider, and no per-person account. The passphrase remains the source constant. The session hash is a short display identifier, not a second secret. The cookie is still not `Secure`. A person who can read the source and reach the local server can sign in again until a later decision replaces this mechanism.
+
+## Decision: Read-only HTML audit page
+
+- Date: 2026-11-07
+- Status: Accepted for the local prototype only
+- `/assessments/{id}/audit/html` is a browser-readable audit view. It shows the current recommendation, recommend-against flags, gap flags, whether `INSUFFICIENT_DEMAND_EVIDENCE` is present, investor readiness, human review status, demand provenance (`verified`, `user`, or `placeholder`), and reviewer events. Each event shows its action, timestamp, and short session hash. The raw session token is not shown.
+- The page is read-only. It has no form and no control that can change flags, approval, readiness, or the recommendation. A draft stays labeled draft. A recorded approval is labeled as approval only, and the page still shows the existing readiness status.
+- Results, the served Markdown report, and the reviewer screen link to this page. `/assessments/{id}/audit` remains the JSON audit and its fields are unchanged. Opening the HTML page does not write the assessment. The official baseline still renders do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE` present, investor readiness internal, and human review pending.
+- The reviewer-event section states that authentication remains prototype-grade and is not a customer feature. This page does not add production authentication.

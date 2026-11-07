@@ -260,6 +260,7 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 <h2>Monthly engine</h2>{financial}
 <h2>Startup capital views</h2>{projection}
 <p><a class="button" href="/assessments/{escape(record['id'])}/report">Open report</a>
+<a class="button" href="/assessments/{escape(record['id'])}/audit/html">HTML audit view</a>
 <a class="button" href="/assessments/{escape(record['id'])}/audit">Inspect audit</a></p>
 """
     return layout("Results", body)
@@ -339,6 +340,76 @@ def market_page() -> str:
     return layout("Market Intelligence", body)
 
 
+def audit_html_page(
+    record: dict[str, Any],
+    result: dict[str, Any] | None,
+    events: list[dict[str, Any]] | None = None,
+) -> str:
+    """Read-only audit view. This page has no control that can change the assessment."""
+    from app.analysis import build_view_summary
+
+    result = result or {}
+    events = events or []
+    if not result.get("engine_ran"):
+        body = f"""
+<h1>Audit view</h1>
+<div class="banner">Audit view. Read only. Draft. This page cannot change flags, approval, readiness, or the recommendation.</div>
+<p>{escape(result.get('message') or 'Analyze did not run.')}</p>
+"""
+        return layout("Audit view", body)
+    summary = build_view_summary(result)
+    if summary.get("human_review_approved"):
+        standing = (
+            "Reviewer approval is recorded. Investor readiness stays on the existing gate. "
+            "Approval does not clear recommend-against flags and does not by itself mark this assessment investor-ready."
+        )
+    else:
+        standing = "Draft. Human review is pending. This is not an approved or investor-ready result."
+    blocking = "".join(f"<li class=\"flag\">{escape(flag)}</li>" for flag in result.get("blocking_flags") or []) or "<li>None</li>"
+    gaps = "".join(f"<li>{escape(flag)}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
+    provenance = "".join(
+        f"<li>{escape(str(row.get('field')))}: {escape(str(row.get('provenance')))}</li>"
+        for row in summary.get("demand_provenance") or []
+    ) or "<li>placeholder</li>"
+    if events:
+        rows = "".join(
+            "<tr>"
+            f"<td>{escape(str(item.get('action')))}</td>"
+            f"<td>{escape(str(item.get('recorded_at') or ''))}</td>"
+            f"<td>{escape(str(item.get('session_id') or ''))}</td>"
+            f"<td>{escape(str(item.get('reviewer_identity') or ''))}</td>"
+            "</tr>"
+            for item in events
+        )
+        event_table = (
+            "<table><tr><th>Action</th><th>Timestamp</th><th>Session hash</th><th>Reviewer</th></tr>"
+            f"{rows}</table>"
+        )
+    else:
+        event_table = "<p>No reviewer events are recorded.</p>"
+    body = f"""
+<h1>Audit view for {escape(record['business_name'])}</h1>
+<div class="banner">Audit view. Read only. {escape(standing)} This page cannot change flags, approval, readiness, or the recommendation.</div>
+<div class="card">
+<p><strong>Recommendation:</strong> {escape(str(summary.get('recommendation')))}</p>
+<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> {escape(str(summary.get('insufficient_demand_evidence')))}</p>
+<p><strong>Investor readiness:</strong> {escape(str(summary.get('investor_readiness')))}</p>
+<p><strong>Human review status:</strong> {escape(str(summary.get('human_review_status')))}</p>
+<p><strong>human_review_approved:</strong> {"true" if summary.get("human_review_approved") else "false"}</p>
+</div>
+<h2>Recommend-against flags</h2><ul>{blocking}</ul>
+<h2>Evidence gaps</h2><ul>{gaps}</ul>
+<h2>Demand evidence provenance</h2>
+<ul>{provenance}</ul>
+<h2>Reviewer events</h2>
+<p class="muted">Reviewer authentication remains prototype-grade. Not a customer feature. Not production authentication. Session values below are short hashes, not raw tokens.</p>
+{event_table}
+<p><a href="/assessments/{escape(record['id'])}/audit">JSON audit</a>
+<a href="/assessments/{escape(record['id'])}/results">Results</a></p>
+"""
+    return layout("Audit view", body)
+
+
 def validate_page(record: dict[str, Any] | None) -> str:
     if record is None:
         body = "<h1>Validate</h1><p>Open an assessment from My Assessments to request a review.</p>"
@@ -395,6 +466,7 @@ def reviewer_page(
 <p><strong>Investor readiness:</strong> {escape(str(readiness))}</p>
 <p><strong>human_review_approved:</strong> {approved}</p>
 <p class="muted">Recording approval does not clear demand evidence, change the recommendation, or grant investor-ready.</p>
+<p><a href="/assessments/{escape(record['id'])}/audit/html">HTML audit view</a></p>
 {control}
 """
     return layout("Reviewer control", body)
@@ -521,6 +593,7 @@ def _market_block(snapshot: dict[str, Any]) -> str:
 def reports_page(records: list[dict[str, Any]]) -> str:
     items = "".join(
         f"<li><a href=\"/assessments/{escape(item['id'])}/report\">{escape(item['business_name'])} report</a> · "
+        f"<a href=\"/assessments/{escape(item['id'])}/audit/html\">HTML audit view</a> · "
         f"<a href=\"/assessments/{escape(item['id'])}/audit\">audit</a></li>"
         for item in records
     )
