@@ -4,7 +4,7 @@ Updated: 2026-11-07
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 67 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 71 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 67 tests passing
+- All 71 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -60,3 +60,11 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Results, the report, and the audit show demand status `cleared`, `unverified`, or `uncleared`. A cleared draft stays unapproved and not investor-ready.
 - The official baseline still renders do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, and demand status uncleared.
 - The unittest suite is 67 tests, all passing. The server was checked and then stopped.
+
+## Progress — 2026-11-07 view clarity and demonstration safety
+
+- Results, the Markdown report, and the JSON audit share one view summary: recommendation, whether `INSUFFICIENT_DEMAND_EVIDENCE` is present, investor readiness, human review pending, and demand provenance (`verified`, `user`, or `placeholder`).
+- The analyst is a replaceable Demonstration Analyst. No external AI API is configured. It explains a copy of the engine result and cannot change figures, flags, approval, or readiness.
+- Market Intelligence and Partner render one demonstration snapshot. Live feed and monitoring stay off. Examples are labeled synthetic.
+- Drafts can be saved, resumed, and listed. A tier change does not change the stored recommendation or flags. Pilot drafts stay separate from the official baseline.
+- The unittest suite is 71 tests, all passing. The server is stopped.

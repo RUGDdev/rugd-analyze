@@ -123,7 +123,18 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
             "Insufficient information to calculate the startup cost build. Construction cost, seats, average ticket, occupancy, operating days, and contribution margin are required."
         )
     demand = _demand_record(recommendation, intake)
-    report = report.rstrip() + "\n\n" + _demand_report(demand)
+    view_summary = build_view_summary(
+        {
+            "recommendation": recommendation.draft_recommendation,
+            "blocking_flags": list(recommendation.blocking_flags),
+            "readiness_status": readiness.status,
+            "human_review_status": "pending",
+            "human_review_approved": False,
+            "is_final": False,
+            "demand": demand,
+        }
+    )
+    report = report.rstrip() + "\n\n" + _demand_report(view_summary, demand)
     audit = {
         "model_version": MODEL_VERSION,
         "human_review_approved": False,
@@ -140,6 +151,7 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
             "overall_feasibility_score": None,
         },
         "demand_evidence": demand,
+        "view_summary": view_summary,
         "financial_result": financial,
         "startup_capital": startup,
     }
@@ -156,6 +168,7 @@ def analyze_intake(intake: dict[str, Any], *, as_of_date: str) -> dict[str, Any]
         "blocking_flags": list(recommendation.blocking_flags),
         "gap_flags": list(recommendation.gap_flags),
         "demand": demand,
+        "view_summary": view_summary,
         "missing": missing,
         "financial": financial,
         "projection": startup if startup.get("calculated") else None,
@@ -354,6 +367,7 @@ def _demand_record(recommendation: Any, intake: dict[str, Any]) -> dict[str, Any
         and item.get("source") == "verified"
         and isinstance(item.get("value"), bool)
     ]
+    provenance = _demand_provenance(intake)
     return {
         "status": status,
         "criterion_status": demand.status,
@@ -361,16 +375,100 @@ def _demand_record(recommendation: Any, intake: dict[str, Any]) -> dict[str, Any
         "evidence": demand.evidence,
         "revenue_trailing_12m": verified.get("revenue_trailing_12m"),
         "verified_demand_evidence": verified_claims,
+        "provenance": provenance,
         "human_review_approved": False,
         "investor_ready": False,
     }
 
 
-def _demand_report(demand: dict[str, Any]) -> str:
+def _demand_provenance(intake: dict[str, Any]) -> list[dict[str, Any]]:
+    verified = intake.get("verified_data") or {}
+    revenue = verified.get("revenue_trailing_12m")
+    rows = [
+        {
+            "field": "revenue_trailing_12m",
+            "provenance": "placeholder" if revenue is None else "verified",
+            "source": None if revenue is None else "verified",
+            "value": revenue,
+        }
+    ]
+    claims = [
+        item
+        for item in intake.get("assumptions") or []
+        if str(item.get("key", "")).strip().lower() == "demand_evidence"
+    ]
+    if not claims:
+        rows.append(
+            {
+                "field": "demand_evidence",
+                "provenance": "placeholder",
+                "source": None,
+                "value": None,
+            }
+        )
+        return rows
+    for item in claims:
+        source = str(item.get("source") or "")
+        if source == "verified":
+            provenance = "verified"
+        elif source == "user":
+            provenance = "user"
+        else:
+            provenance = "placeholder"
+        rows.append(
+            {
+                "field": "demand_evidence",
+                "provenance": provenance,
+                "source": source or None,
+                "value": item.get("value"),
+            }
+        )
+    return rows
+
+
+def build_view_summary(result: dict[str, Any]) -> dict[str, Any]:
+    """Headlines for the results page, report, and audit. Approval stays pending here."""
+    approved = (
+        result.get("human_review_approved") is True
+        and result.get("human_review_status") == "approved"
+        and result.get("is_final") is True
+    )
+    blocking = result.get("blocking_flags") or []
+    demand = result.get("demand") or {}
+    return {
+        "recommendation": result.get("recommendation"),
+        "insufficient_demand_evidence": (
+            "present" if "INSUFFICIENT_DEMAND_EVIDENCE" in blocking else "not present"
+        ),
+        "demand_status": demand.get("status") or "uncleared",
+        "investor_readiness": result.get("readiness_status"),
+        "human_review_status": "approved" if approved else "pending",
+        "human_review_approved": bool(approved),
+        "is_final": bool(approved),
+        "demand_provenance": list(demand.get("provenance") or []),
+    }
+
+
+def _demand_report(summary: dict[str, Any], demand: dict[str, Any]) -> str:
+    provenance = "\n".join(
+        f"- {row['field']}: {row['provenance']}"
+        + (f" (source: {row['source']})" if row.get("source") else "")
+        for row in summary.get("demand_provenance") or []
+    )
+    approved = "true" if summary.get("human_review_approved") else "false"
     return (
         "## Demand evidence status\n\n"
         f"**Status:** {demand['status']}\n\n"
         f"{demand['evidence']}\n\n"
+        "## Assessment view\n\n"
+        f"**Recommendation:** {summary.get('recommendation')}\n\n"
+        f"**INSUFFICIENT_DEMAND_EVIDENCE:** {summary.get('insufficient_demand_evidence')}\n\n"
+        f"**Demand evidence status:** {summary.get('demand_status')}\n\n"
+        f"**Investor readiness:** {summary.get('investor_readiness')}\n\n"
+        f"**Human review status:** {summary.get('human_review_status')}\n\n"
+        f"**human_review_approved:** {approved}\n\n"
+        "**Demand evidence provenance:**\n\n"
+        f"{provenance}\n\n"
         "This status comes from the 0.1 demand rule. "
         "human_review_approved remains false. "
         "This report does not mark the assessment investor-ready.\n"

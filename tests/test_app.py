@@ -11,6 +11,7 @@ import urllib.request
 from pathlib import Path
 
 from app.analysis import analyze_record
+from app.pages import results_page
 from app.server import make_server
 from app.store import (
     BASELINE_ID,
@@ -19,7 +20,9 @@ from app.store import (
     connect,
     create_assessment,
     get_assessment,
+    list_assessments,
     save_profile,
+    save_result,
     seed,
 )
 
@@ -46,6 +49,18 @@ class TestAnalyzeApp(unittest.TestCase):
         self.assertEqual(result["recommendation"], "do-not-proceed")
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", result["blocking_flags"])
         self.assertEqual(result["demand"]["status"], "uncleared")
+        self.assertEqual(result["view_summary"]["insufficient_demand_evidence"], "present")
+        self.assertEqual(result["view_summary"]["human_review_status"], "pending")
+        self.assertEqual(result["view_summary"]["investor_readiness"], "internal")
+        self.assertFalse(result["view_summary"]["human_review_approved"])
+        self.assertIn(
+            {"field": "demand_evidence", "provenance": "placeholder", "source": None, "value": None},
+            result["view_summary"]["demand_provenance"],
+        )
+        self.assertEqual(result["audit"]["view_summary"]["recommendation"], "do-not-proceed")
+        self.assertIn("**INSUFFICIENT_DEMAND_EVIDENCE:** present", result["report_markdown"])
+        self.assertIn("**Human review status:** pending", result["report_markdown"])
+        self.assertIn("revenue_trailing_12m: placeholder", result["report_markdown"])
         self.assertEqual(result["readiness_status"], "internal")
         self.assertEqual(result["human_review_status"], "pending")
         self.assertFalse(result["human_review_approved"])
@@ -53,6 +68,12 @@ class TestAnalyzeApp(unittest.TestCase):
         self.assertIsNone(result["audit"]["recommendation"]["overall_feasibility_score"])
         self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before)
         self.assertIn("do-not-proceed", BASELINE_FILE.read_text(encoding="utf-8"))
+        page = results_page(record, result)
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE:</strong> present", page)
+        self.assertIn("Human review status:</strong> pending", page)
+        self.assertIn("Investor readiness:</strong> internal", page)
+        self.assertIn("demand_evidence: placeholder", page)
+        self.assertNotIn("Investor readiness:</strong> investor-ready", page)
 
     def test_customer_cannot_approve_or_edit_the_baseline(self) -> None:
         with self.assertRaises(PermissionError):
@@ -88,8 +109,6 @@ class TestAnalyzeApp(unittest.TestCase):
         assert saved is not None
         self.assertEqual(saved["profile"]["construction_cost"], "100000")
         result = analyze_record(saved)
-        from app.store import save_result
-
         save_result(self.connection, assessment_id, result.get("intake"), result)
         save_profile(
             self.connection,
@@ -100,7 +119,56 @@ class TestAnalyzeApp(unittest.TestCase):
         assert again is not None
         self.assertEqual(again["tier"], "partner")
         self.assertEqual(again["result"]["recommendation"], result["recommendation"])
+        self.assertEqual(again["result"]["blocking_flags"], result["blocking_flags"])
         self.assertFalse(again["human_review_approved"])
+
+    def test_history_resume_keeps_pilot_drafts_isolated(self) -> None:
+        before = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        first = create_assessment(
+            self.connection,
+            business_name="History Cafe",
+            purpose="startup_feasibility",
+            tier="explore",
+        )
+        second = create_assessment(
+            self.connection,
+            business_name="Bunny Hive",
+            purpose="startup_feasibility",
+            tier="explore",
+            pilot_label="Named pilot draft. Not a completed assessment.",
+        )
+        current = get_assessment(self.connection, first)
+        assert current is not None
+        save_profile(
+            self.connection,
+            first,
+            {**current["profile"], "concept": "Resume this draft.", "tier": "explore"},
+        )
+        resumed = get_assessment(self.connection, first)
+        assert resumed is not None
+        self.assertEqual(resumed["profile"]["concept"], "Resume this draft.")
+        analyzed = analyze_record(resumed)
+        save_result(self.connection, first, analyzed.get("intake"), analyzed)
+        save_profile(self.connection, first, {**resumed["profile"], "tier": "partner"})
+        stored = get_assessment(self.connection, first)
+        assert stored is not None
+        self.assertEqual(stored["tier"], "partner")
+        self.assertEqual(stored["result"]["recommendation"], analyzed["recommendation"])
+        self.assertEqual(stored["result"]["blocking_flags"], analyzed["blocking_flags"])
+        self.assertEqual(stored["result"]["demand"]["status"], analyzed["demand"]["status"])
+        names = {item["business_name"] for item in list_assessments(self.connection)}
+        self.assertIn("History Cafe", names)
+        self.assertIn("Bunny Hive", names)
+        self.assertIn("RUGD Intelligence", names)
+        baseline = get_assessment(self.connection, BASELINE_ID)
+        assert baseline is not None
+        baseline_result = analyze_record(baseline)
+        self.assertEqual(baseline_result["recommendation"], "do-not-proceed")
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", baseline_result["blocking_flags"])
+        pilot = get_assessment(self.connection, second)
+        assert pilot is not None
+        self.assertNotEqual(pilot["id"], BASELINE_ID)
+        self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before)
 
     def test_customer_demand_yes_does_not_clear_the_gate(self) -> None:
         assessment_id = create_assessment(
@@ -129,6 +197,11 @@ class TestAnalyzeApp(unittest.TestCase):
         self.assertNotIn("INSUFFICIENT_DEMAND_EVIDENCE", result["blocking_flags"])
         self.assertIn("DEMAND_EVIDENCE_UNVERIFIED", result["gap_flags"])
         self.assertEqual(result["demand"]["status"], "unverified")
+        self.assertEqual(result["view_summary"]["insufficient_demand_evidence"], "not present")
+        self.assertIn(
+            {"field": "demand_evidence", "provenance": "user", "source": "user", "value": True},
+            result["view_summary"]["demand_provenance"],
+        )
         self.assertIsNone(result["intake"]["verified_data"]["revenue_trailing_12m"])
         self.assertEqual(result["readiness_status"], "conditional")
         self.assertNotEqual(result["readiness_status"], "investor-ready")
@@ -147,6 +220,15 @@ class TestAnalyzeApp(unittest.TestCase):
         self.assertNotIn("INSUFFICIENT_DEMAND_EVIDENCE", revenue["blocking_flags"])
         self.assertNotIn("DEMAND_EVIDENCE_UNVERIFIED", revenue["gap_flags"])
         self.assertEqual(revenue["intake"]["verified_data"]["revenue_trailing_12m"], 125000.0)
+        self.assertEqual(revenue["view_summary"]["demand_status"], "cleared")
+        self.assertEqual(revenue["view_summary"]["insufficient_demand_evidence"], "not present")
+        self.assertEqual(revenue["view_summary"]["human_review_status"], "pending")
+        self.assertIn(
+            {"field": "revenue_trailing_12m", "provenance": "verified", "source": "verified", "value": 125000.0},
+            revenue["view_summary"]["demand_provenance"],
+        )
+        self.assertIn("**Demand evidence provenance:**", revenue["report_markdown"])
+        self.assertIn("revenue_trailing_12m: verified", revenue["report_markdown"])
         self.assertFalse(revenue["human_review_approved"])
         self.assertFalse(revenue["is_final"])
         self.assertNotEqual(revenue["readiness_status"], "investor-ready")
@@ -258,7 +340,9 @@ class TestAnalyzeApp(unittest.TestCase):
             self.assertIn("Hypothetical Restaurant Startup", page)
             with urllib.request.urlopen(base + "/market") as response:
                 market = response.read().decode("utf-8")
-            self.assertIn("Hypothetical demonstration", market)
+            self.assertIn("Demonstration. Not market research and not active monitoring.", market)
+            self.assertIn("Synthetic example only", market)
+            self.assertIn("Live feed connected: false", market)
             request = urllib.request.Request(
                 base + "/assessments",
                 data=b"business_name=Journey+Cafe&purpose=startup_feasibility&tier=explore&human_review_approved=true",

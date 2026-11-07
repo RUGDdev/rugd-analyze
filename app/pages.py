@@ -7,6 +7,7 @@ from typing import Any
 
 from app import APP_VERSION
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
+from app.market import market_framework
 
 NAV = (
     ("/", "Dashboard"),
@@ -248,10 +249,7 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 <h1>Draft results for {escape(record['business_name'])}</h1>
 <div class="banner">Draft recommendation. Human review is pending. This is not a final or investor-ready result.</div>
 <div class="card">
-<p><strong>Recommendation:</strong> {escape(str(result.get('recommendation')))}</p>
-<p><strong>Score:</strong> {escape(result.get('score_line', ''))}</p>
-<p><strong>Investor readiness:</strong> {escape(str(result.get('readiness_status')))}</p>
-<p><strong>human_review_approved:</strong> false</p>
+{_view_summary_block(result)}
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}.</p>
 </div>
 <h2>Demand evidence</h2>
@@ -265,6 +263,27 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 <a class="button" href="/assessments/{escape(record['id'])}/audit">Inspect audit</a></p>
 """
     return layout("Results", body)
+
+
+def _view_summary_block(result: dict[str, Any]) -> str:
+    from app.analysis import build_view_summary
+
+    summary = build_view_summary(result)
+    provenance = "".join(
+        f"<li>{escape(str(row.get('field')))}: {escape(str(row.get('provenance')))}</li>"
+        for row in summary.get("demand_provenance") or []
+    ) or "<li>placeholder</li>"
+    approved = "true" if summary["human_review_approved"] else "false"
+    return f"""
+<p><strong>Recommendation:</strong> {escape(str(summary.get('recommendation')))}</p>
+<p><strong>Score:</strong> {escape(result.get('score_line', ''))}</p>
+<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> {escape(str(summary.get('insufficient_demand_evidence')))}</p>
+<p><strong>Investor readiness:</strong> {escape(str(summary.get('investor_readiness')))}</p>
+<p><strong>Human review status:</strong> {escape(str(summary.get('human_review_status')))}</p>
+<p><strong>human_review_approved:</strong> {approved}</p>
+<p><strong>Demand evidence provenance:</strong></p>
+<ul>{provenance}</ul>
+"""
 
 
 def _demand_status(demand: dict[str, Any]) -> str:
@@ -303,24 +322,19 @@ def _financial_table(financial: dict[str, Any] | None) -> str:
 
 def analyst_page(record: dict[str, Any], lines: list[str]) -> str:
     items = "".join(f"<li>{escape(line)}</li>" for line in lines)
-    return layout("Demonstration Analyst", f"<h1>Demonstration Analyst</h1><ul>{items}</ul>")
+    body = f"""
+<h1>Demonstration Analyst</h1>
+<div class="banner">Demonstration Analyst. No external AI service is connected. This explanation cannot change engine results, flags, approval, or investor readiness.</div>
+<ul>{items}</ul>
+"""
+    return layout("Demonstration Analyst", body)
 
 
 def market_page() -> str:
-    body = """
+    body = f"""
 <h1>Market Intelligence</h1>
-<div class="banner">Hypothetical demonstration. These sentences are not current market research and have no source dataset.</div>
-<div class="card">
-<p><strong>Industry:</strong> Restaurant, shown as an example only.</p>
-<p><strong>Geographic market:</strong> Not selected. No Census, BLS, or BEA feed is connected.</p>
-<p>Demographics, employment, competition, demand, spending, and cost pressure will appear here when a data provider is approved.</p>
-</div>
-<h2>Market Pulse</h2>
-<p class="muted">Recurring monitoring is not active. The examples below are hypothetical.</p>
-<ul>
-<li>Hypothetical: a cost-pressure alert with no live feed behind it.</li>
-<li>Hypothetical: a competitive-opening note with no source.</li>
-</ul>
+{_market_block(market_framework())}
+<p class="muted">The same demonstration snapshot is available on Partner. Neither view loads Census, BLS, or BEA data.</p>
 """
     return layout("Market Intelligence", body)
 
@@ -343,15 +357,33 @@ def validate_page(record: dict[str, Any] | None) -> str:
 
 
 def partner_page() -> str:
-    body = """
+    body = f"""
 <h1>Partner</h1>
 <div class="banner">Demonstration dashboard. Recurring monitoring has not been implemented.</div>
 <div class="card">
 <p>Partner is the planned tier for an established business that needs ongoing intelligence. A startup feasibility assessment is not required to enter this tier later.</p>
 <p>No scheduled market, financial, or risk monitor is running.</p>
 </div>
+{_market_block(market_framework())}
 """
     return layout("Partner", body)
+
+
+def _market_block(snapshot: dict[str, Any]) -> str:
+    examples = "".join(f"<li>{escape(item)}</li>" for item in snapshot["synthetic_examples"])
+    observations = snapshot["observations"] or ["No live observations are loaded."]
+    loaded = "".join(f"<li>{escape(str(item))}</li>" for item in observations)
+    return f"""
+<div class="banner">{escape(snapshot['label'])}</div>
+<div class="card">
+<p><strong>Industry:</strong> {escape(str(snapshot['industry']))}. Shown as an example only.</p>
+<p><strong>Geographic market:</strong> {escape(str(snapshot['geographic_market']))}. No Census, BLS, or BEA feed is connected.</p>
+<p>Live feed connected: false. Monitoring active: false. Source dataset: none.</p>
+<ul>{loaded}</ul>
+</div>
+<h2>Synthetic examples</h2>
+<ul>{examples}</ul>
+"""
 
 
 def reports_page(records: list[dict[str, Any]]) -> str:
