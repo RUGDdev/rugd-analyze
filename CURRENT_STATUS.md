@@ -4,7 +4,7 @@ Updated: 2026-11-07
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 83 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 85 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 83 tests passing
+- All 85 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -118,3 +118,10 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Market Intelligence keeps one synthetic snapshot. Industry and geography are demonstration labels. Implications name a saved assessment’s industry and stage and do not add a market fact. Live feed and source dataset stay off.
 - Partner states that recurring monitoring is not active. Navigation labels Validate, Partner, and Market Intelligence as demonstration. The dashboard next step names an unfinished item, such as missing demand evidence, and does not clear a flag.
 - The unittest suite is 83 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-08 explore guidance and regression
+
+- The open Explore draft shows “Guidance. Not a decision.” and the same next-step sentence as the dashboard. The note names `INSUFFICIENT_DEMAND_EVIDENCE` when that flag is present, or the next missing required item. Rendering it does not clear a flag or change the recommendation.
+- Intake, results, the Markdown report, and the HTML audit use the same labels for recommendation, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness, human review, and demand provenance. A saved draft reloads the entered values. Results and the HTML audit include a Limitations note: this is a prototype, and demonstration data is not real market research.
+- A new restaurant draft and the official baseline agree across results, the Markdown report, the HTML audit, and the JSON audit: do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE` present, investor readiness internal, and human review pending. Customer approval still returns 403. The baseline cannot be approved.
+- The unittest suite is 85 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

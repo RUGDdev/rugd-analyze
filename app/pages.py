@@ -148,21 +148,58 @@ def _next_step(records: list[dict[str, Any]]) -> str:
     for item in drafts:
         flags = (item.get("result") or {}).get("blocking_flags") or []
         if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
-            return (
-                f"Continue {item['business_name']}. INSUFFICIENT_DEMAND_EVIDENCE is present. "
-                "This note does not clear the flag."
-            )
+            return _next_step_for(item)
     for item in drafts:
         if not (item.get("result") or {}).get("engine_ran"):
-            return f"Continue {item['business_name']}. Analyze has not been run."
+            return _next_step_for(item)
     for item in drafts:
         flags = (item.get("result") or {}).get("blocking_flags") or []
         if flags:
-            return (
-                f"Continue {item['business_name']}. Recommend-against flag {flags[0]} is still active. "
-                "This note does not clear it."
-            )
-    return "Review the saved drafts. This note does not change a flag or a recommendation."
+            return _next_step_for(item)
+    return _next_step_for(drafts[0])
+
+
+def _next_step_for(record: dict[str, Any]) -> str:
+    """Guidance for one open draft. Reading the record does not change it."""
+    name = record.get("business_name") or "this draft"
+    if record.get("read_only"):
+        return (
+            f"{name} is the official baseline. INSUFFICIENT_DEMAND_EVIDENCE is present. "
+            "This note does not clear the flag."
+        )
+    result = record.get("result") or {}
+    flags = result.get("blocking_flags") or []
+    if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
+        return (
+            f"Continue {name}. INSUFFICIENT_DEMAND_EVIDENCE is present. "
+            "This note does not clear the flag."
+        )
+    if flags:
+        return (
+            f"Continue {name}. Recommend-against flag {flags[0]} is still active. "
+            "This note does not clear it."
+        )
+    profile = record.get("profile") or {}
+    if not str(profile.get("demand_evidence") or "").strip():
+        return (
+            f"Continue {name}. The next missing required item is demand evidence. "
+            "This note does not clear a flag."
+        )
+    missing = _missing_labels(profile, _STARTUP_REQUIRED)
+    if missing:
+        return (
+            f"Continue {name}. The next missing required item is {missing[0]}. "
+            "This note does not change the recommendation."
+        )
+    monthly = _missing_labels(profile, _MONTHLY_REQUIRED)
+    if monthly:
+        return (
+            f"Continue {name}. The next missing required item is {monthly[0]}. "
+            "This note does not change the recommendation."
+        )
+    if not result.get("engine_ran"):
+        return f"Continue {name}. Analyze has not been run. This note does not change the recommendation."
+    return f"Review {name}. This note does not change a flag or a recommendation."
 
 
 def _draft_progress(item: dict[str, Any], result: dict[str, Any]) -> str:
@@ -217,6 +254,12 @@ def assessment_form(record: dict[str, Any], notice: str = "") -> str:
     body = f"""
 <h1>{escape(record['business_name'])}</h1>
 {banner}
+<div class="card">
+<p><strong>Guidance. Not a decision.</strong></p>
+<p><strong>Next recommended step:</strong> {escape(_next_step_for(record))}</p>
+<p class="muted">This note does not clear a flag, change the recommendation, or mark the assessment investor-ready.</p>
+</div>
+{_intake_status(record)}
 <p class="muted">Tier {escape(record['tier'])}. Changing tier does not change a recommendation. Entered answers stay user-supplied assumptions.</p>
 {action}
 <p><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a></p>
@@ -398,6 +441,7 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 {_view_summary_block(result)}
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Figures below are deterministic engine outputs.</p>
 </div>
+{_LIMITATIONS}
 <h2>Demand evidence</h2>
 {_demand_status(result.get("demand") or {})}
 <h2>Recommend-against flags</h2><ul>{flags}</ul>
@@ -409,6 +453,28 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 {links}
 """
     return layout("Results", body)
+
+
+_LIMITATIONS = """
+<h2>Limitations</h2>
+<p>This is a prototype. Demonstration data is not real market research. Reviewer authentication remains prototype-grade.</p>
+"""
+
+
+def _intake_status(record: dict[str, Any]) -> str:
+    result = record.get("result") or {}
+    if result.get("engine_ran"):
+        return f"<div class=\"card\">{_view_summary_block(result)}</div>"
+    return """
+<div class="card">
+<p><strong>Recommendation:</strong> not run</p>
+<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> not run</p>
+<p><strong>Investor readiness:</strong> not run</p>
+<p><strong>Human review status:</strong> pending</p>
+<p><strong>human_review_approved:</strong> false</p>
+<p><strong>Demand evidence provenance:</strong> placeholder until Analyze records verified, user, or placeholder.</p>
+</div>
+"""
 
 
 def _view_summary_block(result: dict[str, Any]) -> str:
@@ -690,6 +756,7 @@ def audit_html_page(
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
 <h2>Demand evidence provenance</h2>
 <ul>{provenance}</ul>
+{_LIMITATIONS}
 <h2>Reviewer events</h2>
 <p class="muted">Reviewer authentication remains prototype-grade. Not a customer feature. Not production authentication. Session values below are short hashes, not raw tokens.</p>
 {event_table}
