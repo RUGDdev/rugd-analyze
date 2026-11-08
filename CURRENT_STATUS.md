@@ -4,7 +4,7 @@ Updated: 2026-11-08
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 89 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 90 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 89 tests passing
+- All 90 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -160,3 +160,9 @@ Further work on production authentication, real market data, an approved scoring
 - A second seeded draft supplies verified `demand_evidence` true with a rationale. It is not marked hypothetical, because a hypothetical demonstration does not apply a verified record. The demand flag clears. The draft stays unapproved and not investor-ready.
 - `DEMO.md` is the show-the-platform script. The official baseline stays separately labeled and its sample file was not edited.
 - The unittest suite is 89 tests, all passing. The server is stopped. Authentication remains prototype-grade.
+
+## Progress — 2026-11-08 report and audit downloads
+
+- Results and the HTML audit offer Download Markdown report and Download JSON audit. Each download returns the same bytes as the existing report or JSON audit view, with a filename that includes the assessment name and date. Opening a download does not rewrite the official 0.1 report files.
+- `/assessments/{id}/audit/print` is a print-friendly audit view. Print styling hides navigation and keeps the recommendation, flags, investor readiness, human review status, reviewer events, and the limitations note visible.
+- The unittest suite is 90 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

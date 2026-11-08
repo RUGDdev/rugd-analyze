@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from html import escape
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -145,27 +146,39 @@ class AppHandler(BaseHTTPRequestHandler):
         elif action == "analyst":
             result = record["result"]
             self._html(analyst_page(record, explain(record, result)))
+        elif action == "report" and len(parts) > 3 and parts[3] == "download":
+            payload, result = self._report_bytes(connection, record)
+            self._bytes(
+                payload,
+                "text/markdown; charset=utf-8",
+                disposition=_download_disposition(record, result, "report", "md"),
+            )
         elif action == "report":
-            result = self._ensure_result(connection, record)
-            body = result.get("report_markdown") or result.get("message") or "No report."
-            audit_link = f"/assessments/{record['id']}/audit/html"
-            if audit_link not in body:
-                body += f"\n\nHTML audit view: {audit_link}\n"
-            self._bytes(body.encode("utf-8"), "text/markdown; charset=utf-8")
+            payload, _result = self._report_bytes(connection, record)
+            self._bytes(payload, "text/markdown; charset=utf-8")
         elif action == "audit" and len(parts) > 3 and parts[3] == "html":
             result = record.get("result") or self._run(connection, record)
             self._html(audit_html_page(record, result, list_reviewer_events(connection, record["id"])))
+        elif action == "audit" and len(parts) > 3 and parts[3] == "print":
+            result = record.get("result") or self._run(connection, record)
+            self._html(
+                audit_html_page(
+                    record,
+                    result,
+                    list_reviewer_events(connection, record["id"]),
+                    printable=True,
+                )
+            )
+        elif action == "audit" and len(parts) > 3 and parts[3] == "download":
+            payload, result = self._audit_bytes(connection, record)
+            self._bytes(
+                payload,
+                "application/json",
+                disposition=_download_disposition(record, result, "audit", "json"),
+            )
         elif action == "audit":
-            result = self._ensure_result(connection, record)
-            payload = dict(result.get("audit") or {"human_review_approved": False, "message": result.get("message")})
-            payload["approvals"] = [] if record["read_only"] else list_approvals(connection, record["id"])
-            payload["reviewer_events"] = list_reviewer_events(connection, record["id"])
-            payload["human_review_approved"] = bool(record["human_review_approved"])
-            if not record["human_review_approved"]:
-                readiness = payload.get("investor_readiness")
-                if isinstance(readiness, dict):
-                    readiness["human_review_approved"] = False
-            self._bytes(json.dumps(payload, indent=2).encode("utf-8"), "application/json")
+            payload, _result = self._audit_bytes(connection, record)
+            self._bytes(payload, "application/json")
         elif action == "validate":
             self._html(validate_page(record))
         else:
@@ -207,6 +220,26 @@ class AppHandler(BaseHTTPRequestHandler):
             self._redirect(f"/assessments/{assessment_id}/validate")
             return
         self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
+
+    def _report_bytes(self, connection: Any, record: dict[str, Any]) -> tuple[bytes, dict[str, Any]]:
+        result = self._ensure_result(connection, record)
+        body = result.get("report_markdown") or result.get("message") or "No report."
+        audit_link = f"/assessments/{record['id']}/audit/html"
+        if audit_link not in body:
+            body += f"\n\nHTML audit view: {audit_link}\n"
+        return body.encode("utf-8"), result
+
+    def _audit_bytes(self, connection: Any, record: dict[str, Any]) -> tuple[bytes, dict[str, Any]]:
+        result = self._ensure_result(connection, record)
+        payload = dict(result.get("audit") or {"human_review_approved": False, "message": result.get("message")})
+        payload["approvals"] = [] if record["read_only"] else list_approvals(connection, record["id"])
+        payload["reviewer_events"] = list_reviewer_events(connection, record["id"])
+        payload["human_review_approved"] = bool(record["human_review_approved"])
+        if not record["human_review_approved"]:
+            readiness = payload.get("investor_readiness")
+            if isinstance(readiness, dict):
+                readiness["human_review_approved"] = False
+        return json.dumps(payload, indent=2).encode("utf-8"), result
 
     def _ensure_result(self, connection: Any, record: dict[str, Any]) -> dict[str, Any]:
         if record.get("result"):
@@ -353,10 +386,18 @@ class AppHandler(BaseHTTPRequestHandler):
     def _html(self, page: str, status: int = 200) -> None:
         self._bytes(page.encode("utf-8"), "text/html; charset=utf-8", status=status)
 
-    def _bytes(self, payload: bytes, content_type: str, status: int = 200) -> None:
+    def _bytes(
+        self,
+        payload: bytes,
+        content_type: str,
+        status: int = 200,
+        disposition: str | None = None,
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
+        if disposition:
+            self.send_header("Content-Disposition", disposition)
         self.end_headers()
         self.wfile.write(payload)
 
@@ -377,6 +418,27 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt: str, *args: Any) -> None:
         return
+
+
+def _download_disposition(record: dict[str, Any], result: dict[str, Any], kind: str, extension: str) -> str:
+    raw_name = str(record.get("business_name") or "assessment")
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", raw_name).strip("-") or "assessment"
+    stamp = _download_stamp(record, result)
+    filename = f"{slug}-{stamp}-{kind}.{extension}"
+    return f'attachment; filename="{filename}"'
+
+
+def _download_stamp(record: dict[str, Any], result: dict[str, Any]) -> str:
+    candidates = []
+    for source in (result.get("intake"), record.get("intake")):
+        if isinstance(source, dict):
+            candidates.append(source.get("as_of_date"))
+    candidates.extend((record.get("updated_at"), record.get("created_at")))
+    for value in candidates:
+        text = str(value or "")[:10]
+        if len(text) == 10 and text[4] == "-" and text[7] == "-":
+            return text
+    return "undated"
 
 
 def make_server(db_path, port: int = 8765) -> ThreadingHTTPServer:

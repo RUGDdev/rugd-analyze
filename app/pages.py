@@ -39,7 +39,7 @@ NAV = (
 )
 
 
-def layout(title: str, body: str) -> str:
+def layout(title: str, body: str, *, printable: bool = False) -> str:
     links = "".join(
         f'<a href="{href}">{escape(label)}</a>' for href, label in NAV
     )
@@ -77,9 +77,17 @@ details {{ margin: 0.8rem 0; }}
 summary {{ cursor: pointer; font-family: "Segoe UI", sans-serif; }}
 .bar-track {{ background: var(--stone); height: 0.7rem; margin: 0.25rem 0 0.7rem; }}
 .bar {{ background: var(--bronze); height: 0.7rem; }}
+@media print {{
+  header, nav, .no-print {{ display: none !important; }}
+  body, main {{ background: white; color: black; max-width: none; }}
+  .limitations, .card, h1, h2, ul, table, p, .banner {{ visibility: visible; }}
+  a {{ color: black; text-decoration: none; }}
+}}
+body.print-view {{ background: white; }}
+body.print-view header {{ display: none; }}
 </style>
 </head>
-<body>
+<body{" class=\"print-view\"" if printable else ""}>
 <header>
 <strong>RUGD</strong>
 <p>Analyze {escape(APP_VERSION)} · local prototype · not investor-approved</p>
@@ -496,11 +504,7 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
         )
     else:
         standing = "Draft recommendation. Human review is pending. This is not a final or investor-ready result."
-    links = f"""
-<p><a class="button" href="/assessments/{escape(record['id'])}/report">Open report</a>
-<a class="button" href="/assessments/{escape(record['id'])}/audit/html">HTML audit view</a>
-<a class="button" href="/assessments/{escape(record['id'])}/audit">Inspect audit</a></p>
-"""
+    links = _output_links(record)
     body = f"""
 <h1>Results for {escape(record['business_name'])}</h1>
 {_pilot_banner(record)}
@@ -526,8 +530,22 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 
 
 _LIMITATIONS = """
+<section class="limitations">
 <h2>Limitations</h2>
 <p>This is a prototype. Demonstration data is not real market research. Reviewer authentication remains prototype-grade.</p>
+</section>
+"""
+
+
+def _output_links(record: dict[str, Any]) -> str:
+    assessment_id = escape(record["id"])
+    return f"""
+<p class="no-print"><a class="button" href="/assessments/{assessment_id}/report">Open report</a>
+<a class="button" href="/assessments/{assessment_id}/report/download">Download Markdown report</a>
+<a class="button" href="/assessments/{assessment_id}/audit/html">HTML audit view</a>
+<a class="button" href="/assessments/{assessment_id}/audit/print">Print-friendly audit</a>
+<a class="button" href="/assessments/{assessment_id}/audit">Inspect audit</a>
+<a class="button" href="/assessments/{assessment_id}/audit/download">Download JSON audit</a></p>
 """
 
 
@@ -777,6 +795,8 @@ def audit_html_page(
     record: dict[str, Any],
     result: dict[str, Any] | None,
     events: list[dict[str, Any]] | None = None,
+    *,
+    printable: bool = False,
 ) -> str:
     """Read-only audit view. This page has no control that can change the assessment."""
     from app.analysis import build_view_summary
@@ -786,11 +806,16 @@ def audit_html_page(
     if not result.get("engine_ran"):
         body = f"""
 <h1>Audit view</h1>
+{_pilot_banner(record)}
 {_SURFACE_NOTE}
 <div class="banner">Audit view. Read only. Draft. This page cannot change flags, approval, readiness, or the recommendation. Not an investor-ready result.</div>
 <p>{escape(result.get('message') or 'Analyze did not run.')}</p>
+{_LIMITATIONS}
+<h2>Reviewer events</h2>
+<p>No reviewer events are recorded.</p>
+{_output_links(record)}
 """
-        return layout("Audit view", body)
+        return layout("Audit view", body, printable=printable)
     summary = build_view_summary(result)
     if summary.get("human_review_approved"):
         standing = (
@@ -821,8 +846,15 @@ def audit_html_page(
         )
     else:
         event_table = "<p>No reviewer events are recorded.</p>"
+    print_note = (
+        '<p class="no-print">Print-friendly audit. Use the browser print dialog to save a PDF. This view does not change the assessment.</p>'
+        if printable
+        else ""
+    )
     body = f"""
 <h1>Audit view for {escape(record['business_name'])}</h1>
+{print_note}
+{_pilot_banner(record)}
 {_SURFACE_NOTE}
 <div class="banner">Audit view. Read only. {escape(standing)} This page cannot change flags, approval, readiness, or the recommendation.</div>
 <div class="card">
@@ -840,10 +872,9 @@ def audit_html_page(
 <h2>Reviewer events</h2>
 <p class="muted">Reviewer authentication remains prototype-grade. Not a customer feature. Not production authentication. Session values below are short hashes, not raw tokens.</p>
 {event_table}
-<p><a href="/assessments/{escape(record['id'])}/audit">JSON audit</a>
-<a href="/assessments/{escape(record['id'])}/results">Results</a></p>
+{_output_links(record)}
 """
-    return layout("Audit view", body)
+    return layout("Audit view", body, printable=printable)
 
 
 def validate_page(record: dict[str, Any] | None) -> str:
