@@ -209,3 +209,11 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - BLS QCEW and Census ACS both cover Tennessee (QCEW area 47000, ACS state 47) and Hamilton County, Tennessee (QCEW area 47065, ACS county 47065), in addition to the United States, Alabama, and Colbert County, Alabama.
 - A geography outside that list still falls back to the labeled synthetic snapshot for the provider that cannot cover it.
 - `MARKET_YEAR` selects the QCEW file and `ACS_YEAR` selects the ACS vintage. Each defaults to 2024. The Market Intelligence page names the active year for each provider and says the year is controlled by those environment variables. There is no year control on the page. The figures still do not clear a recommend-against flag.
+
+## Decision: Market summary and observation export
+
+- Date: 2026-11-08
+- Status: Accepted for the local prototype only
+- Market Intelligence shows a combined summary of the figures for the selected industry and geography. Each line names the source, coverage, and period. The summary also names the active provider and year, or says that no public provider is active.
+- `/market/export` downloads those observations as JSON. A synthetic or failed view exports the labeled synthetic examples. The file does not include an assessment or session secrets. Opening it does not change a saved assessment or the official baseline.
+- The summary and the file repeat that the figures do not clear a recommend-against flag.

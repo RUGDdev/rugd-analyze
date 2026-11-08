@@ -3,7 +3,11 @@
 import copy
 import hashlib
 import json
+import os
+import tempfile
+import threading
 import unittest
+import urllib.request
 from pathlib import Path
 
 from app.market import (
@@ -14,11 +18,13 @@ from app.market import (
     BlsQcewProvider,
     CensusAcsProvider,
     assessment_implications,
+    export_market_observations,
     get_market_provider,
     load_market,
     market_framework,
 )
 from app.pages import market_page, partner_page
+from app.server import make_server
 from app.store import SAMPLE
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -423,6 +429,95 @@ class TestMarketDemonstration(unittest.TestCase):
         load_market("Restaurant", "Hamilton County, Tennessee", bls)
         self.assertEqual(result, before)
         self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
+
+    def test_summary_and_export_leave_assessments_unchanged(self) -> None:
+        plain = market_page()
+        self.assertIn("<h2>Combined summary</h2>", plain)
+        self.assertIn("Download market observations (JSON)", plain)
+        self.assertIn("Active provider: Demonstration snapshot. No public provider is active.", plain)
+        self.assertIn("Synthetic example only", plain)
+        self.assertIn("do not clear INSUFFICIENT_DEMAND_EVIDENCE", plain)
+
+        class DirtyProvider(BlsQcewProvider):
+            def observations(self, industry: str | None, geography: str | None) -> list[dict[str, str]]:
+                rows = super().observations(industry, geography)
+                rows[0]["session_id"] = "raw-session-token"
+                rows[0]["reviewer_passphrase"] = "local-prototype-reviewer"
+                return rows
+
+        dirty = DirtyProvider(year="2024", transport=lambda url: _QCEW, retrieved_on="2026-11-08")
+        shown = market_page([], "Restaurant", "Alabama", provider=dirty)
+        self.assertIn("<h2>Combined summary</h2>", shown)
+        self.assertIn("Private annual average employment:", shown)
+        self.assertIn("1842", shown)
+        self.assertIn(PUBLIC_SOURCE, shown)
+        self.assertIn("Active provider: BLS Quarterly Census of Employment and Wages. Year: 2024.", shown)
+        self.assertIn("do not clear INSUFFICIENT_DEMAND_EVIDENCE", shown)
+        self.assertNotIn("raw-session-token", shown)
+        payload = export_market_observations("Restaurant", "Alabama", dirty)
+        encoded = json.dumps(payload)
+        self.assertEqual(payload["kind"], "rugd-market-observations")
+        self.assertEqual(payload["status"], "public")
+        self.assertEqual(payload["year"], "2024")
+        self.assertEqual(payload["observations"][0]["measure"], "Private annual average employment")
+        self.assertEqual(payload["observations"][0]["value"], "1842")
+        self.assertEqual(payload["observations"][0]["source"], PUBLIC_SOURCE)
+        self.assertIn("geographic_coverage", payload["observations"][0])
+        self.assertIn("measurement_period", payload["observations"][0])
+        self.assertIn("limitations", payload["observations"][0])
+        self.assertNotIn("session_id", payload["observations"][0])
+        self.assertNotIn("raw-session-token", encoded)
+        self.assertNotIn("local-prototype-reviewer", encoded)
+        self.assertEqual(payload["synthetic_observations"], [])
+        self.assertTrue(payload["does_not_clear_recommend_against_flags"])
+        synthetic = export_market_observations()
+        self.assertEqual(synthetic["status"], "synthetic")
+        self.assertTrue(synthetic["synthetic_observations"][0]["value"].startswith("Synthetic example only"))
+        self.assertEqual(synthetic["synthetic_observations"][0]["source"], "Synthetic snapshot")
+        result = {
+            "recommendation": "do-not-proceed",
+            "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+            "readiness_status": "internal",
+            "human_review_approved": False,
+        }
+        before = copy.deepcopy(result)
+        before_sample = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        export_market_observations("Restaurant", "Alabama", dirty)
+        self.assertEqual(result, before)
+        self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
+
+        directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        server = make_server(Path(directory.name) / "analyze.sqlite", port=0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        host, port = server.server_address
+        saved = {key: os.environ.pop(key, None) for key in ("MARKET_PROVIDER", "MARKET_CENSUS")}
+        try:
+            with urllib.request.urlopen(
+                f"http://{host}:{port}/market/export?industry=Restaurant&geographic_market=Example+county"
+            ) as response:
+                body = json.loads(response.read().decode("utf-8"))
+                disposition = response.headers.get("Content-Disposition") or ""
+                content_type = response.headers.get("Content-Type") or ""
+            self.assertEqual(content_type, "application/json")
+            self.assertIn("attachment;", disposition)
+            self.assertIn("-market.json", disposition)
+            self.assertEqual(body["kind"], "rugd-market-observations")
+            self.assertEqual(body["status"], "synthetic")
+            self.assertTrue(body["synthetic_observations"][0]["value"].startswith("Synthetic example only"))
+            self.assertNotIn("local-prototype-reviewer", json.dumps(body))
+            with urllib.request.urlopen(f"http://{host}:{port}/market") as response:
+                page = response.read().decode("utf-8")
+            self.assertIn("Download market observations (JSON)", page)
+            self.assertIn("Combined summary", page)
+        finally:
+            for key, value in saved.items():
+                if value is not None:
+                    os.environ[key] = value
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+            directory.cleanup()
 
 
 if __name__ == "__main__":

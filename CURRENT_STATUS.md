@@ -4,7 +4,7 @@ Updated: 2026-11-08
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 98 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 99 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -45,7 +45,7 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed
 - Validate / Partner: demonstration only
 - Market Intelligence: synthetic snapshot by default; optional BLS QCEW and Census ACS extracts with provenance and fallback
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 98 tests passing
+- All 99 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -206,3 +206,9 @@ Further work on production authentication, real market data, an approved scoring
 - BLS QCEW and Census ACS both cover Tennessee and Hamilton County, Tennessee, in addition to the United States, Alabama, and Colbert County, Alabama. A geography outside that list stays on the labeled synthetic snapshot.
 - The Market Intelligence page names the active year for each provider. `MARKET_YEAR` selects the QCEW file and `ACS_YEAR` selects the ACS vintage. Each defaults to 2024. The page says the year is controlled by those environment variables.
 - The figures do not clear a recommend-against flag. The unittest suite is 98 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-08 market summary and export
+
+- Market Intelligence has a combined summary of the current BLS and ACS figures, or the synthetic examples when those are what the page shows. Each line includes the source, coverage, and period, and the page names the active provider and year.
+- Download market observations (JSON) saves that same view. The file does not include an assessment, a session token, or a passphrase. A synthetic view is labeled synthetic.
+- The summary and the file say the figures do not clear a recommend-against flag. The unittest suite is 99 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

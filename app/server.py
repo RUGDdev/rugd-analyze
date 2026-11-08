@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from app.analysis import analyze_record
-from app.market import get_market_provider
+from app.market import export_market_observations, get_market_provider
 from app.export import export_assessment, export_drafts
 from app.analyst import explain
 from app.pages import (
@@ -76,6 +76,15 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._html(validate_page(None))
             elif path == "/partner":
                 self._html(partner_page())
+            elif path == "/market/export":
+                query = parse_qs(urlparse(self.path).query)
+                industry = (query.get("industry") or [""])[-1]
+                geographic_market = (query.get("geographic_market") or [""])[-1]
+                payload = json.dumps(
+                    export_market_observations(industry, geographic_market, provider=get_market_provider()),
+                    indent=2,
+                ).encode("utf-8")
+                self._bytes(payload, "application/json", disposition=_market_disposition(industry, geographic_market))
             elif path == "/market":
                 query = parse_qs(urlparse(self.path).query)
                 industry = (query.get("industry") or [""])[-1]
@@ -451,6 +460,12 @@ def _download_disposition(record: dict[str, Any], result: dict[str, Any], kind: 
     stamp = _download_stamp(record, result)
     filename = f"{slug}-{stamp}-{kind}.{extension}"
     return f'attachment; filename="{filename}"'
+
+
+def _market_disposition(industry: str, geographic_market: str) -> str:
+    raw = f"{industry or 'market'}-{geographic_market or 'selection'}"
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", raw).strip("-") or "market"
+    return f'attachment; filename="{slug}-{_today()}-market.json"'
 
 
 def _today() -> str:

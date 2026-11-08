@@ -15,6 +15,8 @@ import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from app.export import _without_secrets
+
 DEMONSTRATION_LABEL = "Demonstration. Not market research and not active monitoring."
 DEMONSTRATION_INDUSTRIES = ("Not selected", "Restaurant", "Professional services", "Retail")
 DEMONSTRATION_GEOGRAPHIES = (
@@ -359,6 +361,58 @@ def load_market(
             FALLBACK_LABEL,
             "The public market provider did not return observations.",
         )
+
+
+def export_market_observations(
+    industry: str | None = None,
+    geographic_market: str | None = None,
+    provider: Any | None = None,
+) -> dict[str, Any]:
+    """Copy the observations for this selection. This does not read or change an assessment."""
+    view = load_market(industry, geographic_market, provider)
+    observations = [
+        {field: str(item.get(field) or "") for field in OBSERVATION_FIELDS}
+        for item in view.get("observations") or []
+    ]
+    synthetic = _synthetic_observations(view)
+    payload = {
+        "kind": "rugd-market-observations",
+        "status": view.get("status") or "",
+        "industry": str(industry or ""),
+        "geographic_market": str(geographic_market or ""),
+        "provider_name": str(view.get("provider_name") or ""),
+        "year": str(view.get("year") or ""),
+        "active_providers": [str(item) for item in view.get("active_providers") or []],
+        "label": str(view.get("label") or ""),
+        "does_not_clear_recommend_against_flags": True,
+        "observations": observations,
+        "synthetic_observations": synthetic,
+        "partial_notes": [str(item) for item in view.get("partial_notes") or []],
+    }
+    return _without_secrets(payload)
+
+
+def _synthetic_observations(view: dict[str, Any]) -> list[dict[str, str]]:
+    if view.get("status") == "public" and not view.get("partial_notes"):
+        return []
+    snapshot = view.get("snapshot") or {}
+    limitations = (
+        "Synthetic example only. Not market research and not a public dataset. "
+        "These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag."
+    )
+    return [
+        {
+            "source": "Synthetic snapshot",
+            "geographic_coverage": str(snapshot.get("geographic_market") or ""),
+            "industry_classification": str(snapshot.get("industry") or ""),
+            "measurement_period": "not a measurement period",
+            "retrieval_date": "not retrieved",
+            "limitations": limitations,
+            "measure": "Synthetic example",
+            "value": str(example),
+        }
+        for example in snapshot.get("synthetic_examples") or []
+    ]
 
 
 def _observations_from_qcew(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from html import escape
 from typing import Any
+from urllib.parse import urlencode
 
 from app import APP_VERSION
 from app.analyst import get_analyst
@@ -889,6 +890,7 @@ def _synthetic_market_page(
 <button type="submit">Show demonstration selection</button>
 </form>
 <p class="muted">The choices are labels for this demonstration. They are not a dataset and they do not describe a real market.</p>
+{_market_summary(_synthetic_view(snapshot), snapshot["industry"], snapshot["geographic_market"])}
 {_market_block(snapshot)}
 <h2>Implications for this assessment</h2>
 <ul>{implications}</ul>
@@ -936,6 +938,7 @@ def _public_market_page(
 </form>
 <p class="muted">Optional public extract. {_active_provider(view)} Live feed connected: false. Monitoring active: false. This request does not change an assessment.</p>
 <p class="muted">{_YEAR_NOTE}</p>
+{_market_summary(view, industry, geographic_market)}
 {cards}
 {partial}
 <h2>Implications for this assessment</h2>
@@ -969,6 +972,7 @@ def _fallback_market_page(
 </form>
 <p class="muted">{_active_provider(view)} A mapped industry and geography can request the public extract. Any other selection stays on the synthetic snapshot.</p>
 <p class="muted">{_YEAR_NOTE}</p>
+{_market_summary(view, industry, geographic_market)}
 {_market_block(snapshot)}
 <h2>Implications for this assessment</h2>
 <ul>{implications}</ul>
@@ -984,7 +988,51 @@ _YEAR_NOTE = (
 )
 
 
+def _synthetic_view(snapshot: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "status": "synthetic",
+        "provider_name": "synthetic",
+        "year": "",
+        "observations": [],
+        "snapshot": snapshot,
+        "partial_notes": [],
+    }
+
+
+def _market_summary(view: dict[str, Any], industry: str | None, geographic_market: str | None) -> str:
+    rows = []
+    for item in view.get("observations") or []:
+        rows.append(
+            "<li>"
+            f"<strong>{escape(str(item.get('measure') or ''))}:</strong> {escape(str(item.get('value') or ''))}. "
+            f"Source: {escape(str(item.get('source') or ''))}. "
+            f"Geographic coverage: {escape(str(item.get('geographic_coverage') or ''))}. "
+            f"Measurement period: {escape(str(item.get('measurement_period') or ''))}."
+            "</li>"
+        )
+    if view.get("status") != "public" or view.get("partial_notes"):
+        for example in (view.get("snapshot") or {}).get("synthetic_examples") or []:
+            rows.append(f"<li>{escape(str(example))}</li>")
+    if not rows:
+        rows.append("<li>No observations are loaded.</li>")
+    query = urlencode(
+        {
+            "industry": str(industry or ""),
+            "geographic_market": str(geographic_market or ""),
+        }
+    )
+    return (
+        "<h2>Combined summary</h2>"
+        f"<p>{_active_provider(view)}</p>"
+        f"<ul>{''.join(rows)}</ul>"
+        "<p>These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>"
+        f"<p><a href=\"/market/export?{query}\">Download market observations (JSON)</a></p>"
+    )
+
+
 def _active_provider(view: dict[str, Any]) -> str:
+    if str(view.get("provider_name") or "") == "synthetic":
+        return "Active provider: Demonstration snapshot. No public provider is active."
     active = view.get("active_providers") or []
     if active:
         return "Active providers: " + "; ".join(escape(str(item)) for item in active) + "."
