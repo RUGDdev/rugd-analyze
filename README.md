@@ -76,7 +76,7 @@ Export does not run the engine and does not fill blank fields. It does not inclu
 
 - Validate can request review and cannot approve
 - Partner monitoring is not active
-- Market Intelligence is a synthetic demonstration, not Census, BLS, or BEA research
+- Market Intelligence stays on a labeled synthetic snapshot unless `MARKET_PROVIDER=bls` is set
 - The Demonstration Analyst is the default. An optional external analyst can be enabled with an environment variable and an API key
 
 ## Optional external analyst
@@ -92,7 +92,20 @@ Set these in the environment for the terminal that starts the app. Do not put ke
 - `ANALYST_MODEL` — optional model name. Defaults are `claude-sonnet-4-5`, `gpt-4.1-mini`, and `grok-3`
 
 The provider receives a summary of the current assessment and the engine result, plus a system instruction that forbids changing numbers, clearing flags, or approving the assessment. It does not receive session tokens or the API key in the prompt. This is still prototype-grade. It is not production authentication and it is not a decision.
+
+## Optional public market data
+
+With no market setting, Market Intelligence and Partner show the synthetic snapshot. Examples stay marked “Synthetic example only.” Nothing on that page is a Census, BLS, or BEA feed.
+
+To request one public extract, set this in the terminal that starts the app. No API key is used.
+
+- `MARKET_PROVIDER=bls` (`qcew` and `bls-qcew` are accepted)
+- `MARKET_YEAR` — optional annual file. The default is `2024`
+
+Open Market Intelligence and choose an industry of Restaurant, Professional services, or Retail, and a geography of United States, Alabama, or Colbert County, Alabama. The page then requests the BLS Quarterly Census of Employment and Wages annual file for that area and shows private employment, average weekly wage, and establishments when the cell is disclosed.
+
+Each figure is shown with its source, geographic coverage, industry classification, measurement period, retrieval date, and limitations. A suppressed cell is labeled not disclosed. If the selection is outside that map, or the request fails, the page returns to the labeled synthetic snapshot. Partner does not call this provider. The figures do not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other flag, and they do not change investor readiness. This is not a live feed and monitoring is not active.
 - Bunny Hive and Small Town Pub have no completed assessments
 - Reviewer sign-in is prototype-grade: one source-constant passphrase, no OAuth, no password hash, and no account directory
-- No production accounts, billing, public deployment, live market data, or investor matchmaking
+- No production accounts, billing, public deployment, live market feed, or investor matchmaking. The optional BLS extract above is an annual file, not a live feed
 - React remains deferred

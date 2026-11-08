@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from app.analysis import analyze_record
+from app.market import get_market_provider
 from app.export import export_assessment, export_drafts
 from app.analyst import explain
 from app.pages import (
@@ -79,7 +80,14 @@ class AppHandler(BaseHTTPRequestHandler):
                 query = parse_qs(urlparse(self.path).query)
                 industry = (query.get("industry") or [""])[-1]
                 geographic_market = (query.get("geographic_market") or [""])[-1]
-                self._html(market_page(list_assessments(connection), industry, geographic_market))
+                self._html(
+                    market_page(
+                        list_assessments(connection),
+                        industry,
+                        geographic_market,
+                        provider=get_market_provider(),
+                    )
+                )
             elif path == "/reports":
                 self._html(reports_page(list_assessments(connection)))
             elif path == "/settings":

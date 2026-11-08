@@ -173,3 +173,13 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - The provider receives only a summary of the current assessment and the engine result. Secret keys, including session tokens and the API key, are not placed in that summary. The request includes an instruction that the model must not change financial numbers, clear recommend-against flags, set `human_review_approved`, or change investor readiness.
 - A missing key, an unknown provider, or a failed call falls back to the Demonstration Analyst and says that it is a fallback. The analyst still cannot mutate the stored engine result.
 - This is not production AI integration. No key is committed. The explanation is not a decision, not evidence, and not approval.
+
+## Decision: Optional public market extract
+
+- Date: 2026-11-08
+- Status: Accepted for the local prototype only
+- Market observations use one interface. Each observation carries its source, geographic coverage, industry classification, measurement period, retrieval date, and limitations, plus the measure and value.
+- The default provider is the existing synthetic snapshot. `MARKET_PROVIDER=bls` (aliases `qcew` and `bls-qcew`) requests the U.S. Bureau of Labor Statistics Quarterly Census of Employment and Wages annual file. No API key is required. `MARKET_YEAR` may select the annual file; the default is 2024.
+- The first extract maps Restaurant to NAICS 722, Professional services to NAICS 54, and Retail to NAICS 44-45. The geographies are the United States (area US000), Alabama (area 01000), and Colbert County, Alabama (area 01033). The row used is private ownership. A disclosure code is shown as not disclosed, not as a measured zero.
+- A selection outside that map, or a failed request, falls back to the labeled synthetic snapshot. Partner keeps that snapshot. Live feed and monitoring stay off.
+- QCEW employment and wages are not demand evidence. They cannot clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other recommend-against flag, and they cannot set `human_review_approved` or change investor readiness. The official baseline is unchanged.

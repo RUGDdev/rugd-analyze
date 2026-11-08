@@ -4,7 +4,7 @@ Updated: 2026-11-08
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 94 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 96 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -14,13 +14,13 @@ Git is on `main`. Commits use a per-command author identity (`RUGD Dev <dev@rugd
 
 ## Analyze 0.2
 
-A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Validate can record a review request and cannot approve. Partner and Market Intelligence are labeled demonstrations. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Drafts live in gitignored `data/analyze.sqlite`.
+A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Validate can record a review request and cannot approve. Partner stays a labeled demonstration. Market Intelligence stays on the synthetic snapshot unless `MARKET_PROVIDER=bls` is set. That setting can request a BLS QCEW annual extract and falls back to the synthetic snapshot when the selection is not covered or the request fails. The figures do not clear a flag. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Drafts live in gitignored `data/analyze.sqlite`.
 
 Verified in the browser and over HTTP:
 
 - The baseline results page stays do-not-proceed, internal, and `human_review_approved` false.
 - A hypothetical restaurant draft with user-supplied seat, ticket, occupancy, and cost-build inputs runs the startup projection. The draft stays do-not-proceed because demand evidence is unanswered. Sources and uses, base and downside views, and DSCR appear in the result. `investor_ready` stays false.
-- Market Intelligence is labeled hypothetical and states that no Census, BLS, or BEA feed is connected.
+- By default, Market Intelligence is the synthetic snapshot and states that no Census, BLS, or BEA feed is connected. `MARKET_PROVIDER=bls` can show a BLS QCEW extract with provenance. Partner stays on the synthetic snapshot.
 - Validate shows human review pending. A review request changes the copy to “A review has been requested.” and does not approve the file.
 - A POST that includes `human_review_approved` returns 403.
 
@@ -28,7 +28,7 @@ Run Analyze submits the same intake form as Save draft, so unsaved entries reach
 
 ## Unfinished
 
-Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. Market data providers are not connected. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
+Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. The default market view is the synthetic snapshot. The optional BLS QCEW extract is an annual file for three industries and three geographies, not a live feed. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
 
 ## Git Checkpoint
 
@@ -42,9 +42,10 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed
 
 - Server: stopped (Ctrl+C applied)
 - Explore + Analyze: functional against 0.1 engine
-- Validate / Partner / Market Intelligence: demonstration only
+- Validate / Partner: demonstration only
+- Market Intelligence: synthetic snapshot by default; optional BLS QCEW extract with provenance and fallback
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 94 tests passing
+- All 96 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -178,3 +179,10 @@ Further work on production authentication, real market data, an approved scoring
 - `get_analyst()` stays the replacement point. `ANALYST_PROVIDER` may be `claude`, `openai`, or `grok`, using `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `XAI_API_KEY`. `ANALYST_MODEL` is optional. No key is stored in source.
 - The provider receives a summary of the current assessment and the engine result, with a system instruction that forbids changing numbers, clearing flags, setting `human_review_approved`, or changing investor readiness. A missing key or a failed call is labeled as a fallback to the Demonstration Analyst. Results and the analyst page name the provider and say the analyst cannot alter authoritative results.
 - The unittest suite is 94 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-08 optional BLS market extract
+
+- Market observations share one interface: source, geographic coverage, industry classification, measurement period, retrieval date, and limitations. The default provider is the synthetic snapshot.
+- `MARKET_PROVIDER=bls` requests the BLS Quarterly Census of Employment and Wages annual file. No API key is required. `MARKET_YEAR` defaults to 2024. Restaurant, Professional services, and Retail map to NAICS 722, 54, and 44-45. Geographies are the United States, Alabama, and Colbert County, Alabama. A disclosed private cell shows employment, average weekly wage, and establishments. A suppressed cell is labeled not disclosed.
+- An uncovered selection or a failed request is labeled as a fallback to the synthetic snapshot. Partner does not call the public provider. The figures do not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other flag.
+- The unittest suite is 96 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

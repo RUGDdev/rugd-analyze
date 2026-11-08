@@ -1,12 +1,18 @@
-"""One market-intelligence snapshot shared by every service tier.
+"""Market snapshot and optional public observations.
 
-The snapshot is a demonstration. It does not call a data provider and it does
-not run monitoring.
+The synthetic snapshot is the default. A public provider is used only when
+configured. It does not run monitoring and it does not change an assessment.
 """
 
 from __future__ import annotations
 
-from typing import Any
+import csv
+import io
+import os
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from typing import Any, Callable
 
 DEMONSTRATION_LABEL = "Demonstration. Not market research and not active monitoring."
 DEMONSTRATION_INDUSTRIES = ("Not selected", "Restaurant", "Professional services", "Retail")
@@ -70,3 +76,246 @@ def _choice(value: str | None, allowed: tuple[str, ...]) -> str:
     if text in allowed:
         return text
     return "Not selected"
+
+
+OBSERVATION_FIELDS = (
+    "source",
+    "geographic_coverage",
+    "industry_classification",
+    "measurement_period",
+    "retrieval_date",
+    "limitations",
+    "measure",
+    "value",
+)
+PUBLIC_SOURCE = "U.S. Bureau of Labor Statistics, Quarterly Census of Employment and Wages"
+PUBLIC_LABEL = (
+    "Public source: U.S. Bureau of Labor Statistics, Quarterly Census of Employment and Wages. "
+    "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
+    "or any recommend-against flag."
+)
+FALLBACK_LABEL = (
+    "Fallback: synthetic snapshot. The public market provider did not return observations. "
+    "Synthetic example only."
+)
+NOT_COVERED_LABEL = (
+    "This industry and geography are not covered by the public provider. "
+    "Fallback: synthetic snapshot. Synthetic example only."
+)
+
+
+class NotCovered(LookupError):
+    """The selection is outside the mapped public extract."""
+_PUBLIC_LIMITATION = (
+    "Annual average for private ownership in the Quarterly Census of Employment and Wages. "
+    "This is covered employment and wages for an industry and geography, not revenue or demand "
+    "for any one business. It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any other "
+    "recommend-against flag, and it does not set human_review_approved. "
+    "It is not a live feed. Monitoring is not active. BLS may suppress a cell or revise a release."
+)
+_INDUSTRIES = {
+    "Restaurant": ("722", "NAICS 722 Food services and drinking places"),
+    "Professional services": ("54", "NAICS 54 Professional, scientific, and technical services"),
+    "Retail": ("44-45", "NAICS 44-45 Retail trade"),
+}
+_GEOGRAPHIES = {
+    "United States": ("US000", "United States"),
+    "Alabama": ("01000", "Alabama"),
+    "Colbert County, Alabama": ("01033", "Colbert County, Alabama"),
+}
+PUBLIC_GEOGRAPHIES = ("Not selected",) + tuple(_GEOGRAPHIES) + (
+    "Unspecified demonstration market",
+    "Example county",
+)
+Fetch = Callable[[str], str]
+
+
+class SyntheticMarketProvider:
+    """The labeled demonstration snapshot. It does not request a public file."""
+
+    name = "synthetic"
+
+    def observations(self, industry: str | None, geography: str | None) -> list[dict[str, str]]:
+        return []
+
+
+class UnavailableMarketProvider:
+    """A named provider this prototype does not call."""
+
+    name = "unavailable"
+
+    def __init__(self, requested: str) -> None:
+        self.requested = requested
+
+    def observations(self, industry: str | None, geography: str | None) -> list[dict[str, str]]:
+        raise LookupError("market provider is not configured")
+
+
+class BlsQcewProvider:
+    """Annual QCEW employment and wages for a mapped industry and geography."""
+
+    name = "bls-qcew"
+
+    def __init__(
+        self,
+        *,
+        year: str = "2024",
+        transport: Fetch | None = None,
+        retrieved_on: str | None = None,
+    ) -> None:
+        self.year = year if len(year) == 4 and year.isdigit() else "2024"
+        self._transport = transport or _fetch_text
+        self._retrieved_on = retrieved_on
+
+    def observations(self, industry: str | None, geography: str | None) -> list[dict[str, str]]:
+        industry_name = str(industry or "").strip()
+        geography_name = str(geography or "").strip()
+        industry_spec = _INDUSTRIES.get(industry_name)
+        geography_spec = _GEOGRAPHIES.get(geography_name)
+        if industry_spec is None or geography_spec is None:
+            raise NotCovered("selection is not covered")
+        code, classification = industry_spec
+        area_fips, coverage = geography_spec
+        url = f"https://data.bls.gov/cew/data/api/{self.year}/a/area/{area_fips}.csv"
+        body = self._transport(url)
+        return _observations_from_qcew(
+            body,
+            industry_code=code,
+            classification=classification,
+            coverage=f"{coverage} (area {area_fips})",
+            period=f"{self.year} annual",
+            retrieved_on=self._retrieved_on or _today(),
+        )
+
+
+def get_market_provider(environ: Any | None = None, transport: Fetch | None = None) -> Any:
+    """Return the synthetic snapshot unless MARKET_PROVIDER asks for BLS QCEW."""
+    env = os.environ if environ is None else environ
+    raw = str(env.get("MARKET_PROVIDER") or "").strip().lower()
+    if raw in {"", "synthetic", "demo", "demonstration", "none"}:
+        return SyntheticMarketProvider()
+    if raw in {"bls", "qcew", "bls-qcew"}:
+        year = str(env.get("MARKET_YEAR") or "2024").strip()
+        return BlsQcewProvider(year=year, transport=transport)
+    return UnavailableMarketProvider(raw)
+
+
+def load_market(
+    industry: str | None = None,
+    geographic_market: str | None = None,
+    provider: Any | None = None,
+) -> dict[str, Any]:
+    """Observations for a selection. Failure returns the synthetic snapshot."""
+    snapshot = market_framework(industry, geographic_market)
+    selected = provider if provider is not None else SyntheticMarketProvider()
+    if getattr(selected, "name", "") == "synthetic":
+        return {
+            "status": "synthetic",
+            "label": DEMONSTRATION_LABEL,
+            "reason": None,
+            "snapshot": snapshot,
+            "observations": [],
+        }
+    try:
+        observations = list(selected.observations(industry, geographic_market))
+        if not observations:
+            raise ValueError("empty market response")
+        for item in observations:
+            missing = [field for field in OBSERVATION_FIELDS if not str(item.get(field) or "").strip()]
+            if missing:
+                raise ValueError("market observation is missing provenance")
+        return {
+            "status": "public",
+            "label": PUBLIC_LABEL,
+            "reason": None,
+            "snapshot": snapshot,
+            "observations": observations,
+        }
+    except NotCovered:
+        return {
+            "status": "fallback",
+            "label": NOT_COVERED_LABEL,
+            "reason": "This industry and geography are not covered by the public provider.",
+            "snapshot": snapshot,
+            "observations": [],
+        }
+    except Exception:
+        return {
+            "status": "fallback",
+            "label": FALLBACK_LABEL,
+            "reason": "The public market provider did not return observations.",
+            "snapshot": snapshot,
+            "observations": [],
+        }
+
+
+def _observations_from_qcew(
+    body: str,
+    *,
+    industry_code: str,
+    classification: str,
+    coverage: str,
+    period: str,
+    retrieved_on: str,
+) -> list[dict[str, str]]:
+    rows = list(csv.DictReader(io.StringIO(body)))
+    match = next(
+        (
+            row
+            for row in rows
+            if str(row.get("own_code") or "") == "5" and str(row.get("industry_code") or "") == industry_code
+        ),
+        None,
+    )
+    if match is None:
+        raise LookupError("industry row is not in the public file")
+    base = {
+        "source": PUBLIC_SOURCE,
+        "geographic_coverage": coverage,
+        "industry_classification": f"{classification}; private ownership",
+        "measurement_period": period,
+        "retrieval_date": retrieved_on,
+    }
+    disclosure = str(match.get("disclosure_code") or "").strip()
+    if disclosure:
+        limitations = (
+            f"{_PUBLIC_LIMITATION} This cell is not disclosed (disclosure code {disclosure}). "
+            "A zero in the file is not shown as a measured zero."
+        )
+        return [
+            {
+                **base,
+                "limitations": limitations,
+                "measure": "Private annual average employment, weekly wage, and establishments",
+                "value": "Not disclosed",
+            }
+        ]
+    limitations = _PUBLIC_LIMITATION
+    measures = (
+        ("annual_avg_emplvl", "Private annual average employment"),
+        ("annual_avg_wkly_wage", "Private annual average weekly wage"),
+        ("annual_avg_estabs", "Private annual average establishments"),
+    )
+    observations = []
+    for field, label in measures:
+        value = str(match.get(field) or "").strip()
+        if not value:
+            raise ValueError("public measure is blank")
+        observations.append({**base, "limitations": limitations, "measure": label, "value": value})
+    return observations
+
+
+def _fetch_text(url: str) -> str:
+    request = urllib.request.Request(url, headers={"User-Agent": "RUGD-Analyze-prototype"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            payload = response.read(5_000_001)
+    except urllib.error.URLError as exc:
+        raise RuntimeError("market provider request failed") from exc
+    if len(payload) > 5_000_000:
+        raise RuntimeError("market response too large")
+    return payload.decode("utf-8")
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()

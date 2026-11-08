@@ -21,7 +21,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Review a draft recommendation | Met | The recommendation stays a draft. Approval does not rewrite it. |
 | See missing evidence requirements | Met | Missing required fields and `INSUFFICIENT_DEMAND_EVIDENCE` stay visible. |
 | Open the report and audit | Met | Markdown report, JSON audit, and a read-only HTML audit page are available. |
-| Explore market intelligence | Demonstration-only | One synthetic snapshot is shared. No live feed and no source dataset are connected. |
+| Explore market intelligence | Partially met | The default is one labeled synthetic snapshot. `MARKET_PROVIDER=bls` can show a BLS QCEW extract with provenance. Failure falls back to the synthetic snapshot. The figures do not clear a flag. |
 | View Validate and Partner | Demonstration-only | Validate can request review and cannot approve. Partner states that recurring monitoring is not active. |
 | Return to saved assessments | Met | Dashboard history offers Continue and View results. |
 | Baseline status unchanged | Met | do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, internal investor readiness, pending human review. |
@@ -41,14 +41,14 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Named pilots | Met | Bunny Hive and Small Town Pub are empty drafts. Only RUGD Intelligence is the official baseline. |
 | Brand colors and local layout | Partially met | The stated brand colors are used. No official logo file is in this repository. |
 | Local persistence and tests | Met | Drafts are in gitignored SQLite. The unittest suite covers the prototype path. |
-| Billing, public deployment, live market data, matchmaking | Not in 0.2 | These were excluded from the prototype and remain owner decisions. |
+| Billing, public deployment, live market feed, matchmaking | Not in 0.2 | An optional annual BLS QCEW extract is available. Billing, public deployment, a live feed, and matchmaking remain owner decisions. |
 
 ## Owner decisions required before further work
 
 Do not start these until an owner chooses them:
 
 - Production authentication, including accounts, password hashing, OAuth, or an external identity provider
-- Real market data sources, including Census, American Community Survey, BLS, BEA, or a commercial dataset
+- Real market data sources beyond the optional BLS QCEW extract, including Census, American Community Survey, BEA, or a commercial dataset
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing
 - Investor matchmaking, securities solicitation, brokerage, or capital movement

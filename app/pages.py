@@ -18,7 +18,9 @@ from app.store import (
 from app.market import (
     DEMONSTRATION_GEOGRAPHIES,
     DEMONSTRATION_INDUSTRIES,
+    PUBLIC_GEOGRAPHIES,
     assessment_implications,
+    load_market,
     market_framework,
 )
 
@@ -852,10 +854,26 @@ def market_page(
     records: list[dict[str, Any]] | None = None,
     industry: str | None = None,
     geographic_market: str | None = None,
+    provider: Any | None = None,
 ) -> str:
     records = records or []
+    if provider is None or getattr(provider, "name", None) == "synthetic":
+        return _synthetic_market_page(records, industry, geographic_market)
+    view = load_market(industry, geographic_market, provider)
+    if view["status"] == "public":
+        return _public_market_page(records, industry, geographic_market, view)
+    return _fallback_market_page(records, industry, geographic_market, view)
+
+
+def _synthetic_market_page(
+    records: list[dict[str, Any]],
+    industry: str | None,
+    geographic_market: str | None,
+) -> str:
     snapshot = market_framework(industry, geographic_market)
-    implications = "".join(f"<li>{escape(line)}</li>" for line in assessment_implications(records, industry, geographic_market))
+    implications = "".join(
+        f"<li>{escape(line)}</li>" for line in assessment_implications(records, industry, geographic_market)
+    )
     industry_options = _demo_options(DEMONSTRATION_INDUSTRIES, snapshot["industry"])
     geography_options = _demo_options(DEMONSTRATION_GEOGRAPHIES, snapshot["geographic_market"])
     body = f"""
@@ -874,6 +892,93 @@ def market_page(
 <h2>Implications for this assessment</h2>
 <ul>{implications}</ul>
 <p class="muted">The same demonstration snapshot is available on Partner. Neither view loads Census, BLS, or BEA data.</p>
+"""
+    return layout("Market Intelligence", body)
+
+
+def _public_market_page(
+    records: list[dict[str, Any]],
+    industry: str | None,
+    geographic_market: str | None,
+    view: dict[str, Any],
+) -> str:
+    industry_options = _demo_options(DEMONSTRATION_INDUSTRIES, str(industry or "Not selected"))
+    geography_options = _demo_options(PUBLIC_GEOGRAPHIES, str(geographic_market or "Not selected"))
+    first = view["observations"][0]
+    measures = "".join(
+        f"<li>{escape(item['measure'])}: {escape(item['value'])}</li>" for item in view["observations"]
+    )
+    notes = []
+    for record in records:
+        if record.get("read_only"):
+            continue
+        profile = record.get("profile") or {}
+        notes.append(
+            f"{record.get('business_name')} lists industry {profile.get('industry') or 'not entered'} "
+            f"and stage {profile.get('stage') or 'not entered'}. "
+            "No market fact is supplied for that industry or stage."
+        )
+    if not notes:
+        notes.append("No customer draft has an industry and stage to reference. No market fact is invented.")
+    notes.append(
+        "These public figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag."
+    )
+    implications = "".join(f"<li>{escape(line)}</li>" for line in notes)
+    body = f"""
+<h1>Market Intelligence</h1>
+{_SURFACE_NOTE}
+<div class="banner">{escape(view['label'])}</div>
+<form method="get" action="/market">
+<label>Industry</label>
+<select name="industry">{industry_options}</select>
+<label>Geographic coverage</label>
+<select name="geographic_market">{geography_options}</select>
+<button type="submit">Request public observations</button>
+</form>
+<p class="muted">Optional public extract. Live feed connected: false. Monitoring active: false. This request does not change an assessment.</p>
+<div class="card">
+<p><strong>Source:</strong> {escape(first['source'])}</p>
+<p><strong>Geographic coverage:</strong> {escape(first['geographic_coverage'])}</p>
+<p><strong>Industry classification:</strong> {escape(first['industry_classification'])}</p>
+<p><strong>Measurement period:</strong> {escape(first['measurement_period'])}</p>
+<p><strong>Retrieval date:</strong> {escape(first['retrieval_date'])}</p>
+<p><strong>Limitations:</strong> {escape(first['limitations'])}</p>
+<ul>{measures}</ul>
+</div>
+<h2>Implications for this assessment</h2>
+<ul>{implications}</ul>
+"""
+    return layout("Market Intelligence", body)
+
+
+def _fallback_market_page(
+    records: list[dict[str, Any]],
+    industry: str | None,
+    geographic_market: str | None,
+    view: dict[str, Any],
+) -> str:
+    snapshot = view["snapshot"]
+    implications = "".join(
+        f"<li>{escape(line)}</li>" for line in assessment_implications(records, industry, geographic_market)
+    )
+    industry_options = _demo_options(DEMONSTRATION_INDUSTRIES, str(industry or snapshot["industry"]))
+    geography_options = _demo_options(PUBLIC_GEOGRAPHIES, str(geographic_market or snapshot["geographic_market"]))
+    body = f"""
+<h1>Market Intelligence (demonstration)</h1>
+{_SURFACE_NOTE}
+<div class="banner">{escape(view['label'])}</div>
+<form method="get" action="/market">
+<label>Industry</label>
+<select name="industry">{industry_options}</select>
+<label>Geographic coverage</label>
+<select name="geographic_market">{geography_options}</select>
+<button type="submit">Request public observations</button>
+</form>
+<p class="muted">A mapped industry and geography can request the public extract. Any other selection stays on the synthetic snapshot.</p>
+{_market_block(snapshot)}
+<h2>Implications for this assessment</h2>
+<ul>{implications}</ul>
+<p class="muted">These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>
 """
     return layout("Market Intelligence", body)
 
