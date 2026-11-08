@@ -1,9 +1,49 @@
-"""Replaceable analyst. No external AI service is configured."""
+"""Replaceable analyst. External providers are optional and fail closed to the demonstration."""
 
 from __future__ import annotations
 
 import copy
-from typing import Any, Protocol
+import json
+import os
+import urllib.error
+import urllib.request
+from typing import Any, Callable, Protocol
+
+from app.export import _without_secrets
+
+SAFETY_PROMPT = (
+    "You are the RUGD analyst. Explain only the assessment summary you are given. "
+    "You must not change financial numbers, clear recommend-against flags, set human_review_approved, "
+    "or change investor readiness. You must not invent market research or evidence. "
+    "If a figure is absent, say it was not calculated. Your reply is an explanation, not a decision."
+)
+
+_PROVIDERS = {
+    "claude": {
+        "key": "ANTHROPIC_API_KEY",
+        "url": "https://api.anthropic.com/v1/messages",
+        "model": "claude-sonnet-4-5",
+    },
+    "openai": {
+        "key": "OPENAI_API_KEY",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "model": "gpt-4.1-mini",
+    },
+    "grok": {
+        "key": "XAI_API_KEY",
+        "url": "https://api.x.ai/v1/chat/completions",
+        "model": "grok-3",
+    },
+}
+_ALIASES = {
+    "claude": "claude",
+    "anthropic": "claude",
+    "openai": "openai",
+    "chatgpt": "openai",
+    "grok": "grok",
+    "xai": "grok",
+}
+Transport = Callable[[str, dict[str, str], dict[str, Any]], dict[str, Any]]
 
 
 class Analyst(Protocol):
@@ -17,6 +57,7 @@ class DemonstrationAnalyst:
     """Rule-based stand-in used when no external analyst API is configured."""
 
     label = "Demonstration Analyst. No external AI service is connected."
+    uses_network = False
 
     def explain(self, record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:
         safe_record = copy.deepcopy(record)
@@ -24,13 +65,102 @@ class DemonstrationAnalyst:
         return _explain(safe_record, safe_result)
 
 
-def get_analyst() -> DemonstrationAnalyst:
-    """Replacement point for a future analyst. No external API is configured."""
-    return DemonstrationAnalyst()
+class FallbackAnalyst:
+    """Labeled Demonstration Analyst used when a provider was requested but cannot run."""
+
+    uses_network = False
+
+    def __init__(self, reason: str) -> None:
+        self.label = f"Fallback: Demonstration Analyst. {reason}"
+
+    def explain(self, record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:
+        return [self.label, *DemonstrationAnalyst().explain(record, result)]
 
 
-def explain(record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:
-    return get_analyst().explain(record, result)
+class ExternalAnalyst:
+    """Optional provider call. A failed call falls back and does not edit the engine result."""
+
+    uses_network = True
+
+    def __init__(self, provider: str, api_key: str, model: str, transport: Transport | None = None) -> None:
+        self.provider = provider
+        self.label = (
+            f"External analyst ({provider}). Not the Demonstration Analyst. "
+            "This explanation cannot change engine results, flags, approval, or investor readiness."
+        )
+        self._api_key = api_key
+        self._model = model
+        self._transport = transport or _post_json
+
+    def explain(self, record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:
+        safe_record = copy.deepcopy(record)
+        safe_result = copy.deepcopy(result) if result is not None else None
+        try:
+            text = self._complete(_summary(safe_record, safe_result)).strip()
+            if not text:
+                raise ValueError("empty analyst response")
+        except Exception:
+            fallback = FallbackAnalyst("The external analyst call failed.")
+            return fallback.explain(record, result)
+        lines = [self.label, SAFETY_PROMPT]
+        lines.extend(line.strip() for line in text.splitlines() if line.strip())
+        return lines
+
+    def _complete(self, summary: dict[str, Any]) -> str:
+        spec = _PROVIDERS[self.provider]
+        user = json.dumps(summary, default=str)
+        if self.provider == "claude":
+            payload = {
+                "model": self._model,
+                "max_tokens": 800,
+                "system": SAFETY_PROMPT,
+                "messages": [{"role": "user", "content": user}],
+            }
+            headers = {
+                "content-type": "application/json",
+                "x-api-key": self._api_key,
+                "anthropic-version": "2023-06-01",
+            }
+        else:
+            payload = {
+                "model": self._model,
+                "messages": [
+                    {"role": "system", "content": SAFETY_PROMPT},
+                    {"role": "user", "content": user},
+                ],
+            }
+            headers = {
+                "content-type": "application/json",
+                "authorization": f"Bearer {self._api_key}",
+            }
+        response = self._transport(spec["url"], headers, payload)
+        return _response_text(self.provider, response)
+
+
+def get_analyst(environ: Any | None = None, transport: Transport | None = None) -> Any:
+    """Return the configured analyst. A missing key or unknown provider falls back."""
+    env = os.environ if environ is None else environ
+    raw = str(env.get("ANALYST_PROVIDER") or "").strip().lower()
+    if raw in {"", "demo", "demonstration", "none"}:
+        return DemonstrationAnalyst()
+    provider = _ALIASES.get(raw)
+    if provider is None:
+        return FallbackAnalyst("The selected analyst provider is not available.")
+    api_key = str(env.get(_PROVIDERS[provider]["key"]) or "").strip()
+    if not api_key:
+        return FallbackAnalyst("No API key is configured.")
+    model = str(env.get("ANALYST_MODEL") or "").strip() or _PROVIDERS[provider]["model"]
+    return ExternalAnalyst(provider, api_key, model, transport=transport)
+
+
+def explain(
+    record: dict[str, Any],
+    result: dict[str, Any] | None,
+    *,
+    environ: Any | None = None,
+    transport: Transport | None = None,
+) -> list[str]:
+    return get_analyst(environ=environ, transport=transport).explain(record, result)
 
 
 def _explain(record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:
@@ -136,3 +266,55 @@ def _dscr(value: Any) -> Any:
     if value is None:
         return "undefined"
     return value
+
+
+def _summary(record: dict[str, Any], result: dict[str, Any] | None) -> dict[str, Any]:
+    """Assessment summary for a provider. Secret keys are removed before the call."""
+    engine_result = _without_secrets(result) if result is not None else None
+    if isinstance(engine_result, dict):
+        engine_result.pop("report_markdown", None)
+    return {
+        "business_name": record.get("business_name"),
+        "purpose": record.get("purpose"),
+        "tier": record.get("tier"),
+        "hypothetical": bool(record.get("hypothetical")),
+        "read_only": bool(record.get("read_only")),
+        "pilot_label": record.get("pilot_label"),
+        "profile": _without_secrets(record.get("profile") or {}),
+        "engine_result": engine_result,
+    }
+
+
+def _response_text(provider: str, payload: dict[str, Any]) -> str:
+    if provider == "claude":
+        parts = payload.get("content") or []
+        texts = [
+            str(item.get("text"))
+            for item in parts
+            if isinstance(item, dict) and item.get("text")
+        ]
+        if not texts:
+            raise ValueError("empty analyst response")
+        return "\n".join(texts)
+    choices = payload.get("choices") or []
+    if not choices or not isinstance(choices[0], dict):
+        raise ValueError("empty analyst response")
+    message = choices[0].get("message") or {}
+    content = message.get("content") if isinstance(message, dict) else None
+    if not content:
+        raise ValueError("empty analyst response")
+    return str(content)
+
+
+def _post_json(url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.URLError as exc:
+        raise RuntimeError("analyst provider request failed") from exc

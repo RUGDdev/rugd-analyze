@@ -4,7 +4,7 @@ Updated: 2026-11-08
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 92 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 94 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -14,7 +14,7 @@ Git is on `main`. Commits use a per-command author identity (`RUGD Dev <dev@rugd
 
 ## Analyze 0.2
 
-A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Validate can record a review request and cannot approve. Partner and Market Intelligence are labeled demonstrations. Drafts live in gitignored `data/analyze.sqlite`.
+A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Validate can record a review request and cannot approve. Partner and Market Intelligence are labeled demonstrations. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Drafts live in gitignored `data/analyze.sqlite`.
 
 Verified in the browser and over HTTP:
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 92 tests passing
+- All 94 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -172,3 +172,9 @@ Further work on production authentication, real market data, an approved scoring
 - Incomplete drafts name the missing startup and monthly fields and say blank fields stay blank. Before Analyze has been run, the results page says so and does not fill missing inputs. A dashboard with no customer drafts says no drafts are saved and that baseline figures are not copied in.
 - Export draft as JSON copies one saved assessment. Export all drafts copies every non-baseline assessment into one JSON file. Each export includes the profile, the engine intake, and the latest result when one is stored. Session tokens, passphrases, and cookies are omitted. Export does not run the engine.
 - The unittest suite is 92 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-08 optional external analyst
+
+- `get_analyst()` stays the replacement point. `ANALYST_PROVIDER` may be `claude`, `openai`, or `grok`, using `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `XAI_API_KEY`. `ANALYST_MODEL` is optional. No key is stored in source.
+- The provider receives a summary of the current assessment and the engine result, with a system instruction that forbids changing numbers, clearing flags, setting `human_review_approved`, or changing investor readiness. A missing key or a failed call is labeled as a fallback to the Demonstration Analyst. Results and the analyst page name the provider and say the analyst cannot alter authoritative results.
+- The unittest suite is 94 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

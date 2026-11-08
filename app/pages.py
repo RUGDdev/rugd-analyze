@@ -6,6 +6,7 @@ from html import escape
 from typing import Any
 
 from app import APP_VERSION
+from app.analyst import get_analyst
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
 from app.store import (
     HYPOTHETICAL_DEMO_LABEL,
@@ -533,6 +534,7 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 {_view_summary_block(result)}
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
 </div>
+{_analyst_panel(record, result)}
 {_LIMITATIONS}
 <h2>Demand evidence</h2>
 {_demand_status(result.get("demand") or {})}
@@ -812,12 +814,38 @@ def _financial_table(financial: dict[str, Any] | None) -> str:
 
 def analyst_page(record: dict[str, Any], lines: list[str]) -> str:
     items = "".join(f"<li>{escape(line)}</li>" for line in lines)
+    label = lines[0] if lines else "Demonstration Analyst"
     body = f"""
-<h1>Demonstration Analyst</h1>
-<div class="banner">Demonstration Analyst. No external AI service is connected. This explanation cannot change engine results, flags, approval, or investor readiness.</div>
+<h1>Analyst</h1>
+<div class="banner">{escape(label)}</div>
+<p class="muted">Optional explanation. The analyst cannot alter authoritative results, clear flags, set human_review_approved, or change investor readiness.</p>
 <ul>{items}</ul>
+<p><a href="/assessments/{escape(record['id'])}/results">Return to results</a></p>
 """
-    return layout("Demonstration Analyst", body)
+    return layout("Analyst", body)
+
+
+def _analyst_panel(record: dict[str, Any], result: dict[str, Any]) -> str:
+    analyst = get_analyst()
+    note = (
+        "Optional explanation. The analyst cannot alter authoritative results, "
+        "clear flags, set human_review_approved, or change investor readiness."
+    )
+    href = f"/assessments/{escape(record['id'])}/analyst"
+    if getattr(analyst, "uses_network", False):
+        body = (
+            f"<p>{escape(analyst.label)}</p><p>{note}</p>"
+            f"<p><a href=\"{href}\">Open the optional analyst explanation</a></p>"
+        )
+    else:
+        lines = analyst.explain(record, result)
+        items = "".join(f"<li>{escape(line)}</li>" for line in lines)
+        shown = lines[0] if lines else analyst.label
+        body = (
+            f"<p>{escape(shown)}</p><p>{note}</p><ul>{items}</ul>"
+            f"<p><a href=\"{href}\">Open the analyst page</a></p>"
+        )
+    return f"<div class=\"card\"><h2>Analyst</h2>{body}</div>"
 
 
 def market_page(

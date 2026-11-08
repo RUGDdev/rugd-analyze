@@ -14,7 +14,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | See its blocking flags and incomplete status | Met | The baseline shows do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, internal readiness, and pending human review. |
 | Create a new restaurant startup assessment | Met | A labeled hypothetical restaurant draft and new startup drafts can be created. |
 | Enter and save business information | Met | Save and resume keep the values that were entered, including a blank field. |
-| Receive guided intake assistance | Partially met | The intake shows the next missing item and a Demonstration Analyst. No external conversational AI is connected. |
+| Receive guided intake assistance | Partially met | The intake shows the next missing item. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and an API key are set. |
 | Run the deterministic financial engine | Met | Analyze calls the unchanged 0.1 engine. |
 | View supported financial calculations | Met | Sources and uses, base and downside, and DSCR appear when the engine calculates them. |
 | Compare available scenarios | Met | The comparison is the engine’s base and downside views. |
@@ -34,7 +34,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Four service tiers in one application | Met | Tier, recommendation, evidence, approval, and readiness are separate. Changing tier does not change a stored recommendation. |
 | Startup intake with evidence labels | Met | User-supplied assumptions, verified data, and unmeasured placeholders stay distinct. |
 | Acquisition and investor-commissioned purposes | Partially met | The purposes can be selected and are marked unsupported. They do not score. |
-| Demonstration Analyst | Demonstration-only | It explains the current engine result and cannot change figures, flags, approval, or readiness. |
+| Demonstration Analyst | Demonstration-only | It explains the current engine result and cannot change figures, flags, approval, or readiness. An optional external provider uses the same limit and falls back to this analyst. |
 | Reviewer approval | Partially met | A local prototype session can record approval. It is not production authentication, and it cannot clear flags or grant investor-ready by itself. |
 | Customer approval control | Met | An ordinary customer post that includes `human_review_approved` returns 403. |
 | Reports identify draft status and limitations | Met | Results and the HTML audit include a limitations note. Reports do not overwrite the official 0.1 files. |

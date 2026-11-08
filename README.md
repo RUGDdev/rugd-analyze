@@ -77,7 +77,21 @@ Export does not run the engine and does not fill blank fields. It does not inclu
 - Validate can request review and cannot approve
 - Partner monitoring is not active
 - Market Intelligence is a synthetic demonstration, not Census, BLS, or BEA research
-- The Demonstration Analyst has no external AI service
+- The Demonstration Analyst is the default. An optional external analyst can be enabled with an environment variable and an API key
+
+## Optional external analyst
+
+The analyst is off the network unless you set a provider. With no provider, or with a missing key, or when a call fails, the app uses the labeled Demonstration Analyst. That explanation cannot change engine numbers, clear flags, set `human_review_approved`, or change investor readiness.
+
+Set these in the environment for the terminal that starts the app. Do not put keys in source files.
+
+- `ANALYST_PROVIDER` — `claude`, `openai`, or `grok` (`anthropic`, `chatgpt`, and `xai` are accepted aliases)
+- `ANTHROPIC_API_KEY` — required when the provider is Claude
+- `OPENAI_API_KEY` — required when the provider is OpenAI
+- `XAI_API_KEY` — required when the provider is Grok
+- `ANALYST_MODEL` — optional model name. Defaults are `claude-sonnet-4-5`, `gpt-4.1-mini`, and `grok-3`
+
+The provider receives a summary of the current assessment and the engine result, plus a system instruction that forbids changing numbers, clearing flags, or approving the assessment. It does not receive session tokens or the API key in the prompt. This is still prototype-grade. It is not production authentication and it is not a decision.
 - Bunny Hive and Small Town Pub have no completed assessments
 - Reviewer sign-in is prototype-grade: one source-constant passphrase, no OAuth, no password hash, and no account directory
 - No production accounts, billing, public deployment, live market data, or investor matchmaking

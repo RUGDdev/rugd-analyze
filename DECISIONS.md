@@ -163,3 +163,13 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - Bunny Hive and Small Town Pub are created as empty named-pilot drafts. They are not completed assessments, they are not read-only, and they do not receive the baseline intake.
 - Those names are application labels in the local store. `scoring/rules.py` and the 0.1 engine do not read them. Entering evidence later still does not approve the draft or make it the official baseline.
 - Reviewer authentication remains the prototype mechanism recorded above. It is not production authentication. The unittest count is kept in `CURRENT_STATUS.md`.
+
+## Decision: Optional external analyst
+
+- Date: 2026-11-08
+- Status: Accepted for the local prototype only
+- `get_analyst()` remains the replacement point. With `ANALYST_PROVIDER` unset, the analyst is the Demonstration Analyst.
+- `ANALYST_PROVIDER` may be `claude`, `openai`, or `grok`. The matching key is `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `XAI_API_KEY`. `ANALYST_MODEL` may override the default model. Keys are read from the environment and are not written into source.
+- The provider receives only a summary of the current assessment and the engine result. Secret keys, including session tokens and the API key, are not placed in that summary. The request includes an instruction that the model must not change financial numbers, clear recommend-against flags, set `human_review_approved`, or change investor readiness.
+- A missing key, an unknown provider, or a failed call falls back to the Demonstration Analyst and says that it is a fallback. The analyst still cannot mutate the stored engine result.
+- This is not production AI integration. No key is committed. The explanation is not a decision, not evidence, and not approval.
