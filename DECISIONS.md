@@ -31,6 +31,7 @@ Version 0.2 does not call Census, BLS, BEA, or any paid data API. Market pages s
 - Context: Root commit of 0.1 engine + follow-on commit of 0.2 application files required before further platform work.
 - Decision: Commits made with temporary author identity (`-c user.name` / `-c user.email`) so global Git config remains unchanged.
 - Consequence: Clean baseline now exists on `main`. Future sessions can resume from `d2a088c`.
+- Update 2026-11-08: Later commits on `main` use the same temporary author identity. Resume from `CURRENT_STATUS.md`. The latest commit before the README and named-pilot note is `47052a8`. Reviewer authentication remains prototype-grade. The unittest count is recorded in `CURRENT_STATUS.md` (86 tests, all passing).
 
 ## Decision: Demand Evidence Remains the Hard Gate
 
@@ -153,3 +154,12 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - The dashboard lists saved assessments with Continue and View results. The official baseline is labeled separately from customer drafts and hypothetical drafts. A card shows the stored engine summary when a result exists. Before Analyze has been run, recommendation, demand evidence, and investor readiness say not run, and human review says pending. The list does not style a draft or the baseline as approved or investor-ready.
 - The startup intake keeps three labels: user-supplied assumptions, verified data, and unmeasured placeholders. Missing required startup fields and missing monthly fields are stated on the form. Saving writes the posted values. Returning to the draft shows those values again, including a blank field and a worksheet default the customer changed. The form does not fill a blank with an invented number.
 - The results page renders sources and uses, base and downside, and DSCR from the deterministic startup projection when that projection calculated. A simple bar compares the engine’s base and downside revenue. When monthly inputs are missing, the page says Insufficient verified information to calculate. The report and the HTML audit page stay linked from results. This presentation does not change scoring, flags, or the Investor Readiness Gate.
+
+## Decision: Named pilots stay empty drafts
+
+- Date: 2026-11-08
+- Status: Accepted
+- Only the RUGD Intelligence assessment is the official baseline. Its sample file stays unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.
+- Bunny Hive and Small Town Pub are created as empty named-pilot drafts. They are not completed assessments, they are not read-only, and they do not receive the baseline intake.
+- Those names are application labels in the local store. `scoring/rules.py` and the 0.1 engine do not read them. Entering evidence later still does not approve the draft or make it the official baseline.
+- Reviewer authentication remains the prototype mechanism recorded above. It is not production authentication. The unittest count is kept in `CURRENT_STATUS.md`.

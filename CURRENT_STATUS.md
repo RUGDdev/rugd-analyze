@@ -1,16 +1,16 @@
 # Current status
 
-Updated: 2026-11-07
+Updated: 2026-11-08
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 85 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 86 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
 ## Repository
 
-Git was initialized on `main`. The 0.1 files are staged. The checkpoint commit is blocked until a person sets their Git author identity. This session did not change Git configuration. The 0.2 application files are untracked and uncommitted.
+Git is on `main`. Commits use a per-command author identity (`RUGD Dev <dev@rugd.local>`). Global Git configuration is unchanged. The latest commit before the README and named-pilot note is `47052a8`. Drafts live in gitignored `data/analyze.sqlite`. The 0.1 sample and `reports/output/rugd-intelligence-draft.md` stay in the repository and are not overwritten by the local app.
 
 ## Analyze 0.2
 
@@ -28,7 +28,7 @@ Run Analyze submits the same intake form as Save draft, so unsaved entries reach
 
 ## Unfinished
 
-Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring is not running. Market data providers are not connected. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
+Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. Market data providers are not connected. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
 
 ## Git Checkpoint
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 85 tests passing
+- All 86 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -125,3 +125,23 @@ Bunny Hive and Small Town Pub have no completed assessments. Partner monitoring 
 - Intake, results, the Markdown report, and the HTML audit use the same labels for recommendation, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness, human review, and demand provenance. A saved draft reloads the entered values. Results and the HTML audit include a Limitations note: this is a prototype, and demonstration data is not real market research.
 - A new restaurant draft and the official baseline agree across results, the Markdown report, the HTML audit, and the JSON audit: do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE` present, investor readiness internal, and human review pending. Customer approval still returns 403. The baseline cannot be approved.
 - The unittest suite is 85 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Development log
+
+Local 0.2 work on `main`. Reviewer authentication remains prototype-grade. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.
+
+- `3be9719` checkpointed the 0.1 engine. `d2a088c` added the local Analyze application.
+- `149a2c7` added the verified demand record under the documented clear rule.
+- `887d50c` clarified results, kept the Demonstration Analyst from changing engine output, and labeled market and partner demonstrations.
+- `521ac79` through `ed5adfa` added reviewer-only approval, prototype sign-in, a 4-hour session, sign-out, and the session audit trail.
+- `2031ebf` added the read-only HTML audit page.
+- `dcd50d5` listed dashboard history and presented startup sources, uses, and DSCR from the engine.
+- `7f36770` explained those engine figures in the Demonstration Analyst and kept Market Intelligence and Partner synthetic.
+- `47052a8` showed Explore next-step guidance and aligned intake, results, report, and audit terminology. The suite at that commit is 85 tests.
+
+## Progress — 2026-11-08 README, named pilots, and development log
+
+- `README.md` states the exact `python -m app` command, the local URL, the Ctrl+C shutdown, the unittest command, implemented capabilities, and demonstration or unfinished items. Authentication is described as prototype-grade.
+- Bunny Hive and Small Town Pub are created as empty named-pilot drafts. The dashboard and the draft page label them that way. They are not the official baseline, they are not completed assessments, and their names are not read by the scoring engine.
+- Only the RUGD Intelligence assessment is labeled the official baseline. Its sample file was not edited.
+- The unittest suite is 86 tests, all passing. The server is stopped. Authentication remains prototype-grade.

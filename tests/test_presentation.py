@@ -353,6 +353,99 @@ class TestPresentation(unittest.TestCase):
             server.server_close()
             thread.join(timeout=3)
 
+    def test_named_pilots_are_empty_drafts_and_are_not_the_baseline(self) -> None:
+        before = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        root = Path(__file__).resolve().parent.parent
+        for relative in (
+            "scoring/rules.py",
+            "scoring/industry_benchmarks.py",
+            "engine/financial.py",
+            "engine/startup_projection.py",
+            "engine/startup_capital_calculator.py",
+            "run_assessment.py",
+        ):
+            source = (root / relative).read_text(encoding="utf-8")
+            self.assertNotIn("Bunny Hive", source)
+            self.assertNotIn("Small Town Pub", source)
+        server = make_server(self.db, port=0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        host, port = server.server_address
+        base = f"http://{host}:{port}"
+        opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
+        try:
+            with urllib.request.urlopen(base + "/assessments/new") as response:
+                new_page = response.read().decode("utf-8")
+            self.assertIn("Only the RUGD Intelligence assessment is the official baseline.", new_page)
+            self.assertIn("Start Bunny Hive draft", new_page)
+            self.assertIn("Start Small Town Pub draft", new_page)
+            created_ids = []
+            for name in ("Bunny Hive", "Small Town Pub"):
+                request = urllib.request.Request(
+                    base + "/assessments",
+                    data=urllib.parse.urlencode(
+                        {
+                            "business_name": name,
+                            "purpose": "startup_feasibility",
+                            "tier": "explore",
+                        }
+                    ).encode(),
+                    method="POST",
+                )
+                with opener.open(request) as response:
+                    page = response.read().decode("utf-8")
+                    created_ids.append(response.geturl().rstrip("/").rsplit("/", 1)[-1])
+                self.assertIn("Empty named-pilot draft", page)
+                self.assertIn("Empty named-pilot draft.", page)
+                self.assertIn("Not a completed assessment", page)
+                self.assertIn("Only the RUGD Intelligence assessment is the official baseline.", page)
+                self.assertIn('name="concept"', page)
+                self.assertIn('name="seats" value=""', page)
+                self.assertIn('name="demand_evidence"', page)
+            with urllib.request.urlopen(base + "/") as response:
+                home = response.read().decode("utf-8")
+            self.assertEqual(home.count("Empty named-pilot draft"), 2)
+            self.assertIn("Official baseline", home)
+            self.assertIn("Only the RUGD Intelligence assessment is the official baseline.", home)
+            baseline = get_assessment(self.connection, "rugd-intelligence-baseline")
+            assert baseline is not None
+            self.assertTrue(baseline["read_only"])
+            self.assertFalse(baseline["human_review_approved"])
+            self.assertNotIn(baseline["id"], created_ids)
+            for assessment_id, name in zip(created_ids, ("Bunny Hive", "Small Town Pub")):
+                stored = get_assessment(self.connection, assessment_id)
+                assert stored is not None
+                self.assertEqual(stored["business_name"], name)
+                self.assertNotEqual(stored["id"], "rugd-intelligence-baseline")
+                self.assertFalse(stored["read_only"])
+                self.assertFalse(stored["hypothetical"])
+                self.assertIsNone(stored["intake"])
+                self.assertIsNone(stored["result"])
+                self.assertFalse(stored["human_review_approved"])
+                self.assertEqual(stored["profile"]["concept"], "")
+                self.assertEqual(stored["profile"]["seats"], "")
+                self.assertEqual(stored["profile"]["construction_cost"], "")
+                self.assertEqual(stored["profile"]["demand_evidence"], "")
+                self.assertEqual(stored["profile"]["industry"], "")
+                self.assertNotEqual(stored["profile"], baseline["profile"])
+                result = analyze_record(stored)
+                self.assertEqual(result["recommendation"], "do-not-proceed")
+                self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", result["blocking_flags"])
+                self.assertEqual(result["readiness_status"], "internal")
+                self.assertFalse(result["human_review_approved"])
+                untouched = get_assessment(self.connection, assessment_id)
+                assert untouched is not None
+                self.assertIsNone(untouched["result"])
+            self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before)
+            baseline_after = analyze_record(get_assessment(self.connection, "rugd-intelligence-baseline"))
+            self.assertEqual(baseline_after["recommendation"], "do-not-proceed")
+            self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", baseline_after["blocking_flags"])
+            self.assertFalse(get_assessment(self.connection, "rugd-intelligence-baseline")["human_review_approved"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
+
     def _assert_shared_status(self, page: str) -> None:
         self.assertIn("Recommendation:</strong> do-not-proceed", page)
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE:</strong> present", page)

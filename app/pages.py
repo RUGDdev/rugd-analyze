@@ -7,6 +7,7 @@ from typing import Any
 
 from app import APP_VERSION
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
+from app.store import is_named_pilot, named_pilot_is_empty
 from app.market import (
     DEMONSTRATION_GEOGRAPHIES,
     DEMONSTRATION_INDUSTRIES,
@@ -95,7 +96,7 @@ def dashboard(records: list[dict[str, Any]]) -> str:
 <p class="muted">This indicator does not change a flag, a recommendation, or investor readiness.</p>
 </div>
 <h2>Assessment history</h2>
-<p class="muted">Official baseline stays separate from customer drafts. A draft is not approved or investor-ready.</p>
+<p class="muted">Only the RUGD Intelligence assessment is the official baseline. Bunny Hive and Small Town Pub are empty named-pilot drafts until someone enters evidence. A draft is not a completed assessment, and it is not approved or investor-ready.</p>
 {items}
 """
     return layout("Dashboard", body)
@@ -111,6 +112,13 @@ def _history_card(item: dict[str, Any]) -> str:
     elif item.get("hypothetical"):
         kind = "Hypothetical draft"
         progress = _draft_progress(item, result)
+    elif is_named_pilot(item):
+        kind = (
+            "Empty named-pilot draft"
+            if named_pilot_is_empty(item)
+            else "Named-pilot draft. Not a completed assessment."
+        )
+        progress = _draft_progress(item, result) + " Not a completed assessment and not the official baseline."
     else:
         kind = "Draft"
         progress = _draft_progress(item, result)
@@ -229,6 +237,13 @@ def assessment_form(record: dict[str, Any], notice: str = "") -> str:
     banner = f'<div class="banner">{escape(record["pilot_label"])}</div>'
     if record["hypothetical"]:
         banner += '<div class="banner">Hypothetical demonstration. Figures are not verified market research.</div>'
+    if is_named_pilot(record):
+        empty = " Empty named-pilot draft." if named_pilot_is_empty(record) else ""
+        banner += (
+            "<div class=\"banner\">Named-pilot draft. Not a completed assessment. "
+            "Only the RUGD Intelligence assessment is the official baseline."
+            f"{empty}</div>"
+        )
     if notice:
         banner += f'<div class="banner">{escape(notice)}</div>'
     fields = _fields(profile, locked)
@@ -961,6 +976,7 @@ def settings_page() -> str:
 <h1>Settings</h1>
 <p>This copy runs on 127.0.0.1 for a local pilot. It has no customer accounts, no password store, and no payment processing.</p>
 <p>LongArc / DVT is not connected. The Webflow site is not connected.</p>
+<p>Only the RUGD Intelligence assessment is the official baseline. Bunny Hive and Small Town Pub stay empty named-pilot drafts until evidence is entered. They are not completed assessments.</p>
 <p>Authoritative calculations remain in the 0.1 Python engine.</p>
 """
     return layout("Settings", body)
@@ -986,7 +1002,7 @@ def new_assessment_page() -> str:
 <button type="submit">Create draft</button>
 </form>
 <h2>Named pilots</h2>
-<p class="muted">Bunny Hive and Small Town Pub do not have completed assessments. These buttons create empty drafts.</p>
+<p class="muted">Only the RUGD Intelligence assessment is the official baseline. Bunny Hive and Small Town Pub do not have completed assessments. These buttons create empty drafts. Their names are not used by the scoring engine.</p>
 <form method="post" action="/assessments"><input type="hidden" name="business_name" value="Bunny Hive"><input type="hidden" name="purpose" value="startup_feasibility"><input type="hidden" name="tier" value="explore"><button type="submit">Start Bunny Hive draft</button></form>
 <form method="post" action="/assessments"><input type="hidden" name="business_name" value="Small Town Pub"><input type="hidden" name="purpose" value="startup_feasibility"><input type="hidden" name="tier" value="explore"><button type="submit">Start Small Town Pub draft</button></form>
 """

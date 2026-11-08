@@ -16,6 +16,46 @@ SAMPLE = ROOT / "intake" / "samples" / "rugd_intelligence.json"
 
 BASELINE_ID = "rugd-intelligence-baseline"
 RESTAURANT_ID = "hypothetical-restaurant"
+# App labels only. Scoring and the 0.1 engine do not read these names.
+NAMED_PILOT_NAMES = frozenset({"Bunny Hive", "The Bunny Hive", "Small Town Pub"})
+NAMED_PILOT_LABEL = (
+    "Named-pilot draft. Not a completed assessment. "
+    "Only RUGD Intelligence is the official baseline."
+)
+CUSTOMER_DRAFT_LABEL = "Customer draft. Not a completed assessment."
+_EMPTY_PILOT_FIELDS = (
+    "concept",
+    "industry",
+    "market",
+    "stage",
+    "products",
+    "customers",
+    "competition",
+    "demand_evidence",
+    "verified_record_source",
+    "verified_revenue_trailing_12m",
+    "verified_demand_evidence",
+    "verified_demand_rationale",
+    "operator_capacity_adequate",
+    "unresolved_regulatory_or_liability",
+    "extraction_without_reinvestment",
+    "construction_cost",
+    "equipment",
+    "soft_costs",
+    "preopening_working_capital",
+    "seats",
+    "average_ticket",
+    "weekday_occupancy",
+    "weekend_occupancy",
+    "operating_days",
+    "annual_fixed_costs",
+    "contribution_margin",
+    "initial_capital",
+    "monthly_fixed_costs",
+    "gross_margin_pct",
+    "projected_monthly_revenue_base",
+    "evidence_notes",
+)
 
 FORBIDDEN_PROFILE_KEYS = frozenset(
     {"human_review_approved", "is_final", "investor_ready", "source"}
@@ -205,6 +245,24 @@ def blank_profile(*, business_name: str, purpose: str, tier: str) -> dict[str, A
         "hypothetical": False,
         "evidence_notes": "",
     }
+
+
+def label_for_new_assessment(business_name: str) -> str:
+    """Choose a display label. This does not score the draft or edit the baseline."""
+    if business_name.strip() in NAMED_PILOT_NAMES:
+        return NAMED_PILOT_LABEL
+    return CUSTOMER_DRAFT_LABEL
+
+
+def is_named_pilot(record: dict[str, Any]) -> bool:
+    if record.get("read_only") or record.get("id") == BASELINE_ID:
+        return False
+    return record.get("pilot_label") == NAMED_PILOT_LABEL
+
+
+def named_pilot_is_empty(record: dict[str, Any]) -> bool:
+    profile = record.get("profile") or {}
+    return all(not str(profile.get(key) or "").strip() for key in _EMPTY_PILOT_FIELDS)
 
 
 def create_assessment(

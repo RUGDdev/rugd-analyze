@@ -42,6 +42,7 @@ from app.store import (
     DEFAULT_DB,
     connect,
     create_assessment,
+    label_for_new_assessment,
     get_assessment,
     list_approvals,
     list_assessments,
@@ -106,12 +107,13 @@ class AppHandler(BaseHTTPRequestHandler):
         with self._db() as connection:
             seed(connection)
             if path == "/assessments":
+                business_name = (form.get("business_name") or "Untitled").strip() or "Untitled"
                 assessment_id = create_assessment(
                     connection,
-                    business_name=form.get("business_name") or "Untitled",
+                    business_name=business_name,
                     purpose=form.get("purpose") or "startup_feasibility",
                     tier=form.get("tier") or "explore",
-                    pilot_label="Customer draft. Not a completed assessment.",
+                    pilot_label=label_for_new_assessment(business_name),
                 )
                 self._redirect(f"/assessments/{assessment_id}")
                 return
