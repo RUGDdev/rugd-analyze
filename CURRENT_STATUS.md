@@ -4,7 +4,7 @@ Updated: 2026-11-08
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 86 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 88 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 86 tests passing
+- All 88 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -145,3 +145,11 @@ Local 0.2 work on `main`. Reviewer authentication remains prototype-grade. The o
 - Bunny Hive and Small Town Pub are created as empty named-pilot drafts. The dashboard and the draft page label them that way. They are not the official baseline, they are not completed assessments, and their names are not read by the scoring engine.
 - Only the RUGD Intelligence assessment is labeled the official baseline. Its sample file was not edited.
 - The unittest suite is 86 tests, all passing. The server is stopped. Authentication remains prototype-grade.
+
+## Final 0.2 prototype status — 2026-11-08
+
+The local prototype is at a pause point. `ACCEPTANCE.md` maps the original 0.2 browser criteria: the Explore-to-Analyze path, saved drafts, engine results, reports, and the audit are met. Guided assistance is partial because the analyst is a labeled demonstration. Market Intelligence, Validate, and Partner remain demonstration-only. Customer approval still returns 403. The official baseline is unchanged.
+
+Dashboard, Explore, Analyze, Validate, Partner, Market Intelligence, Reports, and the HTML audit share one warning: local prototype, not production security, and the screen does not grant investor-ready status. Authoritative financial numbers on Analyze and results come only from the 0.1 engine. Partner and Market Intelligence still show monitoring and the live feed as false.
+
+Further work on production authentication, real market data, an approved scoring methodology, billing, investor matchmaking, recurring monitoring, an external AI provider, public deployment, LongArc or DVT, the Webflow site, or React requires an owner decision. The unittest suite is 88 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

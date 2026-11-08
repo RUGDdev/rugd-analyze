@@ -15,6 +15,11 @@ from app.market import (
     market_framework,
 )
 
+_SURFACE_NOTE = (
+    '<div class="banner">Local prototype. Not production security. '
+    "This screen does not grant investor-ready status.</div>"
+)
+
 NAV = (
     ("/", "Dashboard"),
     ("/explore", "Explore"),
@@ -85,6 +90,7 @@ def dashboard(records: list[dict[str, Any]]) -> str:
     items = "".join(_history_card(item) for item in records) or "<p>No assessments are saved.</p>"
     body = f"""
 <h1>Customer dashboard</h1>
+{_SURFACE_NOTE}
 <p class="muted">Local test profile. This prototype has no accounts and no production security.</p>
 <div class="card">
 <p>Working now: Explore intake, Analyze through the 0.1 engine, reports, and the audit.</p>
@@ -428,7 +434,13 @@ def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:
 
 def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
     if not result.get("engine_ran"):
-        body = f"<h1>Analyze</h1><div class=\"banner\">{escape(result.get('message', 'Analyze did not run.'))}</div>"
+        body = (
+            "<h1>Analyze</h1>"
+            f"{_SURFACE_NOTE}"
+            f"<div class=\"banner\">{escape(result.get('message', 'Analyze did not run.'))}</div>"
+            "<p>Authoritative financial numbers come only from the 0.1 engine. "
+            "Missing inputs stay uncalculated.</p>"
+        )
         return layout("Analyze", body)
     flags = "".join(f"<li class=\"flag\">{escape(flag)}</li>" for flag in result.get("blocking_flags") or []) or "<li>None</li>"
     gaps = "".join(f"<li>{escape(flag)}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
@@ -450,11 +462,12 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 """
     body = f"""
 <h1>Results for {escape(record['business_name'])}</h1>
+{_SURFACE_NOTE}
 <div class="banner">{escape(standing)}</div>
 {links}
 <div class="card">
 {_view_summary_block(result)}
-<p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Figures below are deterministic engine outputs.</p>
+<p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
 </div>
 {_LIMITATIONS}
 <h2>Demand evidence</h2>
@@ -685,8 +698,9 @@ def market_page(
     industry_options = _demo_options(DEMONSTRATION_INDUSTRIES, snapshot["industry"])
     geography_options = _demo_options(DEMONSTRATION_GEOGRAPHIES, snapshot["geographic_market"])
     body = f"""
-<h1>Market Intelligence</h1>
-<div class="banner">Demonstration only. This page does not load a live market feed.</div>
+<h1>Market Intelligence (demonstration)</h1>
+{_SURFACE_NOTE}
+<div class="banner">Demonstration only. This page does not load a live market feed. Not live monitoring.</div>
 <form method="get" action="/market">
 <label>Demonstration industry</label>
 <select name="industry">{industry_options}</select>
@@ -723,7 +737,8 @@ def audit_html_page(
     if not result.get("engine_ran"):
         body = f"""
 <h1>Audit view</h1>
-<div class="banner">Audit view. Read only. Draft. This page cannot change flags, approval, readiness, or the recommendation.</div>
+{_SURFACE_NOTE}
+<div class="banner">Audit view. Read only. Draft. This page cannot change flags, approval, readiness, or the recommendation. Not an investor-ready result.</div>
 <p>{escape(result.get('message') or 'Analyze did not run.')}</p>
 """
         return layout("Audit view", body)
@@ -759,6 +774,7 @@ def audit_html_page(
         event_table = "<p>No reviewer events are recorded.</p>"
     body = f"""
 <h1>Audit view for {escape(record['business_name'])}</h1>
+{_SURFACE_NOTE}
 <div class="banner">Audit view. Read only. {escape(standing)} This page cannot change flags, approval, readiness, or the recommendation.</div>
 <div class="card">
 <p><strong>Recommendation:</strong> {escape(str(summary.get('recommendation')))}</p>
@@ -783,12 +799,19 @@ def audit_html_page(
 
 def validate_page(record: dict[str, Any] | None) -> str:
     if record is None:
-        body = "<h1>Validate</h1><p>Open an assessment from My Assessments to request a review.</p>"
+        body = (
+            "<h1>Validate (demonstration)</h1>"
+            f"{_SURFACE_NOTE}"
+            "<div class=\"banner\">Demonstration only. Customers can request review. "
+            "This screen cannot set human_review_approved. Not live monitoring.</div>"
+            "<p>Open an assessment from My Assessments to request a review.</p>"
+        )
         return layout("Validate", body)
     requested = "A review has been requested." if record["review_requested"] else "No review has been requested."
     body = f"""
-<h1>Validate</h1>
-<div class="banner">Prototype only. Customers can request review. This screen cannot set human_review_approved.</div>
+<h1>Validate (demonstration)</h1>
+{_SURFACE_NOTE}
+<div class="banner">Demonstration only. Customers can request review. This screen cannot set human_review_approved. Not live monitoring.</div>
 <p>{escape(record['business_name'])}: {escape(requested)}</p>
 <p><strong>Human review status:</strong> pending</p>
 <p>Human review status stays pending on this customer screen. Requesting a review does not approve it. Investor readiness stays on the existing gate.</p>
@@ -933,8 +956,9 @@ def _reviewer_sign_in_form(next_path: str) -> str:
 
 def partner_page() -> str:
     body = f"""
-<h1>Partner</h1>
-<div class="banner">Demonstration dashboard. Recurring monitoring is not active. Recurring monitoring has not been implemented.</div>
+<h1>Partner (demonstration)</h1>
+{_SURFACE_NOTE}
+<div class="banner">Demonstration dashboard. Recurring monitoring is not active. Recurring monitoring has not been implemented. Not live monitoring.</div>
 <div class="card">
 <p>Partner is the planned tier for an established business that needs ongoing intelligence. A startup feasibility assessment is not required to enter this tier later.</p>
 <p>No scheduled market, financial, or risk monitor is running. Monitoring active: false.</p>
@@ -968,7 +992,13 @@ def reports_page(records: list[dict[str, Any]]) -> str:
         f"<a href=\"/assessments/{escape(item['id'])}/audit\">audit</a></li>"
         for item in records
     )
-    return layout("Reports", f"<h1>Reports</h1><ul>{items}</ul><p class=\"muted\">Reports are drafts unless the existing gate and an authorized review say otherwise. This prototype does not write the official 0.1 output files.</p>")
+    return layout(
+        "Reports",
+        f"<h1>Reports</h1>{_SURFACE_NOTE}<ul>{items}</ul>"
+        "<p class=\"muted\">Reports are drafts. A report is not investor-ready unless the existing gate "
+        "and an authorized review say otherwise. This prototype does not write the official 0.1 output files. "
+        "Authoritative financial numbers in a report come only from the 0.1 engine.</p>",
+    )
 
 
 def settings_page() -> str:
@@ -1014,7 +1044,10 @@ def explore_page(records: list[dict[str, Any]]) -> str:
         "Explore",
         """
 <h1>Explore</h1>
-<div class="banner">Explore is an intake and gap check. It is not a completed feasibility study.</div>
+"""
+        + _SURFACE_NOTE
+        + """
+<div class="banner">Explore is an intake and gap check. It is not a completed feasibility study. It does not clear a flag.</div>
 <p>Use a saved draft to clarify the concept, capital assumptions, and missing evidence. Run Analyze only when you want the deterministic engine.</p>
 <p><a class="button" href="/assessments/new">Start an Explore draft</a></p>
 """
@@ -1032,4 +1065,10 @@ def analyze_index(records: list[dict[str, Any]]) -> str:
         f"<li><a href=\"/assessments/{escape(item['id'])}/results\">{escape(item['business_name'])}</a></li>"
         for item in records
     )
-    return layout("Analyze", f"<h1>Analyze</h1><p>Results come from the 0.1 deterministic engine.</p><ul>{items}</ul>")
+    return layout(
+        "Analyze",
+        f"<h1>Analyze</h1>{_SURFACE_NOTE}"
+        "<p>Results come from the 0.1 deterministic engine. Authoritative financial numbers come only from the 0.1 engine. "
+        "This list does not mark a draft or the official baseline investor-ready.</p>"
+        f"<ul>{items}</ul>",
+    )
