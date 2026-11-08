@@ -117,7 +117,21 @@ _INDUSTRIES = {
     "Restaurant": ("722", "NAICS 722 Food services and drinking places"),
     "Professional services": ("54", "NAICS 54 Professional, scientific, and technical services"),
     "Retail": ("44-45", "NAICS 44-45 Retail trade"),
+    "Construction": ("23", "NAICS 23 Construction"),
+    "Manufacturing": ("31-33", "NAICS 31-33 Manufacturing"),
+    "Accommodation": ("721", "NAICS 721 Accommodation"),
+    "Health care": ("62", "NAICS 62 Health care and social assistance"),
 }
+PUBLIC_INDUSTRIES = ("Not selected",) + tuple(_INDUSTRIES)
+_CORE_MEASURES = (
+    ("annual_avg_emplvl", "Private annual average employment"),
+    ("annual_avg_wkly_wage", "Private annual average weekly wage"),
+    ("annual_avg_estabs", "Private annual average establishments"),
+)
+_EXTRA_MEASURES = (
+    ("total_annual_wages", "Private total annual wages"),
+    ("avg_annual_pay", "Private average annual pay"),
+)
 _GEOGRAPHIES = {
     "United States": ("US000", "United States"),
     "Alabama": ("01000", "Alabama"),
@@ -213,6 +227,8 @@ def load_market(
             "status": "synthetic",
             "label": DEMONSTRATION_LABEL,
             "reason": None,
+            "provider_name": "synthetic",
+            "year": "",
             "snapshot": snapshot,
             "observations": [],
         }
@@ -228,25 +244,20 @@ def load_market(
             "status": "public",
             "label": PUBLIC_LABEL,
             "reason": None,
+            "provider_name": str(getattr(selected, "name", "") or ""),
+            "year": str(getattr(selected, "year", "") or ""),
             "snapshot": snapshot,
             "observations": observations,
         }
     except NotCovered:
-        return {
-            "status": "fallback",
-            "label": NOT_COVERED_LABEL,
-            "reason": "This industry and geography are not covered by the public provider.",
-            "snapshot": snapshot,
-            "observations": [],
-        }
+        return _fallback_view(selected, snapshot, NOT_COVERED_LABEL, "This industry and geography are not covered by the public provider.")
     except Exception:
-        return {
-            "status": "fallback",
-            "label": FALLBACK_LABEL,
-            "reason": "The public market provider did not return observations.",
-            "snapshot": snapshot,
-            "observations": [],
-        }
+        return _fallback_view(
+            selected,
+            snapshot,
+            FALLBACK_LABEL,
+            "The public market provider did not return observations.",
+        )
 
 
 def _observations_from_qcew(
@@ -286,23 +297,43 @@ def _observations_from_qcew(
             {
                 **base,
                 "limitations": limitations,
-                "measure": "Private annual average employment, weekly wage, and establishments",
+                "measure": (
+                    "Private annual average employment, weekly wage, establishments, "
+                    "total annual wages, average annual pay, and establishment size coverage"
+                ),
                 "value": "Not disclosed",
             }
         ]
     limitations = _PUBLIC_LIMITATION
-    measures = (
-        ("annual_avg_emplvl", "Private annual average employment"),
-        ("annual_avg_wkly_wage", "Private annual average weekly wage"),
-        ("annual_avg_estabs", "Private annual average establishments"),
-    )
     observations = []
-    for field, label in measures:
+    for field, label in _CORE_MEASURES:
         value = str(match.get(field) or "").strip()
         if not value:
             raise ValueError("public measure is blank")
         observations.append({**base, "limitations": limitations, "measure": label, "value": value})
+    for field, label in _EXTRA_MEASURES:
+        value = str(match.get(field) or "").strip()
+        if value:
+            observations.append({**base, "limitations": limitations, "measure": label, "value": value})
+    size_code = str(match.get("size_code") or "").strip()
+    if size_code:
+        coverage = "All size classes combined" if size_code == "0" else f"Size code {size_code}"
+        observations.append(
+            {**base, "limitations": limitations, "measure": "Establishment size coverage", "value": coverage}
+        )
     return observations
+
+
+def _fallback_view(provider: Any, snapshot: dict[str, Any], label: str, reason: str) -> dict[str, Any]:
+    return {
+        "status": "fallback",
+        "label": label,
+        "reason": reason,
+        "provider_name": str(getattr(provider, "name", "") or ""),
+        "year": str(getattr(provider, "year", "") or ""),
+        "snapshot": snapshot,
+        "observations": [],
+    }
 
 
 def _fetch_text(url: str) -> str:

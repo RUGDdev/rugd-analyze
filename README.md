@@ -102,7 +102,7 @@ To request one public extract, set this in the terminal that starts the app. No 
 - `MARKET_PROVIDER=bls` (`qcew` and `bls-qcew` are accepted)
 - `MARKET_YEAR` — optional annual file. The default is `2024`
 
-Open Market Intelligence and choose an industry of Restaurant, Professional services, or Retail, and a geography of United States, Alabama, or Colbert County, Alabama. The page then requests the BLS Quarterly Census of Employment and Wages annual file for that area and shows private employment, average weekly wage, and establishments when the cell is disclosed.
+Open Market Intelligence and choose a geography of United States, Alabama, or Colbert County, Alabama. Industries are Restaurant (NAICS 722), Professional services (54), Retail (44-45), Construction (23), Manufacturing (31-33), Accommodation (721), and Health care (62). The page requests the BLS Quarterly Census of Employment and Wages annual file and shows private employment, average weekly wage, establishments, total annual wages, average annual pay, and establishment size coverage when those cells are published. The page names the active provider and year.
 
 Each figure is shown with its source, geographic coverage, industry classification, measurement period, retrieval date, and limitations. A suppressed cell is labeled not disclosed. If the selection is outside that map, or the request fails, the page returns to the labeled synthetic snapshot. Partner does not call this provider. The figures do not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other flag, and they do not change investor readiness. This is not a live feed and monitoring is not active.
 - Bunny Hive and Small Town Pub have no completed assessments

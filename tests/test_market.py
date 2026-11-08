@@ -19,11 +19,18 @@ from app.pages import market_page, partner_page
 from app.store import SAMPLE
 
 ROOT = Path(__file__).resolve().parent.parent
-_QCEW = """area_fips,own_code,industry_code,disclosure_code,annual_avg_estabs,annual_avg_emplvl,annual_avg_wkly_wage
-01033,0,10,,1621,24495,1116
+_QCEW = """area_fips,own_code,industry_code,size_code,disclosure_code,annual_avg_estabs,annual_avg_emplvl,annual_avg_wkly_wage,total_annual_wages,avg_annual_pay
+01033,0,10,0,,1621,24495,1116,1420955338,58010
+01033,5,722,0,,112,1842,364,34800000,18900
+01033,5,54,0,N,101,0,0,0,0
+01033,5,44-45,0,,246,3207,771,128000000,39900
+01033,5,23,0,,139,1738,1268,114635543,65943
+01033,5,31-33,0,,126,6242,1347,437408547,70072
+01033,5,721,0,,10,85,509,2240287,26460
+01033,5,62,0,,251,1994,1040,107843246,54073
+"""
+_QCEW_CORE_ONLY = """area_fips,own_code,industry_code,disclosure_code,annual_avg_estabs,annual_avg_emplvl,annual_avg_wkly_wage
 01033,5,722,,112,1842,364
-01033,5,54,N,101,0,0
-01033,5,44-45,,246,3207,771
 """
 
 
@@ -94,7 +101,7 @@ class TestMarketDemonstration(unittest.TestCase):
         provider = BlsQcewProvider(year="2024", transport=transport, retrieved_on="2026-11-08")
         observations = provider.observations("Restaurant", "Colbert County, Alabama")
         self.assertEqual(seen, ["https://data.bls.gov/cew/data/api/2024/a/area/01033.csv"])
-        self.assertEqual(len(observations), 3)
+        self.assertEqual(len(observations), 6)
         employment = observations[0]
         for field in (
             "source",
@@ -113,8 +120,37 @@ class TestMarketDemonstration(unittest.TestCase):
         self.assertIn("does not clear INSUFFICIENT_DEMAND_EVIDENCE", employment["limitations"])
         self.assertEqual(employment["measure"], "Private annual average employment")
         self.assertEqual(employment["value"], "1842")
+        by_measure = {item["measure"]: item["value"] for item in observations}
+        self.assertEqual(by_measure["Private total annual wages"], "34800000")
+        self.assertEqual(by_measure["Private average annual pay"], "18900")
+        self.assertEqual(by_measure["Establishment size coverage"], "All size classes combined")
+        for item in observations:
+            self.assertEqual(item["source"], PUBLIC_SOURCE)
+            self.assertEqual(item["retrieval_date"], "2026-11-08")
+        construction = provider.observations("Construction", "Colbert County, Alabama")
+        self.assertIn("NAICS 23", construction[0]["industry_classification"])
+        self.assertEqual(construction[0]["value"], "1738")
+        manufacturing = provider.observations("Manufacturing", "United States")
+        self.assertIn("NAICS 31-33", manufacturing[0]["industry_classification"])
+        self.assertIn("area/US000.csv", seen[-1])
+        accommodation = provider.observations("Accommodation", "Alabama")
+        self.assertIn("NAICS 721", accommodation[0]["industry_classification"])
+        health = provider.observations("Health care", "Alabama")
+        self.assertIn("NAICS 62", health[0]["industry_classification"])
+        core_only = BlsQcewProvider(year="2024", transport=lambda url: _QCEW_CORE_ONLY, retrieved_on="2026-11-08")
+        core_measures = [item["measure"] for item in core_only.observations("Restaurant", "Alabama")]
+        self.assertEqual(
+            core_measures,
+            [
+                "Private annual average employment",
+                "Private annual average weekly wage",
+                "Private annual average establishments",
+            ],
+        )
         suppressed = provider.observations("Professional services", "Alabama")
         self.assertEqual(suppressed[0]["value"], "Not disclosed")
+        self.assertIn("total annual wages", suppressed[0]["measure"])
+        self.assertNotEqual(suppressed[0]["value"], "0")
         self.assertIn("disclosure code N", suppressed[0]["limitations"])
         self.assertIn("area/01000.csv", seen[-1])
 
@@ -134,6 +170,9 @@ class TestMarketDemonstration(unittest.TestCase):
 
         page = market_page([], "Restaurant", "Alabama", provider=BlsQcewProvider(transport=fail))
         self.assertIn(FALLBACK_LABEL, page)
+        self.assertIn("Active provider: BLS Quarterly Census of Employment and Wages. Year: 2024.", page)
+        self.assertIn("Construction", page)
+        self.assertIn("Manufacturing", page)
         self.assertIn("Colbert County, Alabama", page)
         self.assertIn("Synthetic example only", page)
         self.assertIn("Live feed connected: false", page)
@@ -162,12 +201,20 @@ class TestMarketDemonstration(unittest.TestCase):
         view = load_market("Restaurant", "Alabama", provider)
         page = market_page([record], "Restaurant", "Alabama", provider=provider)
         self.assertEqual(view["status"], "public")
+        self.assertEqual(view["provider_name"], "bls-qcew")
+        self.assertEqual(view["year"], "2024")
         self.assertEqual(result, before_result)
         self.assertEqual(record, before_record)
         self.assertIn(PUBLIC_SOURCE, page)
         self.assertIn("2024 annual", page)
         self.assertIn("2026-11-08", page)
-        self.assertIn("Private annual average employment: 1842", page)
+        self.assertIn("Private annual average employment:", page)
+        self.assertIn("1842", page)
+        self.assertIn("Private total annual wages:", page)
+        self.assertIn("34800000", page)
+        self.assertIn("Private average annual pay:", page)
+        self.assertIn("Active provider: BLS Quarterly Census of Employment and Wages. Year: 2024.", page)
+        self.assertIn("Health care", page)
         self.assertIn("does not clear INSUFFICIENT_DEMAND_EVIDENCE", page)
         self.assertNotIn("Synthetic example only: a cost-pressure", page)
         self.assertNotIn("Live feed connected: true", page)

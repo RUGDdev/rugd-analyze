@@ -20,7 +20,7 @@ Verified in the browser and over HTTP:
 
 - The baseline results page stays do-not-proceed, internal, and `human_review_approved` false.
 - A hypothetical restaurant draft with user-supplied seat, ticket, occupancy, and cost-build inputs runs the startup projection. The draft stays do-not-proceed because demand evidence is unanswered. Sources and uses, base and downside views, and DSCR appear in the result. `investor_ready` stays false.
-- By default, Market Intelligence is the synthetic snapshot and states that no Census, BLS, or BEA feed is connected. `MARKET_PROVIDER=bls` can show a BLS QCEW extract with provenance. Partner stays on the synthetic snapshot.
+- By default, Market Intelligence is the synthetic snapshot and states that no Census, BLS, or BEA feed is connected. `MARKET_PROVIDER=bls` can show a BLS QCEW extract for seven industries, including wages, pay, and establishment size coverage, with provenance. Partner stays on the synthetic snapshot.
 - Validate shows human review pending. A review request changes the copy to “A review has been requested.” and does not approve the file.
 - A POST that includes `human_review_approved` returns 403.
 
@@ -28,7 +28,7 @@ Run Analyze submits the same intake form as Save draft, so unsaved entries reach
 
 ## Unfinished
 
-Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. The default market view is the synthetic snapshot. The optional BLS QCEW extract is an annual file for three industries and three geographies, not a live feed. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
+Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. The default market view is the synthetic snapshot. The optional BLS QCEW extract is an annual file for seven industries and three geographies, not a live feed. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
 
 ## Git Checkpoint
 
@@ -185,4 +185,11 @@ Further work on production authentication, real market data, an approved scoring
 - Market observations share one interface: source, geographic coverage, industry classification, measurement period, retrieval date, and limitations. The default provider is the synthetic snapshot.
 - `MARKET_PROVIDER=bls` requests the BLS Quarterly Census of Employment and Wages annual file. No API key is required. `MARKET_YEAR` defaults to 2024. Restaurant, Professional services, and Retail map to NAICS 722, 54, and 44-45. Geographies are the United States, Alabama, and Colbert County, Alabama. A disclosed private cell shows employment, average weekly wage, and establishments. A suppressed cell is labeled not disclosed.
 - An uncovered selection or a failed request is labeled as a fallback to the synthetic snapshot. Partner does not call the public provider. The figures do not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other flag.
+- The unittest suite is 96 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-08 broader QCEW extract
+
+- The same BLS provider also shows private total annual wages, average annual pay, and establishment size coverage when the annual file includes them. Size code 0 is labeled all size classes combined. A missing extra column is omitted. A suppressed cell stays “Not disclosed.”
+- Industries now include Construction (NAICS 23), Manufacturing (31-33), Accommodation (721), and Health care (62), with the original Restaurant, Professional services, and Retail. Geographies are unchanged. The page names the active provider and year. No new environment variable is required.
+- An uncovered selection or a failed request still falls back to the labeled synthetic snapshot. The figures do not clear a recommend-against flag.
 - The unittest suite is 96 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

@@ -19,6 +19,7 @@ from app.market import (
     DEMONSTRATION_GEOGRAPHIES,
     DEMONSTRATION_INDUSTRIES,
     PUBLIC_GEOGRAPHIES,
+    PUBLIC_INDUSTRIES,
     assessment_implications,
     load_market,
     market_framework,
@@ -902,12 +903,10 @@ def _public_market_page(
     geographic_market: str | None,
     view: dict[str, Any],
 ) -> str:
-    industry_options = _demo_options(DEMONSTRATION_INDUSTRIES, str(industry or "Not selected"))
+    industry_options = _demo_options(PUBLIC_INDUSTRIES, str(industry or "Not selected"))
     geography_options = _demo_options(PUBLIC_GEOGRAPHIES, str(geographic_market or "Not selected"))
     first = view["observations"][0]
-    measures = "".join(
-        f"<li>{escape(item['measure'])}: {escape(item['value'])}</li>" for item in view["observations"]
-    )
+    measures = _measure_items(view["observations"])
     notes = []
     for record in records:
         if record.get("read_only"):
@@ -935,7 +934,7 @@ def _public_market_page(
 <select name="geographic_market">{geography_options}</select>
 <button type="submit">Request public observations</button>
 </form>
-<p class="muted">Optional public extract. Live feed connected: false. Monitoring active: false. This request does not change an assessment.</p>
+<p class="muted">Optional public extract. {_active_provider(view)} Live feed connected: false. Monitoring active: false. This request does not change an assessment.</p>
 <div class="card">
 <p><strong>Source:</strong> {escape(first['source'])}</p>
 <p><strong>Geographic coverage:</strong> {escape(first['geographic_coverage'])}</p>
@@ -961,7 +960,7 @@ def _fallback_market_page(
     implications = "".join(
         f"<li>{escape(line)}</li>" for line in assessment_implications(records, industry, geographic_market)
     )
-    industry_options = _demo_options(DEMONSTRATION_INDUSTRIES, str(industry or snapshot["industry"]))
+    industry_options = _demo_options(PUBLIC_INDUSTRIES, str(industry or snapshot["industry"]))
     geography_options = _demo_options(PUBLIC_GEOGRAPHIES, str(geographic_market or snapshot["geographic_market"]))
     body = f"""
 <h1>Market Intelligence (demonstration)</h1>
@@ -974,13 +973,36 @@ def _fallback_market_page(
 <select name="geographic_market">{geography_options}</select>
 <button type="submit">Request public observations</button>
 </form>
-<p class="muted">A mapped industry and geography can request the public extract. Any other selection stays on the synthetic snapshot.</p>
+<p class="muted">{_active_provider(view)} A mapped industry and geography can request the public extract. Any other selection stays on the synthetic snapshot.</p>
 {_market_block(snapshot)}
 <h2>Implications for this assessment</h2>
 <ul>{implications}</ul>
 <p class="muted">These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>
 """
     return layout("Market Intelligence", body)
+
+
+def _active_provider(view: dict[str, Any]) -> str:
+    name = str(view.get("provider_name") or "")
+    year = str(view.get("year") or "")
+    label = "BLS Quarterly Census of Employment and Wages" if name == "bls-qcew" else (name or "public market provider")
+    return f"Active provider: {escape(label)}. Year: {escape(year or 'not set')}."
+
+
+def _measure_items(observations: list[dict[str, str]]) -> str:
+    items = []
+    for item in observations:
+        items.append(
+            "<li>"
+            f"<strong>{escape(item['measure'])}:</strong> {escape(item['value'])}. "
+            f"Source: {escape(item['source'])}. "
+            f"Geographic coverage: {escape(item['geographic_coverage'])}. "
+            f"Industry classification: {escape(item['industry_classification'])}. "
+            f"Measurement period: {escape(item['measurement_period'])}. "
+            f"Retrieval date: {escape(item['retrieval_date'])}."
+            "</li>"
+        )
+    return "".join(items)
 
 
 def _demo_options(choices: tuple[str, ...], current: str) -> str:

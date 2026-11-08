@@ -183,3 +183,12 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - The first extract maps Restaurant to NAICS 722, Professional services to NAICS 54, and Retail to NAICS 44-45. The geographies are the United States (area US000), Alabama (area 01000), and Colbert County, Alabama (area 01033). The row used is private ownership. A disclosure code is shown as not disclosed, not as a measured zero.
 - A selection outside that map, or a failed request, falls back to the labeled synthetic snapshot. Partner keeps that snapshot. Live feed and monitoring stay off.
 - QCEW employment and wages are not demand evidence. They cannot clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other recommend-against flag, and they cannot set `human_review_approved` or change investor readiness. The official baseline is unchanged.
+
+## Decision: Broader QCEW extract
+
+- Date: 2026-11-08
+- Status: Accepted for the local prototype only
+- The same BLS QCEW provider now reads, when the annual file publishes them, private total annual wages, private average annual pay, and establishment size coverage. Size code 0 is labeled all size classes combined. It is not a size-class breakout.
+- The industry map adds Construction (NAICS 23), Manufacturing (NAICS 31-33), Accommodation (NAICS 721), and Health care (NAICS 62). Restaurant (722), Professional services (54), and Retail (44-45) stay. Geographies stay the United States, Alabama, and Colbert County, Alabama.
+- A disclosed row shows each available measure with the same provenance. A suppressed row is one observation, value “Not disclosed,” and a zero in the file is not shown as a measured zero. A missing extra column is omitted. A missing industry row, an unmapped selection, or a failed request still falls back to the labeled synthetic snapshot.
+- The page names the active provider and year. No new environment variable and no API key. The figures still do not clear a recommend-against flag or set `human_review_approved`.
