@@ -101,7 +101,9 @@ body.print-view header {{ display: none; }}
 
 
 def dashboard(records: list[dict[str, Any]]) -> str:
-    items = "".join(_history_card(item) for item in records) or "<p>No assessments are saved.</p>"
+    items = "".join(_history_card(item) for item in records)
+    if not items:
+        items = "<p>No assessments are saved.</p>"
     body = f"""
 <h1>Customer dashboard</h1>
 {_SURFACE_NOTE}
@@ -110,7 +112,9 @@ def dashboard(records: list[dict[str, Any]]) -> str:
 <p>Working now: Explore intake, Analyze through the 0.1 engine, reports, and the audit.</p>
 <p>Demonstration only: Market Intelligence, Validate review requests, and the Partner dashboard. Partner monitoring is not running.</p>
 </div>
-<p><a class="button" href="/assessments/new">Start a new assessment</a></p>
+<p><a class="button" href="/assessments/new">Start a new assessment</a>
+<a class="button" href="/assessments/export">Export all drafts</a></p>
+{_draft_empty_state(records)}
 <div class="card">
 <p><strong>Next recommended step:</strong> {escape(_next_step(records))}</p>
 <p class="muted">This indicator does not change a flag, a recommendation, or investor readiness.</p>
@@ -167,7 +171,8 @@ def _history_card(item: dict[str, Any]) -> str:
 <p><strong>Investor readiness:</strong> {escape(str(readiness))}</p>
 <p><strong>Human review status:</strong> {escape(str(review))}</p>
 <p><a class="button" href="/assessments/{assessment_id}">Continue</a>
-<a class="button" href="/assessments/{assessment_id}/results">View results</a></p>
+<a class="button" href="/assessments/{assessment_id}/results">View results</a>
+<a class="button" href="/assessments/{assessment_id}/export">Export draft as JSON</a></p>
 </div>
 """
 
@@ -240,6 +245,25 @@ def _next_step_for(record: dict[str, Any]) -> str:
     if not result.get("engine_ran"):
         return f"Continue {name}. Analyze has not been run. This note does not change the recommendation."
     return f"Review {name}. This note does not change a flag or a recommendation."
+
+
+def _draft_empty_state(records: list[dict[str, Any]]) -> str:
+    drafts = [item for item in records if not item.get("read_only")]
+    if drafts:
+        return ""
+    if not records:
+        return """
+<div class="card">
+<h2>No drafts yet</h2>
+<p>No assessments are saved. Start a new assessment when you are ready. Blank fields stay blank until you enter them. Nothing is copied from the official baseline.</p>
+</div>
+"""
+    return """
+<div class="card">
+<h2>No drafts yet</h2>
+<p>No customer drafts are saved. The official baseline is listed separately and is not a customer draft. Starting a draft does not copy baseline figures into blank fields.</p>
+</div>
+"""
 
 
 def _verified_demand_ready(profile: dict[str, Any]) -> bool:
@@ -331,7 +355,8 @@ def assessment_form(record: dict[str, Any], notice: str = "") -> str:
 {_intake_status(record)}
 <p class="muted">Tier {escape(record['tier'])}. Changing tier does not change a recommendation. Entered answers stay user-supplied assumptions.</p>
 {action}
-<p><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a></p>
+<p><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a>
+<a href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
 """
     return layout(record["business_name"], body)
 
@@ -359,10 +384,10 @@ def _fields(profile: dict[str, Any], locked: str) -> str:
     monthly_missing = _missing_labels(profile, _MONTHLY_REQUIRED)
     if startup_missing:
         startup_note = (
-            "Missing required startup fields: "
+            "This draft is incomplete. Missing required startup fields: "
             + ", ".join(startup_missing)
-            + ". The startup cost build is not calculated until these are saved. "
-            "Blank fields are not replaced with invented values."
+            + ". The startup cost build is not calculated until these values are saved. "
+            "Blank fields stay blank. Nothing has been filled in for you."
         )
     else:
         startup_note = (
@@ -370,7 +395,7 @@ def _fields(profile: dict[str, Any], locked: str) -> str:
         )
     if monthly_missing:
         monthly_note = (
-            "Missing monthly fields: "
+            "This draft is incomplete. Missing monthly fields: "
             + ", ".join(monthly_missing)
             + ". Results will say Insufficient verified information to calculate. "
             "No monthly figure is invented."
@@ -482,14 +507,7 @@ def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:
 
 def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
     if not result.get("engine_ran"):
-        body = (
-            "<h1>Analyze</h1>"
-            f"{_pilot_banner(record)}"
-            f"{_SURFACE_NOTE}"
-            f"<div class=\"banner\">{escape(result.get('message', 'Analyze did not run.'))}</div>"
-            "<p>Authoritative financial numbers come only from the 0.1 engine. "
-            "Missing inputs stay uncalculated.</p>"
-        )
+        body = _results_not_run(record, result)
         return layout("Analyze", body)
     flags = "".join(f"<li class=\"flag\">{escape(flag)}</li>" for flag in result.get("blocking_flags") or []) or "<li>None</li>"
     gaps = "".join(f"<li>{escape(flag)}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
@@ -546,6 +564,49 @@ def _output_links(record: dict[str, Any]) -> str:
 <a class="button" href="/assessments/{assessment_id}/audit/print">Print-friendly audit</a>
 <a class="button" href="/assessments/{assessment_id}/audit">Inspect audit</a>
 <a class="button" href="/assessments/{assessment_id}/audit/download">Download JSON audit</a></p>
+"""
+
+
+def _results_not_run(record: dict[str, Any], result: dict[str, Any]) -> str:
+    profile = record.get("profile") or {}
+    startup_missing = _missing_labels(profile, _STARTUP_REQUIRED)
+    monthly_missing = _missing_labels(profile, _MONTHLY_REQUIRED)
+    message = str(result.get("message") or "Analyze has not been run.")
+    details = ""
+    if startup_missing:
+        details += (
+            "<p>Missing required startup fields: "
+            + escape(", ".join(startup_missing))
+            + ". Blank fields stay blank.</p>"
+        )
+    if monthly_missing:
+        details += (
+            "<p>Missing monthly fields: "
+            + escape(", ".join(monthly_missing))
+            + ". Insufficient verified information to calculate until those values are saved. "
+            "No monthly figure is invented.</p>"
+        )
+    baseline = ""
+    if record.get("read_only"):
+        baseline = """
+<div class="card">
+<p>Stored official baseline status. This page did not run Analyze and did not fill missing fields.</p>
+<p><strong>Recommendation:</strong> do-not-proceed</p>
+<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> present</p>
+<p><strong>Investor readiness:</strong> internal</p>
+<p><strong>Human review status:</strong> pending</p>
+<p><strong>Demand evidence provenance:</strong> placeholder until Analyze records verified, user, or placeholder.</p>
+</div>
+"""
+    return f"""
+<h1>Analyze has not been run</h1>
+{_pilot_banner(record)}
+{_SURFACE_NOTE}
+<div class="banner">{escape(message)} This page did not run the engine and did not fill any blank fields.</div>
+{details}
+{baseline}
+<p><a class="button" href="/assessments/{escape(record['id'])}">Return to the draft</a>
+<a class="button" href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
 """
 
 
@@ -644,6 +705,7 @@ def _projection_view(result: dict[str, Any]) -> str:
         note = str(projection.get("note") or result.get("projection_text") or "")
         return (
             "<p>No sources-and-uses table is shown. The engine did not calculate the startup cost build.</p>"
+            "<p>Missing startup inputs were not filled.</p>"
             f"<p>{escape(note)}</p>{engine_text}"
         )
     uses = (projection.get("sources_and_uses") or {}).get("uses") or {}
@@ -731,7 +793,11 @@ def _revenue_bars(base: Any, downside: Any) -> str:
 
 def _financial_table(financial: dict[str, Any] | None) -> str:
     if not financial:
-        return "<p>Insufficient verified information to calculate.</p>"
+        return (
+            "<p>Insufficient verified information to calculate.</p>"
+            "<p>Monthly contribution, cash flow, and break-even were not calculated. "
+            "Missing monthly inputs were not filled.</p>"
+        )
     rows = ""
     for key in (
         "base_monthly_contribution",

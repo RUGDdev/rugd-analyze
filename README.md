@@ -62,6 +62,15 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts. They are not complet
 - Dashboard history, next-step guidance, results tables, Markdown reports, JSON audit, and a read-only HTML audit page
 - A separate verified demand record that follows the documented 0.1 clear rule
 - Prototype reviewer sign-in, a 4-hour session, sign-out, and a local audit trail
+- Local JSON export of one saved assessment, and one file for every non-baseline draft
+
+## Export saved assessments
+
+On the dashboard, **Export all drafts** downloads `rugd-drafts-YYYY-MM-DD.json`. That file contains every saved assessment except the official RUGD Intelligence baseline. Each draft includes the saved profile, the engine intake when Analyze has been run, and the latest engine result when one is stored.
+
+**Export draft as JSON** on an assessment does the same for that one record. The official baseline can be exported by itself. It is not included in the all-drafts file.
+
+Export does not run the engine and does not fill blank fields. It does not include reviewer session tokens, passphrases, or cookies. Drafts stay in gitignored `data/analyze.sqlite`. The export file is a copy for local backup.
 
 ## Demonstration only or unfinished
 

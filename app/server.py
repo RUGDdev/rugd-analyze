@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from html import escape
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -11,6 +12,7 @@ from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from app.analysis import analyze_record
+from app.export import export_assessment, export_drafts
 from app.analyst import explain
 from app.pages import (
     analyst_page,
@@ -84,6 +86,13 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._html(settings_page())
             elif path == "/assessments":
                 self._html(dashboard(list_assessments(connection)))
+            elif path == "/assessments/export":
+                payload = json.dumps(export_drafts(list_assessments(connection)), indent=2).encode("utf-8")
+                self._bytes(
+                    payload,
+                    "application/json",
+                    disposition=f'attachment; filename="rugd-drafts-{_today()}.json"',
+                )
             elif path == "/assessments/new":
                 self._html(new_assessment_page())
             elif path == "/reviewer" or path.startswith("/reviewer/"):
@@ -142,7 +151,15 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         action = parts[2] if len(parts) > 2 else ""
         if action == "results":
-            self._html(results_page(record, self._ensure_result(connection, record)))
+            stored = record.get("result") or {"engine_ran": False, "message": "Analyze has not been run."}
+            self._html(results_page(record, stored))
+        elif action == "export":
+            payload = json.dumps(export_assessment(record), indent=2).encode("utf-8")
+            self._bytes(
+                payload,
+                "application/json",
+                disposition=_download_disposition(record, record.get("result") or {}, "export", "json"),
+            )
         elif action == "analyst":
             result = record["result"]
             self._html(analyst_page(record, explain(record, result)))
@@ -426,6 +443,10 @@ def _download_disposition(record: dict[str, Any], result: dict[str, Any], kind: 
     stamp = _download_stamp(record, result)
     filename = f"{slug}-{stamp}-{kind}.{extension}"
     return f'attachment; filename="{filename}"'
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
 
 
 def _download_stamp(record: dict[str, Any], result: dict[str, Any]) -> str:

@@ -4,7 +4,7 @@ Updated: 2026-11-08
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 90 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 92 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 90 tests passing
+- All 92 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -166,3 +166,9 @@ Further work on production authentication, real market data, an approved scoring
 - Results and the HTML audit offer Download Markdown report and Download JSON audit. Each download returns the same bytes as the existing report or JSON audit view, with a filename that includes the assessment name and date. Opening a download does not rewrite the official 0.1 report files.
 - `/assessments/{id}/audit/print` is a print-friendly audit view. Print styling hides navigation and keeps the recommendation, flags, investor readiness, human review status, reviewer events, and the limitations note visible.
 - The unittest suite is 90 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-08 empty states and local export
+
+- Incomplete drafts name the missing startup and monthly fields and say blank fields stay blank. Before Analyze has been run, the results page says so and does not fill missing inputs. A dashboard with no customer drafts says no drafts are saved and that baseline figures are not copied in.
+- Export draft as JSON copies one saved assessment. Export all drafts copies every non-baseline assessment into one JSON file. Each export includes the profile, the engine intake, and the latest result when one is stored. Session tokens, passphrases, and cookies are omitted. Export does not run the engine.
+- The unittest suite is 92 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
