@@ -4,7 +4,7 @@ Updated: 2026-11-08
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 88 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 89 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -44,7 +44,7 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner / Market Intelligence: demonstration only
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 88 tests passing
+- All 89 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -153,3 +153,10 @@ The local prototype is at a pause point. `ACCEPTANCE.md` maps the original 0.2 b
 Dashboard, Explore, Analyze, Validate, Partner, Market Intelligence, Reports, and the HTML audit share one warning: local prototype, not production security, and the screen does not grant investor-ready status. Authoritative financial numbers on Analyze and results come only from the 0.1 engine. Partner and Market Intelligence still show monitoring and the live feed as false.
 
 Further work on production authentication, real market data, an approved scoring methodology, billing, investor matchmaking, recurring monitoring, an external AI provider, public deployment, LongArc or DVT, the Webflow site, or React requires an owner decision. The unittest suite is 88 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-08 hypothetical restaurant demonstration
+
+- The seeded Hypothetical Restaurant Startup draft is filled with invented seat, ticket, occupancy, cost-build, and monthly figures. Demand evidence is unanswered, so Analyze stays do-not-proceed with `INSUFFICIENT_DEMAND_EVIDENCE`. The dashboard, intake, and results label it “Hypothetical demonstration — not a real assessment.”
+- A second seeded draft supplies verified `demand_evidence` true with a rationale. It is not marked hypothetical, because a hypothetical demonstration does not apply a verified record. The demand flag clears. The draft stays unapproved and not investor-ready.
+- `DEMO.md` is the show-the-platform script. The official baseline stays separately labeled and its sample file was not edited.
+- The unittest suite is 89 tests, all passing. The server is stopped. Authentication remains prototype-grade.

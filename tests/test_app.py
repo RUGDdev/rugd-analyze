@@ -322,10 +322,14 @@ class TestAnalyzeApp(unittest.TestCase):
         self.assertTrue(record["hypothetical"])
         self.assertEqual(record["profile"]["industry"], "Restaurant")
         self.assertEqual(record["profile"]["construction_cost"], "100000")
+        self.assertEqual(record["profile"]["seats"], "48")
         self.assertEqual(record["profile"]["stage"], "Idea")
+        self.assertEqual(record["profile"]["demand_evidence"], "")
         result = analyze_record(record)
-        self.assertTrue(any("Insufficient" in item for item in result["missing"]))
-        self.assertNotEqual(result["recommendation"], "go")
+        self.assertEqual(result["recommendation"], "do-not-proceed")
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", result["blocking_flags"])
+        self.assertFalse(result["human_review_approved"])
+        self.assertNotEqual(result["readiness_status"], "investor-ready")
 
     def test_http_journey_refuses_customer_approval(self) -> None:
         server = make_server(self.db, port=0)

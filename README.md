@@ -33,6 +33,8 @@ Press Ctrl+C to stop. This server is local only.
 
 Open `http://127.0.0.1:8765` in a browser.
 
+To walk through the hypothetical restaurant drafts, follow `DEMO.md`.
+
 ## How to stop the server
 
 In the same terminal that launched it, press Ctrl+C. The process prints `Stopped.` and releases port 8765. Do not leave a server running after a work session.

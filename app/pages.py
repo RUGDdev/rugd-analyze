@@ -7,7 +7,13 @@ from typing import Any
 
 from app import APP_VERSION
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
-from app.store import is_named_pilot, named_pilot_is_empty
+from app.store import (
+    HYPOTHETICAL_DEMO_LABEL,
+    RESTAURANT_ID,
+    RESTAURANT_VERIFIED_ID,
+    is_named_pilot,
+    named_pilot_is_empty,
+)
 from app.market import (
     DEMONSTRATION_GEOGRAPHIES,
     DEMONSTRATION_INDUSTRIES,
@@ -116,8 +122,11 @@ def _history_card(item: dict[str, Any]) -> str:
         kind = "Official baseline"
         progress = "Progress: official baseline stored. This list does not treat it as approved or investor-ready."
     elif item.get("hypothetical"):
-        kind = "Hypothetical draft"
+        kind = HYPOTHETICAL_DEMO_LABEL
         progress = _draft_progress(item, result)
+    elif item.get("id") == RESTAURANT_VERIFIED_ID:
+        kind = "Verified-demand demonstration — not a real assessment"
+        progress = _draft_progress(item, result) + " Not the official baseline and not investor-ready."
     elif is_named_pilot(item):
         kind = (
             "Empty named-pilot draft"
@@ -194,6 +203,15 @@ def _next_step_for(record: dict[str, Any]) -> str:
             "This note does not clear it."
         )
     profile = record.get("profile") or {}
+    if (
+        not record.get("hypothetical")
+        and _verified_demand_ready(profile)
+        and not result.get("engine_ran")
+    ):
+        return (
+            f"Continue {name}. A verified demand record is entered. Analyze has not been run. "
+            "This note does not clear a flag."
+        )
     if not str(profile.get("demand_evidence") or "").strip():
         return (
             f"Continue {name}. The next missing required item is demand evidence. "
@@ -214,6 +232,13 @@ def _next_step_for(record: dict[str, Any]) -> str:
     if not result.get("engine_ran"):
         return f"Continue {name}. Analyze has not been run. This note does not change the recommendation."
     return f"Review {name}. This note does not change a flag or a recommendation."
+
+
+def _verified_demand_ready(profile: dict[str, Any]) -> bool:
+    source = str(profile.get("verified_record_source") or "").strip()
+    rationale = str(profile.get("verified_demand_rationale") or "").strip()
+    claim = str(profile.get("verified_demand_evidence") or "").strip().lower()
+    return source == "verified" and bool(rationale) and claim == "true"
 
 
 def _draft_progress(item: dict[str, Any], result: dict[str, Any]) -> str:
@@ -242,7 +267,22 @@ def assessment_form(record: dict[str, Any], notice: str = "") -> str:
         tiers.append(f'<option value="{escape(key)}" {selected}>{escape(key.title())}</option>')
     banner = f'<div class="banner">{escape(record["pilot_label"])}</div>'
     if record["hypothetical"]:
-        banner += '<div class="banner">Hypothetical demonstration. Figures are not verified market research.</div>'
+        banner += (
+            '<div class="banner">Hypothetical demonstration — not a real assessment. '
+            "These figures are not verified market research.</div>"
+        )
+    if record.get("id") == RESTAURANT_ID:
+        banner += (
+            f'<p><a href="/assessments/{RESTAURANT_VERIFIED_ID}">'
+            "Open the verified-demand demonstration</a></p>"
+        )
+    elif record.get("id") == RESTAURANT_VERIFIED_ID:
+        banner += (
+            '<div class="banner">Verified-demand demonstration — not a real assessment. '
+            "The verified record can clear INSUFFICIENT_DEMAND_EVIDENCE under the documented rule. "
+            "It does not approve the assessment or make it investor-ready.</div>"
+            f'<p><a href="/assessments/{RESTAURANT_ID}">Open the unanswered hypothetical draft</a></p>'
+        )
     if is_named_pilot(record):
         empty = " Empty named-pilot draft." if named_pilot_is_empty(record) else ""
         banner += (
@@ -436,6 +476,7 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
     if not result.get("engine_ran"):
         body = (
             "<h1>Analyze</h1>"
+            f"{_pilot_banner(record)}"
             f"{_SURFACE_NOTE}"
             f"<div class=\"banner\">{escape(result.get('message', 'Analyze did not run.'))}</div>"
             "<p>Authoritative financial numbers come only from the 0.1 engine. "
@@ -462,6 +503,7 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 """
     body = f"""
 <h1>Results for {escape(record['business_name'])}</h1>
+{_pilot_banner(record)}
 {_SURFACE_NOTE}
 <div class="banner">{escape(standing)}</div>
 {links}
@@ -487,6 +529,13 @@ _LIMITATIONS = """
 <h2>Limitations</h2>
 <p>This is a prototype. Demonstration data is not real market research. Reviewer authentication remains prototype-grade.</p>
 """
+
+
+def _pilot_banner(record: dict[str, Any]) -> str:
+    label = str(record.get("pilot_label") or "").strip()
+    if not label:
+        return ""
+    return f'<div class="banner">{escape(label)}</div>'
 
 
 def _intake_status(record: dict[str, Any]) -> str:

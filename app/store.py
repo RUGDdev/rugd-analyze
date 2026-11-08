@@ -16,6 +16,11 @@ SAMPLE = ROOT / "intake" / "samples" / "rugd_intelligence.json"
 
 BASELINE_ID = "rugd-intelligence-baseline"
 RESTAURANT_ID = "hypothetical-restaurant"
+RESTAURANT_VERIFIED_ID = "hypothetical-restaurant-verified-demand"
+HYPOTHETICAL_DEMO_LABEL = "Hypothetical demonstration — not a real assessment."
+VERIFIED_DEMO_LABEL = (
+    "Verified-demand demonstration — not a real assessment. Not the official baseline."
+)
 # App labels only. Scoring and the 0.1 engine do not read these names.
 NAMED_PILOT_NAMES = frozenset({"Bunny Hive", "The Bunny Hive", "Small Town Pub"})
 NAMED_PILOT_LABEL = (
@@ -168,37 +173,125 @@ def seed(connection: sqlite3.Connection) -> None:
             profile=profile,
             intake=intake,
         )
-    if get_assessment(connection, RESTAURANT_ID) is None:
-        profile = blank_profile(
-            business_name="Hypothetical Restaurant Startup",
-            purpose="startup_feasibility",
-            tier="explore",
+    _ensure_restaurant_demo(connection, verified_demand=False)
+    _ensure_restaurant_demo(connection, verified_demand=True)
+
+
+def restaurant_demonstration_profile(*, verified_demand: bool) -> dict[str, Any]:
+    """Shared hypothetical restaurant figures. Demand stays unanswered unless verified_demand is set.
+
+    A verified demonstration is not marked hypothetical, because a hypothetical
+    demonstration does not apply a verified demand record.
+    """
+    name = (
+        "Hypothetical Restaurant — verified demand demonstration"
+        if verified_demand
+        else "Hypothetical Restaurant Startup"
+    )
+    concept = (
+        "Hypothetical demonstration — not a real assessment. "
+        "Seat, ticket, occupancy, and cost-build figures are invented for the Explore-to-Analyze path. "
+        "They are not market research and not a real operating business. "
+    )
+    if verified_demand:
+        concept += (
+            "This variant adds a verified demand_evidence record under the documented rule. "
+            "Clearing that flag does not approve the assessment or make it investor-ready."
         )
+    else:
+        concept += "Demand evidence is left unanswered, so the insufficient-demand flag stays on."
+    profile = blank_profile(
+        business_name=name,
+        purpose="startup_feasibility",
+        tier="explore",
+    )
+    profile.update(
+        {
+            "concept": concept,
+            "industry": "Restaurant",
+            "stage": "Idea",
+            "market": "Unspecified demonstration market",
+            "products": "Hypothetical lunch and dinner service.",
+            "customers": "Hypothetical neighborhood diners.",
+            "competition": "Not researched. Placeholder for the demonstration.",
+            "demand_evidence": "",
+            "construction_cost": "100000",
+            "equipment": "35000",
+            "soft_costs": "15000",
+            "preopening_working_capital": "20000",
+            "seats": "48",
+            "average_ticket": "28",
+            "weekday_occupancy": "0.45",
+            "weekend_occupancy": "0.70",
+            "operating_days": "312",
+            "contribution_margin": "0.35",
+            "annual_fixed_costs": "240000",
+            "initial_capital": "180000",
+            "monthly_fixed_costs": "18000",
+            "gross_margin_pct": "0.58",
+            "projected_monthly_revenue_base": "42000",
+            "inputs_are_measured": False,
+            "hypothetical": not verified_demand,
+        }
+    )
+    if verified_demand:
         profile.update(
             {
-                "concept": (
-                    "Hypothetical demonstration for the Explore-to-Analyze journey. "
-                    "Not market research and not a real operating business."
+                "verified_record_source": "verified",
+                "verified_demand_evidence": "true",
+                "verified_revenue_trailing_12m": "",
+                "verified_demand_rationale": (
+                    "Demonstration of the documented rule: boolean demand_evidence true "
+                    "with source verified and a rationale. Not market research and not a real customer file."
                 ),
-                "industry": "Restaurant",
-                "stage": "Idea",
-                "market": "Unspecified demonstration market",
-                "construction_cost": "100000",
-                "hypothetical": True,
             }
         )
+    return profile
+
+
+def _ensure_restaurant_demo(connection: sqlite3.Connection, *, verified_demand: bool) -> None:
+    assessment_id = RESTAURANT_VERIFIED_ID if verified_demand else RESTAURANT_ID
+    profile = restaurant_demonstration_profile(verified_demand=verified_demand)
+    label = VERIFIED_DEMO_LABEL if verified_demand else HYPOTHETICAL_DEMO_LABEL
+    current = get_assessment(connection, assessment_id)
+    if current is None:
         _insert(
             connection,
-            assessment_id=RESTAURANT_ID,
+            assessment_id=assessment_id,
             business_name=profile["business_name"],
             purpose=profile["purpose"],
             tier="explore",
             read_only=False,
-            hypothetical=True,
-            pilot_label="Hypothetical. Every figure the customer did not type is a labeled demonstration value.",
+            hypothetical=not verified_demand,
+            pilot_label=label,
             profile=profile,
             intake=None,
         )
+        return
+    if current["read_only"] or current["id"] == BASELINE_ID:
+        return
+    if verified_demand or str((current.get("profile") or {}).get("seats") or "").strip():
+        return
+    now = _now()
+    connection.execute(
+        """
+        UPDATE assessments
+        SET business_name = ?, purpose = ?, tier = ?, hypothetical = ?, pilot_label = ?,
+            profile_json = ?, intake_json = NULL, result_json = NULL, updated_at = ?
+        WHERE id = ?
+        """,
+        (
+            profile["business_name"],
+            profile["purpose"],
+            "explore",
+            1,
+            label,
+            json.dumps(profile),
+            now,
+            assessment_id,
+        ),
+    )
+    connection.commit()
 
 
 def blank_profile(*, business_name: str, purpose: str, tier: str) -> dict[str, Any]:
