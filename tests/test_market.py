@@ -354,6 +354,76 @@ class TestMarketDemonstration(unittest.TestCase):
         self.assertFalse(result["human_review_approved"])
         self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
 
+    def test_added_geographies_and_year_label_leave_the_baseline_unchanged(self) -> None:
+        seen: list[str] = []
+
+        def transport(url: str) -> str:
+            seen.append(url)
+            if "census.gov" in url:
+                return json.dumps(
+                    {"response": {"data": [["B01003_001E", "NAME"], ["100", "Recorded"]]}}
+                    if "B01003" in url
+                    else {"response": {"data": [["NAME", "B19013_001E"], ["Recorded", "200"]]}}
+                )
+            return _QCEW
+
+        bls = BlsQcewProvider(year="2024", transport=transport, retrieved_on="2026-11-08")
+        census = CensusAcsProvider(year="2024", transport=transport, retrieved_on="2026-11-08")
+        for geography, area, acs_code in (
+            ("United States", "US000", "010XX00US"),
+            ("Alabama", "01000", "040XX00US01"),
+            ("Colbert County, Alabama", "01033", "050XX00US01033"),
+            ("Tennessee", "47000", "040XX00US47"),
+            ("Hamilton County, Tennessee", "47065", "050XX00US47065"),
+        ):
+            employment = bls.observations("Restaurant", geography)[0]
+            population = census.observations("Restaurant", geography)[0]
+            self.assertIn(f"area/{area}.csv", seen[-3])
+            self.assertIn(geography, employment["geographic_coverage"])
+            self.assertIn(area, employment["geographic_coverage"])
+            self.assertEqual(employment["measurement_period"], "2024 annual")
+            self.assertEqual(employment["source"], PUBLIC_SOURCE)
+            self.assertIn(acs_code, seen[-2])
+            self.assertIn(geography, population["geographic_coverage"])
+            self.assertIn(acs_code, population["geographic_coverage"])
+            self.assertEqual(population["source"], CENSUS_SOURCE)
+            self.assertEqual(population["measurement_period"], "2020-2024 5-year")
+            self.assertIn("does not clear INSUFFICIENT_DEMAND_EVIDENCE", population["limitations"])
+        missed = load_market("Restaurant", "Example county", bls)
+        self.assertEqual(missed["status"], "fallback")
+        self.assertIn("Synthetic example only", missed["label"])
+
+        selected = get_market_provider(environ={"MARKET_PROVIDER": "bls", "MARKET_YEAR": "2023"}, transport=transport)
+        self.assertEqual(selected.year, "2023")
+        self.assertEqual(get_market_provider(environ={"MARKET_PROVIDER": "bls"}, transport=transport).year, "2024")
+        page = market_page([], "Restaurant", "Tennessee", provider=selected)
+        self.assertIn("Active provider: BLS Quarterly Census of Employment and Wages. Year: 2023.", page)
+        self.assertIn("2023 annual", page)
+        self.assertIn("Tennessee", page)
+        self.assertIn("Hamilton County, Tennessee", page)
+        self.assertIn("MARKET_YEAR selects the QCEW file.", page)
+        self.assertIn("ACS_YEAR selects the ACS vintage.", page)
+        self.assertIn("Each defaults to 2024 when it is not set.", page)
+        self.assertIn("This is prototype behavior.", page)
+        aged = CensusAcsProvider(year="2022", transport=transport, retrieved_on="2026-11-08")
+        income = aged.observations("Retail", "Hamilton County, Tennessee")[1]
+        self.assertEqual(income["measurement_period"], "2018-2022 5-year")
+        self.assertIn("050XX00US47065", income["geographic_coverage"])
+        census_page = market_page([], "Retail", "Hamilton County, Tennessee", provider=aged)
+        self.assertIn("Year: 2022.", census_page)
+        self.assertIn("Each defaults to 2024 when it is not set.", census_page)
+        result = {
+            "recommendation": "do-not-proceed",
+            "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+            "readiness_status": "internal",
+            "human_review_approved": False,
+        }
+        before = copy.deepcopy(result)
+        before_sample = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        load_market("Restaurant", "Hamilton County, Tennessee", bls)
+        self.assertEqual(result, before)
+        self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
+
 
 if __name__ == "__main__":
     unittest.main()

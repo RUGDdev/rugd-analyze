@@ -935,6 +935,7 @@ def _public_market_page(
 <button type="submit">Request public observations</button>
 </form>
 <p class="muted">Optional public extract. {_active_provider(view)} Live feed connected: false. Monitoring active: false. This request does not change an assessment.</p>
+<p class="muted">{_YEAR_NOTE}</p>
 {cards}
 {partial}
 <h2>Implications for this assessment</h2>
@@ -967,12 +968,20 @@ def _fallback_market_page(
 <button type="submit">Request public observations</button>
 </form>
 <p class="muted">{_active_provider(view)} A mapped industry and geography can request the public extract. Any other selection stays on the synthetic snapshot.</p>
+<p class="muted">{_YEAR_NOTE}</p>
 {_market_block(snapshot)}
 <h2>Implications for this assessment</h2>
 <ul>{implications}</ul>
 <p class="muted">These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>
 """
     return layout("Market Intelligence", body)
+
+
+_YEAR_NOTE = (
+    "The year is controlled by an environment variable. "
+    "MARKET_YEAR selects the QCEW file. ACS_YEAR selects the ACS vintage. "
+    "Each defaults to 2024 when it is not set. This is prototype behavior."
+)
 
 
 def _active_provider(view: dict[str, Any]) -> str:

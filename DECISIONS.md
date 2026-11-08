@@ -201,3 +201,11 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - Geographies are the same three names: United States, Alabama, and Colbert County, Alabama. The figures are demographic. They are not a NAICS industry and they do not describe one business.
 - With `MARKET_PROVIDER=bls` and `MARKET_CENSUS=acs`, the page shows both extracts and names each provider and year. If one request fails or the selection is outside its map, that part falls back to the labeled synthetic snapshot and the other part remains. If neither returns observations, the page is the synthetic snapshot.
 - A negative Census sentinel is shown as not disclosed. These figures cannot clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other recommend-against flag, and they cannot set `human_review_approved`. The official baseline is unchanged.
+
+## Decision: More market geographies
+
+- Date: 2026-11-08
+- Status: Accepted for the local prototype only
+- BLS QCEW and Census ACS both cover Tennessee (QCEW area 47000, ACS state 47) and Hamilton County, Tennessee (QCEW area 47065, ACS county 47065), in addition to the United States, Alabama, and Colbert County, Alabama.
+- A geography outside that list still falls back to the labeled synthetic snapshot for the provider that cannot cover it.
+- `MARKET_YEAR` selects the QCEW file and `ACS_YEAR` selects the ACS vintage. Each defaults to 2024. The Market Intelligence page names the active year for each provider and says the year is controlled by those environment variables. There is no year control on the page. The figures still do not clear a recommend-against flag.

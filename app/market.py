@@ -143,6 +143,8 @@ _GEOGRAPHIES = {
     "United States": ("US000", "United States"),
     "Alabama": ("01000", "Alabama"),
     "Colbert County, Alabama": ("01033", "Colbert County, Alabama"),
+    "Tennessee": ("47000", "Tennessee"),
+    "Hamilton County, Tennessee": ("47065", "Hamilton County, Tennessee"),
 }
 PUBLIC_GEOGRAPHIES = ("Not selected",) + tuple(_GEOGRAPHIES) + (
     "Unspecified demonstration market",
@@ -213,6 +215,8 @@ _ACS_GEOGRAPHIES = {
     "United States": "010XX00US",
     "Alabama": "040XX00US01",
     "Colbert County, Alabama": "050XX00US01033",
+    "Tennessee": "040XX00US47",
+    "Hamilton County, Tennessee": "050XX00US47065",
 }
 _ACS_TABLES = (
     ("B01003", "B01003_001E", "Total population"),
