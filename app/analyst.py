@@ -69,6 +69,10 @@ def _explain(record: dict[str, Any], result: dict[str, Any] | None) -> list[str]
         lines.append(f"Demand provenance {row.get('field')}: {row.get('provenance')}.")
     for flag in result.get("blocking_flags") or []:
         lines.append(f"Recommend-against flag still active: {flag}.")
+    for flag in result.get("gap_flags") or []:
+        lines.append(f"Evidence gap still open: {flag}. The analyst cannot close it.")
+    lines.extend(_explain_financial(result.get("financial")))
+    lines.extend(_explain_projection(result.get("projection")))
     if result.get("readiness_status"):
         lines.append(
             f"Investor readiness is {result['readiness_status']}. "
@@ -84,3 +88,51 @@ def _explain(record: dict[str, Any], result: dict[str, Any] | None) -> list[str]
     else:
         lines.append("human_review_approved remains false. This explanation is not evidence and is not final.")
     return lines
+
+
+def _explain_financial(financial: dict[str, Any] | None) -> list[str]:
+    if not financial:
+        return ["Monthly engine output is absent. The analyst does not invent monthly cash flow."]
+    return [
+        "Monthly base cash flow from the engine is "
+        f"{financial.get('base_monthly_cash_flow')}.",
+        "Monthly downside cash flow from the engine is "
+        f"{financial.get('downside_monthly_cash_flow')}.",
+    ]
+
+
+def _explain_projection(projection: dict[str, Any] | None) -> list[str]:
+    if not projection or not projection.get("calculated"):
+        return [
+            "The engine did not calculate sources and uses for this assessment. "
+            "The analyst does not supply a cost or a DSCR."
+        ]
+    uses = (projection.get("sources_and_uses") or {}).get("uses") or {}
+    sources = (projection.get("sources_and_uses") or {}).get("sources") or {}
+    views = projection.get("views") or {}
+    base = views.get("base") or {}
+    downside = views.get("downside") or {}
+    return [
+        "Sources and uses from the engine: total project cost is "
+        f"{_amount(uses.get('total_project_cost'))}. "
+        f"Debt is {_amount(sources.get('debt'))}. "
+        f"Equity is {_amount(sources.get('equity'))}.",
+        "Base case from the engine: revenue "
+        f"{base.get('revenue')}, cash flow before debt service "
+        f"{base.get('cash_flow_before_debt_service')}, DSCR {_dscr(base.get('dscr'))}.",
+        "Downside case from the engine: revenue "
+        f"{downside.get('revenue')}, cash flow before debt service "
+        f"{downside.get('cash_flow_before_debt_service')}, DSCR {_dscr(downside.get('dscr'))}.",
+    ]
+
+
+def _amount(value: Any) -> Any:
+    if isinstance(value, dict):
+        return value.get("amount")
+    return value
+
+
+def _dscr(value: Any) -> Any:
+    if value is None:
+        return "undefined"
+    return value

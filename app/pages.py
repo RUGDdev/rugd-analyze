@@ -7,16 +7,21 @@ from typing import Any
 
 from app import APP_VERSION
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
-from app.market import market_framework
+from app.market import (
+    DEMONSTRATION_GEOGRAPHIES,
+    DEMONSTRATION_INDUSTRIES,
+    assessment_implications,
+    market_framework,
+)
 
 NAV = (
     ("/", "Dashboard"),
     ("/explore", "Explore"),
     ("/analyze", "Analyze"),
-    ("/validate", "Validate"),
-    ("/partner", "Partner"),
+    ("/validate", "Validate (demonstration)"),
+    ("/partner", "Partner (demonstration)"),
     ("/assessments", "My Assessments"),
-    ("/market", "Market Intelligence"),
+    ("/market", "Market Intelligence (demonstration)"),
     ("/reports", "Reports"),
     ("/settings", "Settings"),
 )
@@ -85,6 +90,10 @@ def dashboard(records: list[dict[str, Any]]) -> str:
 <p>Demonstration only: Market Intelligence, Validate review requests, and the Partner dashboard. Partner monitoring is not running.</p>
 </div>
 <p><a class="button" href="/assessments/new">Start a new assessment</a></p>
+<div class="card">
+<p><strong>Next recommended step:</strong> {escape(_next_step(records))}</p>
+<p class="muted">This indicator does not change a flag, a recommendation, or investor readiness.</p>
+</div>
 <h2>Assessment history</h2>
 <p class="muted">Official baseline stays separate from customer drafts. A draft is not approved or investor-ready.</p>
 {items}
@@ -130,6 +139,30 @@ def _history_card(item: dict[str, Any]) -> str:
 <a class="button" href="/assessments/{assessment_id}/results">View results</a></p>
 </div>
 """
+
+
+def _next_step(records: list[dict[str, Any]]) -> str:
+    drafts = [item for item in records if not item.get("read_only")]
+    if not drafts:
+        return "Start a new assessment. The official baseline is not a customer draft."
+    for item in drafts:
+        flags = (item.get("result") or {}).get("blocking_flags") or []
+        if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
+            return (
+                f"Continue {item['business_name']}. INSUFFICIENT_DEMAND_EVIDENCE is present. "
+                "This note does not clear the flag."
+            )
+    for item in drafts:
+        if not (item.get("result") or {}).get("engine_ran"):
+            return f"Continue {item['business_name']}. Analyze has not been run."
+    for item in drafts:
+        flags = (item.get("result") or {}).get("blocking_flags") or []
+        if flags:
+            return (
+                f"Continue {item['business_name']}. Recommend-against flag {flags[0]} is still active. "
+                "This note does not clear it."
+            )
+    return "Review the saved drafts. This note does not change a flag or a recommendation."
 
 
 def _draft_progress(item: dict[str, Any], result: dict[str, Any]) -> str:
@@ -560,13 +593,40 @@ def analyst_page(record: dict[str, Any], lines: list[str]) -> str:
     return layout("Demonstration Analyst", body)
 
 
-def market_page() -> str:
+def market_page(
+    records: list[dict[str, Any]] | None = None,
+    industry: str | None = None,
+    geographic_market: str | None = None,
+) -> str:
+    records = records or []
+    snapshot = market_framework(industry, geographic_market)
+    implications = "".join(f"<li>{escape(line)}</li>" for line in assessment_implications(records, industry, geographic_market))
+    industry_options = _demo_options(DEMONSTRATION_INDUSTRIES, snapshot["industry"])
+    geography_options = _demo_options(DEMONSTRATION_GEOGRAPHIES, snapshot["geographic_market"])
     body = f"""
 <h1>Market Intelligence</h1>
-{_market_block(market_framework())}
+<div class="banner">Demonstration only. This page does not load a live market feed.</div>
+<form method="get" action="/market">
+<label>Demonstration industry</label>
+<select name="industry">{industry_options}</select>
+<label>Demonstration geographic market</label>
+<select name="geographic_market">{geography_options}</select>
+<button type="submit">Show demonstration selection</button>
+</form>
+<p class="muted">The choices are labels for this demonstration. They are not a dataset and they do not describe a real market.</p>
+{_market_block(snapshot)}
+<h2>Implications for this assessment</h2>
+<ul>{implications}</ul>
 <p class="muted">The same demonstration snapshot is available on Partner. Neither view loads Census, BLS, or BEA data.</p>
 """
     return layout("Market Intelligence", body)
+
+
+def _demo_options(choices: tuple[str, ...], current: str) -> str:
+    return "".join(
+        f'<option value="{escape(choice)}"{" selected" if choice == current else ""}>{escape(choice)}</option>'
+        for choice in choices
+    )
 
 
 def audit_html_page(
@@ -792,10 +852,10 @@ def _reviewer_sign_in_form(next_path: str) -> str:
 def partner_page() -> str:
     body = f"""
 <h1>Partner</h1>
-<div class="banner">Demonstration dashboard. Recurring monitoring has not been implemented.</div>
+<div class="banner">Demonstration dashboard. Recurring monitoring is not active. Recurring monitoring has not been implemented.</div>
 <div class="card">
 <p>Partner is the planned tier for an established business that needs ongoing intelligence. A startup feasibility assessment is not required to enter this tier later.</p>
-<p>No scheduled market, financial, or risk monitor is running.</p>
+<p>No scheduled market, financial, or risk monitor is running. Monitoring active: false.</p>
 </div>
 {_market_block(market_framework())}
 """

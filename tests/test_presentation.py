@@ -1,8 +1,10 @@
 """Dashboard, intake, and results presentation stay tied to stored drafts and engine output."""
 
+import hashlib
 import tempfile
 import threading
 import unittest
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -10,7 +12,7 @@ from pathlib import Path
 from app.analysis import analyze_record
 from app.pages import assessment_form, dashboard, results_page
 from app.server import make_server
-from app.store import connect, create_assessment, get_assessment, list_assessments, save_profile, seed
+from app.store import SAMPLE, connect, create_assessment, get_assessment, list_assessments, save_profile, seed
 
 
 class TestPresentation(unittest.TestCase):
@@ -73,6 +75,64 @@ class TestPresentation(unittest.TestCase):
         self.assertIn("Investor readiness:</strong> internal", page)
         self.assertNotIn("Investor readiness:</strong> investor-ready", page)
         self.assertIn("Human review is pending", page)
+
+    def test_dashboard_next_step_names_demand_without_clearing_it(self) -> None:
+        assessment_id = create_assessment(
+            self.connection,
+            business_name="Step Cafe",
+            purpose="startup_feasibility",
+            tier="explore",
+        )
+        current = get_assessment(self.connection, assessment_id)
+        assert current is not None
+        result = analyze_record(current)
+        from app.store import save_result
+
+        save_result(self.connection, assessment_id, result.get("intake"), result)
+        page = dashboard(list_assessments(self.connection))
+        self.assertIn("Next recommended step:", page)
+        self.assertIn("Continue Step Cafe", page)
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE is present", page)
+        self.assertIn("does not clear the flag", page)
+        self.assertNotIn("Investor readiness:</strong> investor-ready", page)
+        stored = get_assessment(self.connection, assessment_id)
+        assert stored is not None
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", stored["result"]["blocking_flags"])
+        self.assertFalse(stored["human_review_approved"])
+
+    def test_customer_approval_stays_forbidden_and_baseline_file_is_unchanged(self) -> None:
+        before = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        server = make_server(self.db, port=0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        host, port = server.server_address
+        base = f"http://{host}:{port}"
+        try:
+            request = urllib.request.Request(
+                base + "/assessments",
+                data=b"business_name=Cafe&human_review_approved=true",
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                urllib.request.urlopen(request)
+            self.assertEqual(caught.exception.code, 403)
+            with urllib.request.urlopen(base + "/") as response:
+                page = response.read().decode("utf-8")
+            self.assertIn("Official baseline", page)
+            self.assertIn("Dashboard", page)
+            self.assertIn("Explore", page)
+            self.assertIn("Analyze", page)
+            self.assertIn("Validate (demonstration)", page)
+            self.assertIn("Partner (demonstration)", page)
+            self.assertIn("Market Intelligence (demonstration)", page)
+            self.assertIn("Reports", page)
+            self.assertNotIn("Investor readiness:</strong> investor-ready", page)
+            self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before)
+            self.assertFalse(get_assessment(self.connection, "rugd-intelligence-baseline")["human_review_approved"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
 
     def test_saved_draft_restores_entered_values(self) -> None:
         server = make_server(self.db, port=0)

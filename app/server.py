@@ -72,7 +72,10 @@ class AppHandler(BaseHTTPRequestHandler):
             elif path == "/partner":
                 self._html(partner_page())
             elif path == "/market":
-                self._html(market_page())
+                query = parse_qs(urlparse(self.path).query)
+                industry = (query.get("industry") or [""])[-1]
+                geographic_market = (query.get("geographic_market") or [""])[-1]
+                self._html(market_page(list_assessments(connection), industry, geographic_market))
             elif path == "/reports":
                 self._html(reports_page(list_assessments(connection)))
             elif path == "/settings":
