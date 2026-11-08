@@ -192,3 +192,12 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - The industry map adds Construction (NAICS 23), Manufacturing (NAICS 31-33), Accommodation (NAICS 721), and Health care (NAICS 62). Restaurant (722), Professional services (54), and Retail (44-45) stay. Geographies stay the United States, Alabama, and Colbert County, Alabama.
 - A disclosed row shows each available measure with the same provenance. A suppressed row is one observation, value “Not disclosed,” and a zero in the file is not shown as a measured zero. A missing extra column is omitted. A missing industry row, an unmapped selection, or a failed request still falls back to the labeled synthetic snapshot.
 - The page names the active provider and year. No new environment variable and no API key. The figures still do not clear a recommend-against flag or set `human_review_approved`.
+
+## Decision: Census ACS beside QCEW
+
+- Date: 2026-11-08
+- Status: Accepted for the local prototype only
+- `MARKET_CENSUS=acs` (aliases `census` and `census-acs`) reads American Community Survey 5-year total population (table B01003) and median household income (table B19013) from the public data.census.gov table extract. `ACS_YEAR` defaults to 2024, which is the 2020–2024 period. No API key is required or sent. The Census Data API at api.census.gov is not called.
+- Geographies are the same three names: United States, Alabama, and Colbert County, Alabama. The figures are demographic. They are not a NAICS industry and they do not describe one business.
+- With `MARKET_PROVIDER=bls` and `MARKET_CENSUS=acs`, the page shows both extracts and names each provider and year. If one request fails or the selection is outside its map, that part falls back to the labeled synthetic snapshot and the other part remains. If neither returns observations, the page is the synthetic snapshot.
+- A negative Census sentinel is shown as not disclosed. These figures cannot clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other recommend-against flag, and they cannot set `human_review_approved`. The official baseline is unchanged.

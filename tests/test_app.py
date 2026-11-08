@@ -343,13 +343,14 @@ class TestAnalyzeApp(unittest.TestCase):
                 page = response.read().decode("utf-8")
             self.assertIn("RUGD", page)
             self.assertIn("Hypothetical Restaurant Startup", page)
-            saved_market = os.environ.pop("MARKET_PROVIDER", None)
+            saved_market = {key: os.environ.pop(key, None) for key in ("MARKET_PROVIDER", "MARKET_CENSUS")}
             try:
                 with urllib.request.urlopen(base + "/market") as response:
                     market = response.read().decode("utf-8")
             finally:
-                if saved_market is not None:
-                    os.environ["MARKET_PROVIDER"] = saved_market
+                for key, value in saved_market.items():
+                    if value is not None:
+                        os.environ[key] = value
             self.assertIn("Demonstration. Not market research and not active monitoring.", market)
             self.assertIn("Synthetic example only", market)
             self.assertIn("Live feed connected: false", market)

@@ -4,7 +4,7 @@ Updated: 2026-11-08
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 96 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 97 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -14,13 +14,13 @@ Git is on `main`. Commits use a per-command author identity (`RUGD Dev <dev@rugd
 
 ## Analyze 0.2
 
-A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Validate can record a review request and cannot approve. Partner stays a labeled demonstration. Market Intelligence stays on the synthetic snapshot unless `MARKET_PROVIDER=bls` is set. That setting can request a BLS QCEW annual extract and falls back to the synthetic snapshot when the selection is not covered or the request fails. The figures do not clear a flag. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Drafts live in gitignored `data/analyze.sqlite`.
+A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Validate can record a review request and cannot approve. Partner stays a labeled demonstration. Market Intelligence stays on the synthetic snapshot unless `MARKET_PROVIDER=bls` or `MARKET_CENSUS=acs` is set. Those settings can request a BLS QCEW annual extract and an ACS 5-year population and income extract. A failed or uncovered part falls back to the synthetic snapshot. The figures do not clear a flag. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Drafts live in gitignored `data/analyze.sqlite`.
 
 Verified in the browser and over HTTP:
 
 - The baseline results page stays do-not-proceed, internal, and `human_review_approved` false.
 - A hypothetical restaurant draft with user-supplied seat, ticket, occupancy, and cost-build inputs runs the startup projection. The draft stays do-not-proceed because demand evidence is unanswered. Sources and uses, base and downside views, and DSCR appear in the result. `investor_ready` stays false.
-- By default, Market Intelligence is the synthetic snapshot and states that no Census, BLS, or BEA feed is connected. `MARKET_PROVIDER=bls` can show a BLS QCEW extract for seven industries, including wages, pay, and establishment size coverage, with provenance. Partner stays on the synthetic snapshot.
+- By default, Market Intelligence is the synthetic snapshot and states that no Census, BLS, or BEA feed is connected. `MARKET_PROVIDER=bls` can show a BLS QCEW extract. `MARKET_CENSUS=acs` can show ACS 5-year population and median household income. Partner stays on the synthetic snapshot.
 - Validate shows human review pending. A review request changes the copy to “A review has been requested.” and does not approve the file.
 - A POST that includes `human_review_approved` returns 403.
 
@@ -28,7 +28,7 @@ Run Analyze submits the same intake form as Save draft, so unsaved entries reach
 
 ## Unfinished
 
-Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. The default market view is the synthetic snapshot. The optional BLS QCEW extract is an annual file for seven industries and three geographies, not a live feed. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
+Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. The default market view is the synthetic snapshot. The optional BLS QCEW extract is an annual file for seven industries and three geographies. The optional ACS extract is 2024 5-year population and median household income for those geographies. Neither is a live feed. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
 
 ## Git Checkpoint
 
@@ -43,9 +43,9 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed
 - Server: stopped (Ctrl+C applied)
 - Explore + Analyze: functional against 0.1 engine
 - Validate / Partner: demonstration only
-- Market Intelligence: synthetic snapshot by default; optional BLS QCEW extract with provenance and fallback
+- Market Intelligence: synthetic snapshot by default; optional BLS QCEW and Census ACS extracts with provenance and fallback
 - Official baseline (unchanged): do-not-proceed, INSUFFICIENT_DEMAND_EVIDENCE, investor readiness internal, human_review_approved false
-- All 96 tests passing
+- All 97 tests passing
 - Sample intake and reports/output/rugd-intelligence-draft.md preserved
 
 ## Progress — 2026-11-07 demand evidence criteria
@@ -193,3 +193,10 @@ Further work on production authentication, real market data, an approved scoring
 - Industries now include Construction (NAICS 23), Manufacturing (31-33), Accommodation (721), and Health care (62), with the original Restaurant, Professional services, and Retail. Geographies are unchanged. The page names the active provider and year. No new environment variable is required.
 - An uncovered selection or a failed request still falls back to the labeled synthetic snapshot. The figures do not clear a recommend-against flag.
 - The unittest suite is 96 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-08 Census ACS population and income
+
+- `MARKET_CENSUS=acs` reads American Community Survey 5-year tables B01003 (total population) and B19013 (median household income) from the public data.census.gov extract. `ACS_YEAR` defaults to 2024. No API key is used. Geographies remain the United States, Alabama, and Colbert County, Alabama.
+- With BLS also enabled, both extracts appear on Market Intelligence and each provider and year is named. If Census or BLS fails, only that part falls back to the labeled synthetic snapshot.
+- The figures are demographic survey estimates. They do not clear a recommend-against flag and they do not set `human_review_approved`.
+- The unittest suite is 97 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

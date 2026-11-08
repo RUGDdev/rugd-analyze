@@ -905,8 +905,8 @@ def _public_market_page(
 ) -> str:
     industry_options = _demo_options(PUBLIC_INDUSTRIES, str(industry or "Not selected"))
     geography_options = _demo_options(PUBLIC_GEOGRAPHIES, str(geographic_market or "Not selected"))
-    first = view["observations"][0]
-    measures = _measure_items(view["observations"])
+    cards = _observation_cards(view["observations"])
+    partial = _partial_synthetic(view)
     notes = []
     for record in records:
         if record.get("read_only"):
@@ -935,15 +935,8 @@ def _public_market_page(
 <button type="submit">Request public observations</button>
 </form>
 <p class="muted">Optional public extract. {_active_provider(view)} Live feed connected: false. Monitoring active: false. This request does not change an assessment.</p>
-<div class="card">
-<p><strong>Source:</strong> {escape(first['source'])}</p>
-<p><strong>Geographic coverage:</strong> {escape(first['geographic_coverage'])}</p>
-<p><strong>Industry classification:</strong> {escape(first['industry_classification'])}</p>
-<p><strong>Measurement period:</strong> {escape(first['measurement_period'])}</p>
-<p><strong>Retrieval date:</strong> {escape(first['retrieval_date'])}</p>
-<p><strong>Limitations:</strong> {escape(first['limitations'])}</p>
-<ul>{measures}</ul>
-</div>
+{cards}
+{partial}
 <h2>Implications for this assessment</h2>
 <ul>{implications}</ul>
 """
@@ -983,10 +976,57 @@ def _fallback_market_page(
 
 
 def _active_provider(view: dict[str, Any]) -> str:
+    active = view.get("active_providers") or []
+    if active:
+        return "Active providers: " + "; ".join(escape(str(item)) for item in active) + "."
     name = str(view.get("provider_name") or "")
     year = str(view.get("year") or "")
-    label = "BLS Quarterly Census of Employment and Wages" if name == "bls-qcew" else (name or "public market provider")
+    labels = {
+        "bls-qcew": "BLS Quarterly Census of Employment and Wages",
+        "census-acs": "U.S. Census Bureau, American Community Survey 5-year estimates",
+    }
+    label = labels.get(name, name or "public market provider")
     return f"Active provider: {escape(label)}. Year: {escape(year or 'not set')}."
+
+
+def _observation_cards(observations: list[dict[str, str]]) -> str:
+    groups: list[tuple[str, list[dict[str, str]]]] = []
+    for item in observations:
+        if not groups or groups[-1][0] != item["source"]:
+            groups.append((item["source"], []))
+        groups[-1][1].append(item)
+    cards = []
+    for _source, rows in groups:
+        first = rows[0]
+        cards.append(
+            "<div class=\"card\">"
+            f"<p><strong>Source:</strong> {escape(first['source'])}</p>"
+            f"<p><strong>Geographic coverage:</strong> {escape(first['geographic_coverage'])}</p>"
+            f"<p><strong>Classification:</strong> {escape(first['industry_classification'])}</p>"
+            f"<p><strong>Measurement period:</strong> {escape(first['measurement_period'])}</p>"
+            f"<p><strong>Retrieval date:</strong> {escape(first['retrieval_date'])}</p>"
+            f"<p><strong>Limitations:</strong> {escape(first['limitations'])}</p>"
+            f"<ul>{_measure_items(rows)}</ul>"
+            "</div>"
+        )
+    return "".join(cards)
+
+
+def _partial_synthetic(view: dict[str, Any]) -> str:
+    notes = view.get("partial_notes") or []
+    if not notes:
+        return ""
+    snapshot = view["snapshot"]
+    examples = "".join(f"<li>{escape(item)}</li>" for item in snapshot["synthetic_examples"])
+    reasons = "".join(f"<li>{escape(str(note))}</li>" for note in notes)
+    return (
+        "<div class=\"banner\">Fallback for the unavailable metrics: synthetic snapshot. Synthetic example only.</div>"
+        f"<ul>{reasons}</ul>"
+        "<h2>Synthetic examples</h2>"
+        f"<ul>{examples}</ul>"
+        "<p class=\"muted\">These synthetic examples do not clear INSUFFICIENT_DEMAND_EVIDENCE "
+        "or any other recommend-against flag.</p>"
+    )
 
 
 def _measure_items(observations: list[dict[str, str]]) -> str:
@@ -997,7 +1037,7 @@ def _measure_items(observations: list[dict[str, str]]) -> str:
             f"<strong>{escape(item['measure'])}:</strong> {escape(item['value'])}. "
             f"Source: {escape(item['source'])}. "
             f"Geographic coverage: {escape(item['geographic_coverage'])}. "
-            f"Industry classification: {escape(item['industry_classification'])}. "
+            f"Classification: {escape(item['industry_classification'])}. "
             f"Measurement period: {escape(item['measurement_period'])}. "
             f"Retrieval date: {escape(item['retrieval_date'])}."
             "</li>"

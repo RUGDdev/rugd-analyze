@@ -76,7 +76,7 @@ Export does not run the engine and does not fill blank fields. It does not inclu
 
 - Validate can request review and cannot approve
 - Partner monitoring is not active
-- Market Intelligence stays on a labeled synthetic snapshot unless `MARKET_PROVIDER=bls` is set
+- Market Intelligence stays on a labeled synthetic snapshot unless `MARKET_PROVIDER=bls` or `MARKET_CENSUS=acs` is set
 - The Demonstration Analyst is the default. An optional external analyst can be enabled with an environment variable and an API key
 
 ## Optional external analyst
@@ -100,11 +100,17 @@ With no market setting, Market Intelligence and Partner show the synthetic snaps
 To request one public extract, set this in the terminal that starts the app. No API key is used.
 
 - `MARKET_PROVIDER=bls` (`qcew` and `bls-qcew` are accepted)
-- `MARKET_YEAR` — optional annual file. The default is `2024`
+- `MARKET_YEAR` — optional QCEW annual file. The default is `2024`
+- `MARKET_CENSUS=acs` (`census` and `census-acs` are accepted)
+- `ACS_YEAR` — optional ACS 5-year vintage. The default is `2024`
+
+No Census API key is used. Set either variable, or both. Both together show QCEW and ACS on the same page. If one request fails, only that part returns to the synthetic snapshot.
 
 Open Market Intelligence and choose a geography of United States, Alabama, or Colbert County, Alabama. Industries are Restaurant (NAICS 722), Professional services (54), Retail (44-45), Construction (23), Manufacturing (31-33), Accommodation (721), and Health care (62). The page requests the BLS Quarterly Census of Employment and Wages annual file and shows private employment, average weekly wage, establishments, total annual wages, average annual pay, and establishment size coverage when those cells are published. The page names the active provider and year.
 
-Each figure is shown with its source, geographic coverage, industry classification, measurement period, retrieval date, and limitations. A suppressed cell is labeled not disclosed. If the selection is outside that map, or the request fails, the page returns to the labeled synthetic snapshot. Partner does not call this provider. The figures do not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other flag, and they do not change investor readiness. This is not a live feed and monitoring is not active.
+The Census extract is total population from table B01003 and median household income from table B19013. It is a 5-year residence estimate, not an industry and not business revenue. The page names each active provider and year.
+
+Each figure is shown with its source, geographic coverage, classification, measurement period, retrieval date, and limitations. A suppressed cell is labeled not disclosed. If a selection is outside a provider’s map, or that provider’s request fails, that part returns to the labeled synthetic snapshot. Partner does not call these providers. The figures do not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other flag, and they do not change investor readiness. This is not a live feed and monitoring is not active.
 - Bunny Hive and Small Town Pub have no completed assessments
 - Reviewer sign-in is prototype-grade: one source-constant passphrase, no OAuth, no password hash, and no account directory
 - No production accounts, billing, public deployment, live market feed, or investor matchmaking. The optional BLS extract above is an annual file, not a live feed

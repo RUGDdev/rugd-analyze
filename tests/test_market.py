@@ -2,14 +2,17 @@
 
 import copy
 import hashlib
+import json
 import unittest
 from pathlib import Path
 
 from app.market import (
+    CENSUS_SOURCE,
     DEMONSTRATION_LABEL,
     FALLBACK_LABEL,
     PUBLIC_SOURCE,
     BlsQcewProvider,
+    CensusAcsProvider,
     assessment_implications,
     get_market_provider,
     load_market,
@@ -228,6 +231,128 @@ class TestMarketDemonstration(unittest.TestCase):
             hashlib.sha256((ROOT / "reports" / "output" / "rugd-intelligence-draft.md").read_bytes()).hexdigest(),
             before_report,
         )
+
+    def test_census_acs_is_labeled_and_can_sit_beside_bls(self) -> None:
+        population = json.dumps(
+            {
+                "response": {
+                    "data": [
+                        ["GEO_ID", "B01003_001E", "NAME"],
+                        ["0500000US01033", "58022", "Colbert County, Alabama"],
+                    ]
+                }
+            }
+        )
+        income = json.dumps(
+            {
+                "response": {
+                    "data": [
+                        ["NAME", "B19013_001E"],
+                        ["Colbert County, Alabama", "60628"],
+                    ]
+                }
+            }
+        )
+        suppressed_income = json.dumps(
+            {"response": {"data": [["B19013_001E", "NAME"], ["-666666666", "Colbert County, Alabama"]]}}
+        )
+        seen: list[str] = []
+
+        def transport(url: str) -> str:
+            seen.append(url)
+            self.assertNotIn("secret-census-key", url)
+            if "B19013" in url:
+                return suppressed_income if "suppress" in url else income
+            if "B01003" in url:
+                return population
+            return _QCEW
+
+        provider = CensusAcsProvider(year="2024", transport=transport, retrieved_on="2026-11-08")
+        observations = provider.observations("Restaurant", "Colbert County, Alabama")
+        self.assertEqual(
+            seen[:2],
+            [
+                "https://data.census.gov/api/access/data/table?id=ACSDT5Y2024.B01003&g=050XX00US01033",
+                "https://data.census.gov/api/access/data/table?id=ACSDT5Y2024.B19013&g=050XX00US01033",
+            ],
+        )
+        self.assertEqual(len(observations), 2)
+        self.assertEqual(observations[0]["source"], CENSUS_SOURCE)
+        self.assertEqual(observations[0]["measure"], "Total population")
+        self.assertEqual(observations[0]["value"], "58022")
+        self.assertIn("Demographic", observations[0]["industry_classification"])
+        self.assertEqual(observations[0]["measurement_period"], "2020-2024 5-year")
+        self.assertEqual(observations[0]["retrieval_date"], "2026-11-08")
+        self.assertIn("B01003", observations[0]["limitations"])
+        self.assertIn("does not clear INSUFFICIENT_DEMAND_EVIDENCE", observations[0]["limitations"])
+        self.assertNotEqual(observations[0]["source"], PUBLIC_SOURCE)
+        hidden = CensusAcsProvider(
+            year="2024",
+            transport=lambda url: suppressed_income if "B19013" in url else population,
+            retrieved_on="2026-11-08",
+        ).observations("Retail", "Alabama")
+        self.assertEqual(hidden[1]["value"], "Not disclosed")
+        self.assertNotEqual(hidden[1]["value"], "-666666666")
+
+        def fail(url: str) -> str:
+            raise RuntimeError("down")
+
+        failed = load_market("Restaurant", "Alabama", CensusAcsProvider(transport=fail))
+        self.assertEqual(failed["status"], "fallback")
+        self.assertEqual(failed["label"], FALLBACK_LABEL)
+        self.assertTrue(all(item.startswith("Synthetic example only") for item in failed["snapshot"]["synthetic_examples"]))
+        configured = get_market_provider(
+            environ={"MARKET_CENSUS": "acs", "ACS_YEAR": "2023", "CENSUS_API_KEY": "secret-census-key"},
+            transport=transport,
+        )
+        self.assertEqual(configured.name, "census-acs")
+        self.assertEqual(configured.year, "2023")
+        page = market_page([], "Restaurant", "Colbert County, Alabama", provider=provider)
+        self.assertIn(CENSUS_SOURCE, page)
+        self.assertIn("Total population:", page)
+        self.assertIn("58022", page)
+        self.assertIn("Median household income (dollars):", page)
+        self.assertIn("60628", page)
+        self.assertIn("Demographic. Not a NAICS industry.", page)
+        self.assertIn("Active provider: U.S. Census Bureau, American Community Survey 5-year estimates. Year: 2024.", page)
+        self.assertIn("does not clear INSUFFICIENT_DEMAND_EVIDENCE", page)
+        self.assertNotIn("secret-census-key", page)
+        self.assertNotIn("Synthetic example only: a cost-pressure", page)
+
+        def mixed(url: str) -> str:
+            if "census.gov" in url:
+                raise RuntimeError("census down")
+            return _QCEW
+
+        both = get_market_provider(
+            environ={"MARKET_PROVIDER": "bls", "MARKET_CENSUS": "acs", "MARKET_YEAR": "2024", "ACS_YEAR": "2024"},
+            transport=mixed,
+        )
+        view = load_market("Construction", "Colbert County, Alabama", both)
+        combined = market_page([], "Construction", "Colbert County, Alabama", provider=both)
+        self.assertEqual(view["status"], "public")
+        self.assertEqual(view["provider_name"], "combined")
+        self.assertIn(PUBLIC_SOURCE, combined)
+        self.assertIn("Private annual average employment:", combined)
+        self.assertIn("1738", combined)
+        self.assertIn("Synthetic example only", combined)
+        self.assertIn("did not return observations", combined)
+        self.assertIn("Active providers:", combined)
+        self.assertIn("BLS Quarterly Census of Employment and Wages (year 2024)", combined)
+        self.assertNotIn("Total population:", combined)
+        self.assertNotIn("58022", combined)
+        result = {
+            "recommendation": "do-not-proceed",
+            "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+            "readiness_status": "internal",
+            "human_review_approved": False,
+        }
+        before = copy.deepcopy(result)
+        before_sample = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        load_market("Construction", "Alabama", provider)
+        self.assertEqual(result, before)
+        self.assertFalse(result["human_review_approved"])
+        self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
 
 
 if __name__ == "__main__":

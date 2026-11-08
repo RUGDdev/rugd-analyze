@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 import urllib.error
 import urllib.request
@@ -89,6 +90,12 @@ OBSERVATION_FIELDS = (
     "value",
 )
 PUBLIC_SOURCE = "U.S. Bureau of Labor Statistics, Quarterly Census of Employment and Wages"
+CENSUS_SOURCE = "U.S. Census Bureau, American Community Survey 5-year estimates"
+ACS_LABEL = (
+    "Public source: U.S. Census Bureau, American Community Survey 5-year estimates. "
+    "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
+    "or any recommend-against flag."
+)
 PUBLIC_LABEL = (
     "Public source: U.S. Bureau of Labor Statistics, Quarterly Census of Employment and Wages. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
@@ -202,16 +209,103 @@ class BlsQcewProvider:
         )
 
 
+_ACS_GEOGRAPHIES = {
+    "United States": "010XX00US",
+    "Alabama": "040XX00US01",
+    "Colbert County, Alabama": "050XX00US01033",
+}
+_ACS_TABLES = (
+    ("B01003", "B01003_001E", "Total population"),
+    ("B19013", "B19013_001E", "Median household income (dollars)"),
+)
+_ACS_LIMITATION = (
+    "American Community Survey 5-year estimates, tables B01003 (total population) and "
+    "B19013 (median household income). These are residence-based survey estimates, not revenue "
+    "or demand for any one business. Margins of error are not shown. "
+    "It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag, "
+    "and it does not set human_review_approved. It is not a live feed. Monitoring is not active. "
+    "Census may suppress a cell or revise a release."
+)
+
+
+class CensusAcsProvider:
+    """ACS 5-year population and median household income for a mapped geography."""
+
+    name = "census-acs"
+
+    def __init__(
+        self,
+        *,
+        year: str = "2024",
+        transport: Fetch | None = None,
+        retrieved_on: str | None = None,
+    ) -> None:
+        self.year = year if len(year) == 4 and year.isdigit() else "2024"
+        self._transport = transport or _fetch_text
+        self._retrieved_on = retrieved_on
+
+    def observations(self, industry: str | None, geography: str | None) -> list[dict[str, str]]:
+        geography_name = str(geography or "").strip()
+        geo_code = _ACS_GEOGRAPHIES.get(geography_name)
+        if geo_code is None:
+            raise NotCovered("selection is not covered")
+        retrieved_on = self._retrieved_on or _today()
+        period = f"{int(self.year) - 4}-{self.year} 5-year"
+        coverage = f"{geography_name} (ACS geography {geo_code})"
+        observations = []
+        for table, column, measure in _ACS_TABLES:
+            url = (
+                "https://data.census.gov/api/access/data/table"
+                f"?id=ACSDT5Y{self.year}.{table}&g={geo_code}"
+            )
+            value = _acs_estimate(self._transport(url), column)
+            observations.append(
+                {
+                    "source": CENSUS_SOURCE,
+                    "geographic_coverage": coverage,
+                    "industry_classification": "Demographic. Not a NAICS industry.",
+                    "measurement_period": period,
+                    "retrieval_date": retrieved_on,
+                    "limitations": _ACS_LIMITATION,
+                    "measure": measure,
+                    "value": value,
+                }
+            )
+        return observations
+
+
+class CombinedMarketProvider:
+    """BLS and Census together. A failed part does not remove the other part."""
+
+    name = "combined"
+
+    def __init__(self, parts: list[Any]) -> None:
+        self.parts = parts
+        years = {str(getattr(part, "year", "") or "") for part in parts}
+        self.year = next(iter(years)) if len(years) == 1 else "multiple"
+
+
 def get_market_provider(environ: Any | None = None, transport: Fetch | None = None) -> Any:
-    """Return the synthetic snapshot unless MARKET_PROVIDER asks for BLS QCEW."""
+    """Return the synthetic snapshot unless BLS or Census is requested."""
     env = os.environ if environ is None else environ
     raw = str(env.get("MARKET_PROVIDER") or "").strip().lower()
-    if raw in {"", "synthetic", "demo", "demonstration", "none"}:
-        return SyntheticMarketProvider()
+    census_raw = str(env.get("MARKET_CENSUS") or "").strip().lower()
+    parts: list[Any] = []
     if raw in {"bls", "qcew", "bls-qcew"}:
-        year = str(env.get("MARKET_YEAR") or "2024").strip()
-        return BlsQcewProvider(year=year, transport=transport)
-    return UnavailableMarketProvider(raw)
+        parts.append(BlsQcewProvider(year=_year(env, "MARKET_YEAR", "2024"), transport=transport))
+    elif raw not in {"", "synthetic", "demo", "demonstration", "none"}:
+        parts.append(UnavailableMarketProvider(raw))
+    if census_raw in {"acs", "census", "census-acs"}:
+        parts.append(CensusAcsProvider(year=_year(env, "ACS_YEAR", "2024"), transport=transport))
+    elif census_raw not in {"", "none", "off", "synthetic", "demo", "demonstration"}:
+        parts.append(UnavailableMarketProvider(census_raw))
+    if not parts:
+        return SyntheticMarketProvider()
+    if len(parts) == 1 and not isinstance(parts[0], UnavailableMarketProvider):
+        return parts[0]
+    if len(parts) == 1:
+        return parts[0]
+    return CombinedMarketProvider(parts)
 
 
 def load_market(
@@ -232,6 +326,8 @@ def load_market(
             "snapshot": snapshot,
             "observations": [],
         }
+    if getattr(selected, "name", "") == "combined":
+        return _load_combined(selected, industry, geographic_market, snapshot)
     try:
         observations = list(selected.observations(industry, geographic_market))
         if not observations:
@@ -240,11 +336,12 @@ def load_market(
             missing = [field for field in OBSERVATION_FIELDS if not str(item.get(field) or "").strip()]
             if missing:
                 raise ValueError("market observation is missing provenance")
+        provider_name = str(getattr(selected, "name", "") or "")
         return {
             "status": "public",
-            "label": PUBLIC_LABEL,
+            "label": ACS_LABEL if provider_name == "census-acs" else PUBLIC_LABEL,
             "reason": None,
-            "provider_name": str(getattr(selected, "name", "") or ""),
+            "provider_name": provider_name,
             "year": str(getattr(selected, "year", "") or ""),
             "snapshot": snapshot,
             "observations": observations,
@@ -322,6 +419,92 @@ def _observations_from_qcew(
             {**base, "limitations": limitations, "measure": "Establishment size coverage", "value": coverage}
         )
     return observations
+
+
+def _load_combined(
+    selected: CombinedMarketProvider,
+    industry: str | None,
+    geographic_market: str | None,
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    observations: list[dict[str, str]] = []
+    notes: list[str] = []
+    active: list[str] = []
+    not_covered = 0
+    failed = 0
+    for part in selected.parts:
+        caption = _provider_caption(part)
+        try:
+            rows = list(part.observations(industry, geographic_market))
+            if not rows:
+                raise ValueError("empty market response")
+            for item in rows:
+                missing = [field for field in OBSERVATION_FIELDS if not str(item.get(field) or "").strip()]
+                if missing:
+                    raise ValueError("market observation is missing provenance")
+            observations.extend(rows)
+            active.append(f"{caption} (year {getattr(part, 'year', '') or 'not set'})")
+        except NotCovered:
+            not_covered += 1
+            notes.append(f"{caption} is not covered for this selection. Synthetic example only.")
+        except Exception:
+            failed += 1
+            notes.append(f"{caption} did not return observations. Synthetic example only.")
+    if not observations:
+        label = NOT_COVERED_LABEL if not_covered and not failed else FALLBACK_LABEL
+        reason = notes[0] if notes else "The public market provider did not return observations."
+        view = _fallback_view(selected, snapshot, label, reason)
+        view["partial_notes"] = notes
+        return view
+    return {
+        "status": "public",
+        "label": (
+            "Public sources: BLS Quarterly Census of Employment and Wages and "
+            "Census American Community Survey 5-year estimates. Not a live feed. Not monitoring. "
+            "These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any recommend-against flag."
+        ),
+        "reason": None,
+        "provider_name": "combined",
+        "year": selected.year,
+        "active_providers": active,
+        "partial_notes": notes,
+        "snapshot": snapshot,
+        "observations": observations,
+    }
+
+
+def _provider_caption(provider: Any) -> str:
+    name = str(getattr(provider, "name", "") or "")
+    if name == "bls-qcew":
+        return "BLS Quarterly Census of Employment and Wages"
+    if name == "census-acs":
+        return "U.S. Census Bureau, American Community Survey 5-year estimates"
+    if name == "unavailable":
+        requested = str(getattr(provider, "requested", "") or "").strip()
+        return f"Requested provider {requested}" if requested else "Requested provider"
+    return name or "public market provider"
+
+
+def _year(env: Any, key: str, default: str) -> str:
+    year = str(env.get(key) or default).strip()
+    return year if len(year) == 4 and year.isdigit() else default
+
+
+def _acs_estimate(body: str, column: str) -> str:
+    try:
+        payload = json.loads(body)
+        rows = payload["response"]["data"]
+        header = [str(item) for item in rows[0]]
+        values = rows[1]
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("census table was not readable") from exc
+    if column not in header:
+        raise ValueError("census estimate column is missing")
+    raw = values[header.index(column)]
+    text = "" if raw is None else str(raw).strip()
+    if not text or text.startswith("-") or not text.isdigit():
+        return "Not disclosed"
+    return text
 
 
 def _fallback_view(provider: Any, snapshot: dict[str, Any], label: str, reason: str) -> dict[str, Any]:

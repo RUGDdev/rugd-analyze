@@ -21,7 +21,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Review a draft recommendation | Met | The recommendation stays a draft. Approval does not rewrite it. |
 | See missing evidence requirements | Met | Missing required fields and `INSUFFICIENT_DEMAND_EVIDENCE` stay visible. |
 | Open the report and audit | Met | Markdown report, JSON audit, and a read-only HTML audit page are available. |
-| Explore market intelligence | Partially met | The default is one labeled synthetic snapshot. `MARKET_PROVIDER=bls` can show a BLS QCEW extract with provenance. Failure falls back to the synthetic snapshot. The figures do not clear a flag. |
+| Explore market intelligence | Partially met | The default is one labeled synthetic snapshot. `MARKET_PROVIDER=bls` can show a BLS QCEW extract, and `MARKET_CENSUS=acs` can show ACS population and income. Failure of either part falls back to the synthetic snapshot. The figures do not clear a flag. |
 | View Validate and Partner | Demonstration-only | Validate can request review and cannot approve. Partner states that recurring monitoring is not active. |
 | Return to saved assessments | Met | Dashboard history offers Continue and View results. |
 | Baseline status unchanged | Met | do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, internal investor readiness, pending human review. |
