@@ -344,3 +344,11 @@ Owner input required before replacing `billing_hooks`:
 - Any recommend-against flag forces band Blocked. The engine recommendation stays do-not-proceed while that flag is active. A high number does not clear the flag, change investor readiness, or set `human_review_approved`.
 - The component rules read the engine demand status, engine monthly contribution, cash flow, and capital-recovery months, downside DSCR when the projection calculated it, and optional educational notes. Missing notes stay at a floor of 70. Competitive density is not measured and adds 0. A stored public market figure can add 20 market points and still cannot clear a flag.
 - The feasibility line remains “Not calculated — methodology pending approval.” `overall_feasibility_score` stays null. The results page and the HTML audit show the indicative score with the label that it does not override engine flags or human review.
+
+## Decision: Indicative assessment leads with the gate
+
+- Date: 2026-11-09
+- Status: Accepted for display only. This does not approve a feasibility score and does not enable `scoring_methodology()`.
+- The primary lines are gate status and band. The three component scores are Market Validity, Financial Viability, and Stewardship Readiness. The weights are 45, 40, and 15. Stewardship is the light weight. Missing optional notes stay at 90, and each stored pillar note adds 1 point.
+- A recommend-against flag forces band Blocked and the gate recommendation do-not-proceed. The stored engine recommendation is not rewritten. The overall 0–100 number is labeled indicative only. It cannot clear a flag, set `human_review_approved`, or grant investor-ready status.
+- `MARKET_LAUS=laus` reads BLS Local Area Unemployment Statistics for the mapped states and counties: unemployment rate (measure 03) and labor force (measure 06), annual average period M13. `LAUS_YEAR` defaults to 2024. No API key is sent. The United States row uses the Current Population Survey national series because LAUS is a local-area program. A failed request or an unmapped geography falls back to the synthetic snapshot. These figures do not clear a recommend-against flag.

@@ -41,6 +41,8 @@ class TestIndicativeScore(unittest.TestCase):
         before = copy.deepcopy(result)
         score = indicative_score(result)
         self.assertEqual(score["band"], "Blocked")
+        self.assertEqual(score["gate_status"], "Blocked")
+        self.assertEqual(score["gate_recommendation"], "do-not-proceed")
         self.assertEqual(score["hard_gates"], ["INSUFFICIENT_DEMAND_EVIDENCE"])
         self.assertEqual(result, before)
         self.assertEqual(result["recommendation"], "do-not-proceed")
@@ -63,7 +65,15 @@ class TestIndicativeScore(unittest.TestCase):
         )
         blocked = indicative_score(capacity)
         self.assertEqual(blocked["band"], "Blocked")
+        self.assertEqual(blocked["gate_recommendation"], "do-not-proceed")
         self.assertEqual(capacity["recommendation"], "do-not-proceed")
+        contradictory = _result(recommendation="go", blocking_flags=["EXTRACTION_WITHOUT_REINVESTMENT"])
+        forced = indicative_score(contradictory)
+        self.assertEqual(forced["gate_status"], "Blocked")
+        self.assertEqual(forced["band"], "Blocked")
+        self.assertEqual(forced["gate_recommendation"], "do-not-proceed")
+        self.assertEqual(contradictory["recommendation"], "go")
+        self.assertFalse(forced["changes_recommendation"])
         self.assertGreater(blocked["score"], 0)
         seam = scoring_methodology()
         self.assertFalse(seam["enabled"])
@@ -94,7 +104,8 @@ class TestIndicativeScore(unittest.TestCase):
         self.assertEqual(cleared["components"]["market_validity"]["score"], 60)
         self.assertGreater(cleared["score"], uncleared["score"])
         self.assertEqual(cleared["band"], "Weak")
-        self.assertEqual(cleared["score"], 45)
+        self.assertEqual(cleared["gate_status"], "Open")
+        self.assertEqual(cleared["score"], 44)
         financed = indicative_score(
             _result(
                 recommendation="conditional",
@@ -108,9 +119,10 @@ class TestIndicativeScore(unittest.TestCase):
                 },
             )
         )
-        self.assertEqual(financed["components"]["profitability"]["score"], 90)
+        self.assertEqual(financed["components"]["financial_viability"]["score"], 90)
         self.assertGreater(financed["score"], cleared["score"])
-        self.assertEqual(financed["band"], "Conditional")
+        self.assertEqual(financed["score"], 76)
+        self.assertEqual(financed["band"], "Strong")
         self.assertNotEqual(financed["band"], "Blocked")
         covered = indicative_score(
             _result(
@@ -125,8 +137,8 @@ class TestIndicativeScore(unittest.TestCase):
                 projection={"calculated": True, "views": {"downside": {"dscr": 1.2}}},
             )
         )
-        self.assertEqual(covered["components"]["profitability"]["score"], 100)
-        self.assertEqual(covered["components"]["durable_value"]["score"], 70)
+        self.assertEqual(covered["components"]["financial_viability"]["score"], 100)
+        self.assertEqual(covered["components"]["stewardship_readiness"]["score"], 90)
         noted = indicative_score(
             _result(
                 recommendation="conditional",
@@ -135,8 +147,8 @@ class TestIndicativeScore(unittest.TestCase):
             ),
             notes=[{"pillar_id": "stewardship", "note": "Reinvest the first surplus."}],
         )
-        self.assertEqual(noted["components"]["durable_value"]["score"], 74)
-        self.assertGreater(noted["components"]["durable_value"]["score"], 70)
+        self.assertEqual(noted["components"]["stewardship_readiness"]["score"], 91)
+        self.assertGreater(noted["components"]["stewardship_readiness"]["score"], 90)
         strong = indicative_score(
             _result(
                 recommendation="conditional",
@@ -168,9 +180,13 @@ class TestIndicativeScore(unittest.TestCase):
             ],
         )
         self.assertEqual(strong["components"]["market_validity"]["score"], 80)
-        self.assertEqual(strong["score"], 91)
+        self.assertEqual(strong["components"]["stewardship_readiness"]["score"], 97)
+        self.assertEqual(strong["score"], 90)
         self.assertEqual(strong["band"], "Strong")
-        self.assertEqual(strong["weights"], {"market_validity": 40, "profitability": 35, "durable_value": 25})
+        self.assertEqual(
+            strong["weights"],
+            {"market_validity": 45, "financial_viability": 40, "stewardship_readiness": 15},
+        )
         gated = copy.deepcopy(strong)
         source = _result(
             recommendation="do-not-proceed",
@@ -196,6 +212,7 @@ class TestIndicativeScore(unittest.TestCase):
         )
         self.assertGreater(still_blocked["score"], 50)
         self.assertEqual(still_blocked["band"], "Blocked")
+        self.assertEqual(still_blocked["gate_recommendation"], "do-not-proceed")
         self.assertEqual(source["recommendation"], "do-not-proceed")
         self.assertEqual(source["blocking_flags"], ["INSUFFICIENT_DEMAND_EVIDENCE"])
         self.assertFalse(source["human_review_approved"])
@@ -215,8 +232,13 @@ class TestIndicativeScore(unittest.TestCase):
         audit = audit_html_page(record, result)
         for shown in (page, audit):
             self.assertIn(LABEL, shown)
-            self.assertIn("Indicative score:</strong> ", shown)
+            self.assertIn("Gate status:</strong> Blocked", shown)
             self.assertIn("Band:</strong> Blocked", shown)
+            self.assertIn("Gate recommendation:</strong> do-not-proceed", shown)
+            self.assertIn("Overall number (indicative only):</strong>", shown)
+            self.assertIn("Market Validity:", shown)
+            self.assertIn("Financial Viability:", shown)
+            self.assertIn("Stewardship Readiness:", shown)
             self.assertIn("Recommendation:</strong> do-not-proceed", shown)
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE:</strong> present", shown)
             self.assertIn("Investor readiness:</strong> internal", shown)

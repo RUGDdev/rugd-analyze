@@ -254,6 +254,7 @@ class TestEmptyStatesAndExport(unittest.TestCase):
             "MARKET_CBP",
             "MARKET_BEA",
             "BEA_USER_ID",
+            "MARKET_LAUS",
             "ANALYST_PROVIDER",
             "ANALYST_MODEL",
             "ANTHROPIC_API_KEY",

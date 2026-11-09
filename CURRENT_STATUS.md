@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 122 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 123 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -321,3 +321,9 @@ Further work on production authentication, real market data, an approved scoring
 - Results and the HTML audit show an indicative 0–100 score. The weights are market validity 40, profitability 35, and Durable Value 25. The rules are in `SCORING.md`.
 - Any recommend-against flag forces band Blocked. The engine recommendation, investor readiness, and `human_review_approved` stay as the engine stored them. The feasibility score stays uncalculated.
 - The unittest suite is 122 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 LAUS and indicative assessment layout
+
+- `MARKET_LAUS=laus` reads the BLS unemployment rate and labor force for the mapped geographies. The United States row uses the Current Population Survey national series. The figures have full provenance, fall back to the synthetic snapshot, and do not clear a recommend-against flag.
+- The results page and HTML audit lead with gate status and band, then Market Validity, Financial Viability, and Stewardship Readiness. Weights are 45, 40, and 15. The overall number is labeled indicative only. A hard gate forces Blocked and the gate recommendation do-not-proceed.
+- The unittest suite is 123 tests, all passing. The official baseline intake was not edited.

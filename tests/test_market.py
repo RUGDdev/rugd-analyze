@@ -13,12 +13,14 @@ from pathlib import Path
 from app.market import (
     BEA_SOURCE,
     CBP_SOURCE,
+    LAUS_SOURCE,
     CENSUS_SOURCE,
     DEMONSTRATION_LABEL,
     FALLBACK_LABEL,
     NOT_COVERED_LABEL,
     PUBLIC_SOURCE,
     BeaRegionalProvider,
+    BlsLausProvider,
     BlsQcewProvider,
     CensusAcsProvider,
     CensusCbpProvider,
@@ -507,7 +509,14 @@ class TestMarketDemonstration(unittest.TestCase):
         host, port = server.server_address
         saved = {
             key: os.environ.pop(key, None)
-            for key in ("MARKET_PROVIDER", "MARKET_CENSUS", "MARKET_CBP", "MARKET_BEA", "BEA_USER_ID")
+            for key in (
+                "MARKET_PROVIDER",
+                "MARKET_CENSUS",
+                "MARKET_CBP",
+                "MARKET_BEA",
+                "BEA_USER_ID",
+                "MARKET_LAUS",
+            )
         }
         try:
             with urllib.request.urlopen(
@@ -887,6 +896,101 @@ class TestMarketDemonstration(unittest.TestCase):
             hashlib.sha256((ROOT / "reports" / "output" / "rugd-intelligence-draft.md").read_bytes()).hexdigest(),
             before_report,
         )
+
+    def test_laus_observations_keep_provenance_and_do_not_clear_flags(self) -> None:
+        def body(value: str) -> str:
+            return json.dumps(
+                {
+                    "status": "REQUEST_SUCCEEDED",
+                    "Results": {
+                        "series": [
+                            {
+                                "data": [
+                                    {"year": "2024", "period": "M12", "value": "9.9"},
+                                    {"year": "2024", "period": "M13", "value": value},
+                                ]
+                            }
+                        ]
+                    },
+                }
+            )
+
+        seen: list[str] = []
+
+        def transport(url: str) -> str:
+            seen.append(url)
+            if url.endswith("003"):
+                return body("3.4")
+            if url.endswith("006"):
+                return body("24567")
+            raise RuntimeError(url)
+
+        provider = BlsLausProvider(year="2024", transport=transport, retrieved_on="2026-11-09")
+        rows = provider.observations("Restaurant", "Colbert County, Alabama")
+        self.assertEqual(len(rows), 2)
+        self.assertIn("LAUCN010330000000003", seen[0])
+        self.assertIn("LAUCN010330000000006", seen[1])
+        self.assertNotIn("key=", seen[0])
+        self.assertEqual(rows[0]["source"], LAUS_SOURCE)
+        self.assertEqual(rows[0]["measure"], "Unemployment rate (percent)")
+        self.assertEqual(rows[0]["value"], "3.4")
+        self.assertEqual(rows[0]["detail"], "headline")
+        self.assertEqual(rows[1]["measure"], "Labor force")
+        self.assertEqual(rows[1]["value"], "24567")
+        self.assertEqual(rows[0]["measurement_period"], "2024 annual average")
+        self.assertEqual(rows[0]["retrieval_date"], "2026-11-09")
+        self.assertIn("Not a NAICS industry", rows[0]["industry_classification"])
+        for field in (
+            "source",
+            "geographic_coverage",
+            "industry_classification",
+            "measurement_period",
+            "retrieval_date",
+            "limitations",
+        ):
+            self.assertTrue(rows[0][field], field)
+        self.assertIn("do not clear INSUFFICIENT_DEMAND_EVIDENCE", rows[0]["limitations"])
+        self.assertIn("do not set human_review_approved", rows[0]["limitations"])
+        hidden = BlsLausProvider(
+            year="2024",
+            transport=lambda url: body("-"),
+            retrieved_on="2026-11-09",
+        ).observations("Restaurant", "Alabama")
+        self.assertEqual(hidden[0]["value"], "Not disclosed")
+        uncovered = load_market("Restaurant", "Example county", provider)
+        self.assertEqual(uncovered["status"], "fallback")
+        self.assertEqual(uncovered["label"], NOT_COVERED_LABEL)
+        failed = load_market(
+            "Restaurant",
+            "Georgia",
+            BlsLausProvider(year="2024", transport=lambda url: (_ for _ in ()).throw(RuntimeError("down"))),
+        )
+        self.assertEqual(failed["status"], "fallback")
+        self.assertEqual(failed["label"], FALLBACK_LABEL)
+        selected = get_market_provider(environ={"MARKET_LAUS": "laus", "LAUS_YEAR": "2023"}, transport=transport)
+        self.assertEqual(selected.name, "bls-laus")
+        self.assertEqual(selected.year, "2023")
+        page = market_page([], "Restaurant", "Colbert County, Alabama", provider=provider, tier="analyze")
+        self.assertIn("<h2>Combined summary</h2>", page)
+        self.assertIn("Unemployment rate (percent):", page)
+        self.assertIn("3.4", page)
+        self.assertIn("Labor force:", page)
+        self.assertIn("24567", page)
+        self.assertIn(LAUS_SOURCE, page)
+        self.assertIn("These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE", page)
+        self.assertIn("Monitoring active: false", page)
+        result = {
+            "recommendation": "do-not-proceed",
+            "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+            "readiness_status": "internal",
+            "human_review_approved": False,
+        }
+        before = copy.deepcopy(result)
+        before_sample = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        export_market_observations("Restaurant", "Colbert County, Alabama", provider)
+        self.assertEqual(result, before)
+        self.assertFalse(result["human_review_approved"])
+        self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
 
 
 if __name__ == "__main__":

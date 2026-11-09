@@ -96,6 +96,8 @@ PUBLIC_SOURCE = "U.S. Bureau of Labor Statistics, Quarterly Census of Employment
 CENSUS_SOURCE = "U.S. Census Bureau, American Community Survey 5-year estimates"
 CBP_SOURCE = "U.S. Census Bureau, County Business Patterns"
 BEA_SOURCE = "U.S. Bureau of Economic Analysis, Regional Economic Accounts"
+LAUS_SOURCE = "U.S. Bureau of Labor Statistics, Local Area Unemployment Statistics"
+CPS_SOURCE = "U.S. Bureau of Labor Statistics, Current Population Survey"
 ACS_LABEL = (
     "Public source: U.S. Census Bureau, American Community Survey 5-year estimates. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
@@ -113,6 +115,12 @@ CBP_LABEL = (
 )
 BEA_LABEL = (
     "Public source: U.S. Bureau of Economic Analysis, Regional Economic Accounts. "
+    "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
+    "or any recommend-against flag."
+)
+LAUS_LABEL = (
+    "Public source: U.S. Bureau of Labor Statistics, Local Area Unemployment Statistics. "
+    "The United States row uses the Current Population Survey national series. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
     "or any recommend-against flag."
 )
@@ -564,6 +572,106 @@ class BeaRegionalProvider:
         return observations
 
 
+_LAUS_AREAS = {
+    "United States": {
+        "rate": "LNU04000000",
+        "labor": "LNU01000000",
+        "labor_measure": "Civilian labor force (thousands)",
+        "source": CPS_SOURCE,
+        "note": (
+            "National Current Population Survey series, not seasonally adjusted. "
+            "Local Area Unemployment Statistics covers local areas and does not publish this nation series. "
+            "Labor force is in thousands of people."
+        ),
+    },
+    "Alabama": {
+        "rate": "LAUST010000000000003",
+        "labor": "LAUST010000000000006",
+    },
+    "Colbert County, Alabama": {
+        "rate": "LAUCN010330000000003",
+        "labor": "LAUCN010330000000006",
+    },
+    "Tennessee": {
+        "rate": "LAUST470000000000003",
+        "labor": "LAUST470000000000006",
+    },
+    "Hamilton County, Tennessee": {
+        "rate": "LAUCN470650000000003",
+        "labor": "LAUCN470650000000006",
+    },
+    "Georgia": {
+        "rate": "LAUST130000000000003",
+        "labor": "LAUST130000000000006",
+    },
+    "Fulton County, Georgia": {
+        "rate": "LAUCN131210000000003",
+        "labor": "LAUCN131210000000006",
+    },
+}
+_LAUS_LIMITATION = (
+    "Local Area Unemployment Statistics annual average, period M13, not seasonally adjusted. "
+    "Measure 03 is the unemployment rate in percent. Measure 06 is the civilian labor force. "
+    "These are area labor-market estimates, not revenue or demand for any one business, and not a NAICS industry. "
+    "They do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag, "
+    "and they do not set human_review_approved. This is not a live feed. Monitoring is not active. "
+    "BLS may revise a release."
+)
+
+
+class BlsLausProvider:
+    """Unemployment rate and labor force for one mapped geography."""
+
+    name = "bls-laus"
+
+    def __init__(
+        self,
+        *,
+        year: str = "2024",
+        transport: Fetch | None = None,
+        retrieved_on: str | None = None,
+    ) -> None:
+        self.year = year if len(year) == 4 and year.isdigit() else "2024"
+        self._transport = transport or _fetch_text
+        self._retrieved_on = retrieved_on
+
+    def observations(self, industry: str | None, geography: str | None) -> list[dict[str, str]]:
+        geography_name = str(geography or "").strip()
+        area = _LAUS_AREAS.get(geography_name)
+        if area is None:
+            raise NotCovered("selection is not covered")
+        retrieved_on = self._retrieved_on or _today()
+        source = str(area.get("source") or LAUS_SOURCE)
+        note = str(area.get("note") or "")
+        limitations = _LAUS_LIMITATION if not note else f"{_LAUS_LIMITATION} {note}"
+        base = {
+            "source": source,
+            "geographic_coverage": geography_name,
+            "industry_classification": "Labor market. Not a NAICS industry.",
+            "measurement_period": f"{self.year} annual average",
+            "retrieval_date": retrieved_on,
+            "limitations": limitations,
+        }
+        series = (
+            ("rate", "Unemployment rate (percent)", "headline"),
+            ("labor", str(area.get("labor_measure") or "Labor force"), "headline"),
+        )
+        observations = []
+        for key, measure, detail in series:
+            series_id = str(area[key])
+            url = f"https://api.bls.gov/publicAPI/v1/timeseries/data/{series_id}"
+            observations.append(
+                {
+                    **base,
+                    "geographic_coverage": f"{geography_name} (BLS series {series_id})",
+                    "measure": measure,
+                    "value": _laus_annual_value(self._transport(url), self.year),
+                    "detail": detail,
+                }
+            )
+        return observations
+
+
 class CombinedMarketProvider:
     """Public extracts together. A failed part does not remove the other part."""
 
@@ -582,6 +690,7 @@ def get_market_provider(environ: Any | None = None, transport: Fetch | None = No
     census_raw = str(env.get("MARKET_CENSUS") or "").strip().lower()
     cbp_raw = str(env.get("MARKET_CBP") or "").strip().lower()
     bea_raw = str(env.get("MARKET_BEA") or "").strip().lower()
+    laus_raw = str(env.get("MARKET_LAUS") or "").strip().lower()
     parts: list[Any] = []
     if raw in {"bls", "qcew", "bls-qcew"}:
         parts.append(BlsQcewProvider(year=_year(env, "MARKET_YEAR", "2024"), transport=transport))
@@ -605,6 +714,10 @@ def get_market_provider(environ: Any | None = None, transport: Fetch | None = No
         )
     elif bea_raw not in {"", "none", "off", "synthetic", "demo", "demonstration"}:
         parts.append(UnavailableMarketProvider(bea_raw))
+    if laus_raw in {"laus", "bls-laus", "unemployment"}:
+        parts.append(BlsLausProvider(year=_year(env, "LAUS_YEAR", "2024"), transport=transport))
+    elif laus_raw not in {"", "none", "off", "synthetic", "demo", "demonstration"}:
+        parts.append(UnavailableMarketProvider(laus_raw))
     if not parts:
         return SyntheticMarketProvider()
     if len(parts) == 1 and not isinstance(parts[0], UnavailableMarketProvider):
@@ -649,6 +762,7 @@ def load_market(
                 "census-acs": ACS_LABEL,
                 "census-cbp": CBP_LABEL,
                 "bea-regional": BEA_LABEL,
+                "bls-laus": LAUS_LABEL,
             }.get(provider_name, PUBLIC_LABEL),
             "reason": None,
             "provider_name": provider_name,
@@ -879,6 +993,8 @@ def _provider_caption(provider: Any) -> str:
         return "U.S. Census Bureau, County Business Patterns"
     if name == "bea-regional":
         return "U.S. Bureau of Economic Analysis, Regional Economic Accounts"
+    if name == "bls-laus":
+        return "BLS Local Area Unemployment Statistics"
     if name == "unavailable":
         requested = str(getattr(provider, "requested", "") or "").strip()
         return f"Requested provider {requested}" if requested else "Requested provider"
@@ -973,6 +1089,36 @@ def _cbp_api_row(body: str, naics: str) -> dict[str, Any]:
         if str(record.get("NAICS2017") or "") == naics:
             return record
     raise LookupError("CBP does not publish this NAICS code")
+
+
+def _laus_annual_value(body: str, year: str) -> str:
+    try:
+        payload = json.loads(body)
+        series = payload["Results"]["series"][0]["data"]
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("LAUS response was not readable") from exc
+    if str(payload.get("status") or "") != "REQUEST_SUCCEEDED":
+        raise ValueError("LAUS response was not readable")
+    match = next(
+        (
+            row
+            for row in series
+            if str(row.get("year") or "") == year and str(row.get("period") or "") == "M13"
+        ),
+        None,
+    )
+    if not isinstance(match, dict):
+        raise ValueError("LAUS annual average was not in the response")
+    raw = str(match.get("value") or "").strip().replace(",", "")
+    if not raw or raw.startswith("(") or raw.startswith("-") or raw == "-":
+        return "Not disclosed"
+    try:
+        number = float(raw)
+    except ValueError:
+        return "Not disclosed"
+    if number < 0:
+        return "Not disclosed"
+    return raw
 
 
 def _bea_value(body: str, year: str) -> str:

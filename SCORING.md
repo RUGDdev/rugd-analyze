@@ -1,32 +1,42 @@
-# Indicative score
+# Indicative assessment
 
-This score is a reading aid. It is not the feasibility score in `scoring/rules.py`. That score stays uncalculated, and `overall_feasibility_score` stays null. `app/future.py` `scoring_methodology()` stays disabled and still returns “Not calculated — methodology pending approval.”
+This is a reading aid. It is not the feasibility score in `scoring/rules.py`. That score stays uncalculated, and `overall_feasibility_score` stays null. `app/future.py` `scoring_methodology()` stays disabled and still returns “Not calculated — methodology pending approval.”
 
-The indicative score does not clear a recommend-against flag, change the engine recommendation, change investor readiness, or set `human_review_approved`.
+The indicative assessment does not clear a recommend-against flag, write the stored engine recommendation, change investor readiness, or set `human_review_approved`.
 
 The label on the results page and the HTML audit is:
 
-> Indicative Score — combines market validity, profitability, and Durable Value principles. Does not override engine flags or human review.
+> Indicative assessment — market validity, financial viability, and stewardship readiness. Does not override engine flags or human review.
+
+## What the page shows first
+
+1. Gate status: **Blocked** or **Open**.
+2. Band: **Blocked**, **Weak**, **Conditional**, or **Strong**.
+3. Gate recommendation. A hard gate states **do-not-proceed**.
+4. The three component scores.
+5. The overall 0–100 number, labeled “indicative only.” It is secondary.
+
+The stored engine recommendation is not rewritten. When a hard gate is active, the gate recommendation is do-not-proceed even if the stored text says something else. The 0.1 engine already drafts do-not-proceed when one of these flags is active.
 
 ## Weights
 
-The overall score is an integer from 0 to 100:
+The overall number is an integer from 0 to 100:
 
 ```text
-(market × 40 + profitability × 35 + durable × 25) // 100
+(market × 45 + financial × 40 + stewardship × 15) // 100
 ```
 
-The division drops the remainder. Each component is an integer from 0 to 100.
+The division drops the remainder. Each component is an integer from 0 to 100. Stewardship is the light weight.
 
 | Component | Weight |
 | --- | --- |
-| Market Validity | 40 |
-| Profitability and Financial Viability | 35 |
-| Durable Value and Stewardship | 25 |
+| Market Validity | 45 |
+| Financial Viability | 40 |
+| Stewardship Readiness | 15 |
 
 ## Bands
 
-A recommend-against flag forces **Blocked** even when the number is high. The flags are the engine set:
+A recommend-against flag forces **Blocked** and the gate recommendation **do-not-proceed**, even when the number is high. The flags are the engine set:
 
 - `INSUFFICIENT_DEMAND_EVIDENCE`
 - `NEGATIVE_OR_MARGINAL_CASH_FLOW`
@@ -34,7 +44,7 @@ A recommend-against flag forces **Blocked** even when the number is high. The fl
 - `UNRESOLVED_REGULATORY_OR_LIABILITY`
 - `EXTRACTION_WITHOUT_REINVESTMENT`
 
-When none of those flags is active:
+When none of those flags is active, the gate is Open and the band follows the overall number:
 
 | Band | Overall score |
 | --- | --- |
@@ -42,19 +52,17 @@ When none of those flags is active:
 | Conditional | 50 to 74 |
 | Weak | 0 to 49 |
 
-The engine recommendation is shown as the engine stored it. Blocked does not rewrite that field. In the 0.1 engine, any of these flags already drafts do-not-proceed.
-
 ## Market Validity
 
 | Input | Points | Rule |
 | --- | --- | --- |
 | Demand evidence | 0, 25, or 60 | `demand.status` `cleared` is 60. `unverified` is 25. Anything else is 0. |
-| Market size or growth | 0 or 20 | 20 only when a stored public observation has a positive numeric value and its measure names employment, population, establishment, GDP, personal income, payroll, or wage. Synthetic examples and “Not disclosed” add nothing. The results page does not fetch a market provider. |
+| Market size or growth | 0 or 20 | 20 only when a stored public observation has a positive number and its measure names employment, population, establishment, GDP, personal income, payroll, wage, unemployment, or labor force. Synthetic examples and “Not disclosed” add nothing. The results page does not fetch a market provider. |
 | Competitive density | 0 | Not measured. This portion stays 0. |
 
-A market figure cannot clear a flag. If a hard gate is active, the band stays Blocked.
+A market figure, including a LAUS unemployment rate, cannot clear a flag. If a hard gate is active, the band stays Blocked.
 
-## Profitability and Financial Viability
+## Financial Viability
 
 Figures come from the engine `financial` object and, for DSCR, from `projection.views.downside.dscr`. Missing figures are not invented.
 
@@ -65,20 +73,20 @@ Figures come from the engine `financial` object and, for DSCR, from `projection.
 | Downside DSCR | 0, 5, 10, or 20 | At least 1 is 20. Zero up to but not including 1 is 5. Negative is 0. Missing is 10, because the ratio was not calculated. This 1.0 line is only for the indicative score. It is not the Investor Readiness Gate. |
 | Capital recovery | 0, 6, 12, or 20 | `months_to_break_even_base` of 24 or less is 20. 60 or less is 12. Longer is 6. Missing, or base cash flow that is not positive, is 0. |
 
-## Durable Value and Stewardship
+## Stewardship Readiness
 
-Notes are the optional educational notes already stored on the assessment. They are not a DVT evaluation.
+This component uses only the optional educational notes already stored on the assessment. It is not a DVT evaluation. A missing note has a minimal penalty.
 
 | Input | Points | Rule |
 | --- | --- | --- |
-| Floor | 70 | Missing notes stay at 70. They are not a heavy penalty. |
-| Pillar notes | 4 each | One stored note on a known pillar adds 4. Seven pillars can add 28. The component is capped at 100, so the highest note total in this rule is 98. |
+| Floor | 90 | Missing optional notes stay at 90. |
+| Pillar notes | 1 each | One stored note on a known pillar adds 1. Seven notes add 7. The component is capped at 100, so the highest note total in this rule is 97. |
 
-A blank note does not count. The official baseline does not store these notes.
+A blank note does not count. The official baseline does not store these notes. A hard gate is not subtracted inside this component. The gate changes the band, not this number.
 
-## What the score does not do
+## What the assessment does not do
 
-- It does not change `recommendation`, `blocking_flags`, `readiness_status`, `is_final`, or `human_review_approved`.
+- It does not change `recommendation`, `blocking_flags`, `readiness_status`, `is_final`, or `human_review_approved` on the stored result.
 - It does not make a result investor-ready. Investor-ready still requires every existing gate plus authorized human review.
 - It does not call the market provider and it does not call the analyst.
 - It is computed when the results page or the HTML audit is rendered. It is not written into the stored engine result.

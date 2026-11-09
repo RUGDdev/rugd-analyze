@@ -345,7 +345,14 @@ class TestAnalyzeApp(unittest.TestCase):
             self.assertIn("Hypothetical Restaurant Startup", page)
             saved_market = {
                 key: os.environ.pop(key, None)
-                for key in ("MARKET_PROVIDER", "MARKET_CENSUS", "MARKET_CBP", "MARKET_BEA", "BEA_USER_ID")
+                for key in (
+                    "MARKET_PROVIDER",
+                    "MARKET_CENSUS",
+                    "MARKET_CBP",
+                    "MARKET_BEA",
+                    "BEA_USER_ID",
+                    "MARKET_LAUS",
+                )
             }
             try:
                 with urllib.request.urlopen(base + "/market") as response:

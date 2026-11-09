@@ -883,17 +883,19 @@ def _indicative_block(result: dict[str, Any], notes: list[dict[str, Any]] | None
         "</li>"
         for key, item in (
             ("market_validity", components["market_validity"]),
-            ("profitability", components["profitability"]),
-            ("durable_value", components["durable_value"]),
+            ("financial_viability", components["financial_viability"]),
+            ("stewardship_readiness", components["stewardship_readiness"]),
         )
     )
     return f"""
 <section class="indicative-score">
-<h2>Indicative score</h2>
+<h2>Indicative assessment</h2>
 <p><strong>{escape(score['label'])}</strong></p>
-<p><strong>Indicative score:</strong> {score['score']} of 100</p>
+<p><strong>Gate status:</strong> {escape(score['gate_status'])}</p>
 <p><strong>Band:</strong> {escape(score['band'])}</p>
+<p><strong>Gate recommendation:</strong> {escape(score['gate_recommendation'])}</p>
 <ul>{lines}</ul>
+<p class="muted"><strong>Overall number (indicative only):</strong> {score['score']} of 100</p>
 <p>{escape(score['explanation'])}</p>
 </section>
 """
@@ -1374,6 +1376,7 @@ _YEAR_NOTE = (
     "CBP_YEAR selects the County Business Patterns release and defaults to 2023. "
     "BEA_YEAR selects the Regional Economic Accounts year and defaults to 2024. "
     "A BEA request also needs BEA_USER_ID. The page does not show that id. "
+    "LAUS_YEAR selects the unemployment annual average and defaults to 2024. "
     "This is prototype behavior."
 )
 
@@ -1442,6 +1445,7 @@ def _active_provider(view: dict[str, Any]) -> str:
         "census-acs": "U.S. Census Bureau, American Community Survey 5-year estimates",
         "census-cbp": "U.S. Census Bureau, County Business Patterns",
         "bea-regional": "U.S. Bureau of Economic Analysis, Regional Economic Accounts",
+        "bls-laus": "BLS Local Area Unemployment Statistics",
     }
     label = labels.get(name, name or "public market provider")
     return f"Active provider: {escape(label)}. Year: {escape(year or 'not set')}."
@@ -1465,7 +1469,8 @@ def _tier_note(tier: str) -> str:
     notes = {
         "explore": (
             "Explore shows a limited snapshot: headline employment, population, median household income, "
-            "establishment count, current-dollar GDP, and personal income when a public source published them."
+            "establishment count, current-dollar GDP, personal income, and the unemployment rate "
+            "when a public source published them."
         ),
         "analyze": (
             "Analyze shows the full current market view and the Market Research Summary. "

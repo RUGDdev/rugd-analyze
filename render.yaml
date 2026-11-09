@@ -60,3 +60,7 @@ services:
         sync: false
       - key: BEA_YEAR
         sync: false
+      - key: MARKET_LAUS
+        sync: false
+      - key: LAUS_YEAR
+        sync: false

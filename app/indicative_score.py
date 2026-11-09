@@ -13,14 +13,14 @@ from app.durable_value import PILLARS
 from scoring.rules import RECOMMEND_AGAINST_FLAGS
 
 LABEL = (
-    "Indicative Score — combines market validity, profitability, and Durable Value principles. "
+    "Indicative assessment — market validity, financial viability, and stewardship readiness. "
     "Does not override engine flags or human review."
 )
 
 WEIGHTS = {
-    "market_validity": 40,
-    "profitability": 35,
-    "durable_value": 25,
+    "market_validity": 45,
+    "financial_viability": 40,
+    "stewardship_readiness": 15,
 }
 
 DEMAND_POINTS = {"cleared": 60, "unverified": 25, "uncleared": 0}
@@ -36,8 +36,8 @@ DSCR_NOT_CALCULATED = 10
 RECOVERY_WITHIN_24 = 20
 RECOVERY_WITHIN_60 = 12
 RECOVERY_LONGER = 6
-DURABLE_FLOOR = 70
-DURABLE_NOTE_POINTS = 4
+STEWARDSHIP_FLOOR = 90
+STEWARDSHIP_NOTE_POINTS = 1
 PILLAR_IDS = tuple(str(item["id"]) for item in PILLARS)
 
 
@@ -50,25 +50,30 @@ def indicative_score(
     blocking = [str(flag) for flag in result.get("blocking_flags") or []]
     hard_gates = [flag for flag in blocking if flag in RECOMMEND_AGAINST_FLAGS]
     market = _market(result, observations)
-    profitability = _profitability(result, blocking)
-    durable = _durable(notes)
+    financial = _profitability(result, blocking)
+    stewardship = _stewardship(notes)
     overall = (
         market["score"] * WEIGHTS["market_validity"]
-        + profitability["score"] * WEIGHTS["profitability"]
-        + durable["score"] * WEIGHTS["durable_value"]
+        + financial["score"] * WEIGHTS["financial_viability"]
+        + stewardship["score"] * WEIGHTS["stewardship_readiness"]
     ) // 100
-    band = _band(overall, bool(hard_gates))
-    explanation = _explanation(overall, band, hard_gates, market, profitability, durable)
+    blocked = bool(hard_gates)
+    band = _band(overall, blocked)
+    explanation = _explanation(overall, band, hard_gates, market, financial, stewardship)
+    stored_recommendation = str(result.get("recommendation") or "")
     return {
         "label": LABEL,
+        "gate_status": "Blocked" if blocked else "Open",
+        "gate_recommendation": "do-not-proceed" if blocked else stored_recommendation,
         "score": overall,
+        "score_role": "indicative only",
         "band": band,
         "hard_gates": hard_gates,
         "weights": dict(WEIGHTS),
         "components": {
             "market_validity": market,
-            "profitability": profitability,
-            "durable_value": durable,
+            "financial_viability": financial,
+            "stewardship_readiness": stewardship,
         },
         "explanation": explanation,
         "overrides_flags": False,
@@ -130,39 +135,39 @@ def _profitability(result: dict[str, Any], blocking: list[str]) -> dict[str, Any
         {"name": "Capital recovery", "points": recovery[0], "maximum": 20, "detail": recovery[1]},
     )
     return {
-        "name": "Profitability and Financial Viability",
+        "name": "Financial Viability",
         "score": sum(item["points"] for item in inputs),
         "inputs": inputs,
     }
 
 
-def _durable(notes: list[dict[str, Any]] | None) -> dict[str, Any]:
+def _stewardship(notes: list[dict[str, Any]] | None) -> dict[str, Any]:
     counted: set[str] = set()
     for item in notes or []:
         pillar_id = str(item.get("pillar_id") or "").strip()
         text = str(item.get("note") or "").strip()
         if pillar_id in PILLAR_IDS and text:
             counted.add(pillar_id)
-    note_points = DURABLE_NOTE_POINTS * len(counted)
-    score = min(100, DURABLE_FLOOR + note_points)
+    note_points = STEWARDSHIP_NOTE_POINTS * len(counted)
+    score = min(100, STEWARDSHIP_FLOOR + note_points)
     inputs = (
         {
             "name": "Floor for missing optional notes",
-            "points": DURABLE_FLOOR,
-            "maximum": 70,
-            "detail": "Missing optional notes stay at 70. They are not a heavy penalty.",
+            "points": STEWARDSHIP_FLOOR,
+            "maximum": 90,
+            "detail": "Missing optional notes stay at 90. The penalty for a missing note is minimal.",
         },
         {
             "name": "Pillar notes",
             "points": note_points,
-            "maximum": DURABLE_NOTE_POINTS * len(PILLAR_IDS),
+            "maximum": STEWARDSHIP_NOTE_POINTS * len(PILLAR_IDS),
             "detail": (
                 f"{len(counted)} of {len(PILLAR_IDS)} pillars have a stored note. "
-                "Each note adds 4 points."
+                "Each note adds 1 point."
             ),
         },
     )
-    return {"name": "Durable Value and Stewardship", "score": score, "inputs": inputs}
+    return {"name": "Stewardship Readiness", "score": score, "inputs": inputs}
 
 
 def _demand_status(result: dict[str, Any]) -> str:
@@ -177,16 +182,35 @@ def _demand_status(result: dict[str, Any]) -> str:
 
 
 def _market_signal(observations: list[dict[str, Any]] | None) -> bool:
-    words = ("employment", "population", "establishment", "gdp", "personal income", "payroll", "wage")
+    words = (
+        "employment",
+        "population",
+        "establishment",
+        "gdp",
+        "personal income",
+        "payroll",
+        "wage",
+        "unemployment",
+        "labor force",
+    )
     for item in observations or []:
         source = str(item.get("source") or "").lower()
         if "synthetic" in source:
             continue
         measure = str(item.get("measure") or "").lower()
         value = str(item.get("value") or "").replace(",", "").strip()
-        if value.isdigit() and int(value) > 0 and any(word in measure for word in words):
+        if _positive_number(value) and any(word in measure for word in words):
             return True
     return False
+
+
+def _positive_number(value: str) -> bool:
+    if not value or value.startswith("-") or value.startswith("("):
+        return False
+    try:
+        return float(value) > 0
+    except ValueError:
+        return False
 
 
 def _contribution_points(value: float | None) -> tuple[int, str]:
