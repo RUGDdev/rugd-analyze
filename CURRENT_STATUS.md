@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 134 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 136 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -47,6 +47,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Read-only share | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve |
 | Advisor Summary | Stored gate, band, components, flags, market snapshot, and Durable Value notes. The download does not change the assessment | Same | Same | Same |
 | Evidence checklist | Guidance for demand evidence, missing inputs, and Durable Value notes. A check does not clear a hard gate | Same on the draft and on results | Same on the draft and on results | Same on the draft and on results |
+| Scenario comparison | After Analyze, one saved Base and one Downside or Upside case. The comparison does not change the official result | Same | Same | Same |
 | Market Pulse | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration |
 
 ## Unfinished
@@ -367,3 +368,9 @@ Further work on production authentication, real market data, an approved scoring
 - The Explore page, the open draft, and the results page show an evidence checklist. The items follow the draft: verified demand evidence, missing monthly financial inputs, missing startup inputs on the startup path, and key Durable Value notes. An active hard gate stays listed.
 - Checking an item stores that it was noted. Filling an intake field or saving an educational note shows the matching item as recorded. Neither action clears a recommend-against flag, changes the stored recommendation, or sets `human_review_approved`.
 - The unittest suite is 134 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 scenario comparison
+
+- Results can save the current engine result as Base and run one Downside or Upside case from the current inputs and the stored downside multiplier. The two cases are shown side by side with key engine metrics.
+- The comparison is stored apart from the official result. It does not change the recommendation, a hard gate, or `human_review_approved`.
+- The unittest suite is 136 tests, all passing. The official baseline intake was not edited.

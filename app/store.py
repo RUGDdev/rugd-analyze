@@ -207,6 +207,10 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         connection.execute(
             "ALTER TABLE assessments ADD COLUMN checklist_json TEXT NOT NULL DEFAULT '{}'"
         )
+    if "scenarios_json" not in assessment_columns:
+        connection.execute(
+            "ALTER TABLE assessments ADD COLUMN scenarios_json TEXT NOT NULL DEFAULT '{}'"
+        )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS share_links (
@@ -637,6 +641,30 @@ def save_checklist(
         """
         UPDATE assessments
         SET checklist_json = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (json.dumps(clean), _now(), assessment_id),
+    )
+    connection.commit()
+    saved = get_assessment(connection, assessment_id)
+    assert saved is not None
+    return saved
+
+
+def save_scenarios(
+    connection: sqlite3.Connection, assessment_id: str, state: dict[str, Any]
+) -> dict[str, Any]:
+    """Store Base and one alternative case. This does not write the profile, intake, or engine result."""
+    from app.scenarios import normalize_stored
+
+    current = get_assessment(connection, assessment_id)
+    if current is None:
+        raise KeyError(assessment_id)
+    clean = normalize_stored(state)
+    connection.execute(
+        """
+        UPDATE assessments
+        SET scenarios_json = ?, updated_at = ?
         WHERE id = ?
         """,
         (json.dumps(clean), _now(), assessment_id),
@@ -1569,6 +1597,7 @@ def _public_row(row: sqlite3.Row) -> dict[str, Any]:
         "business_profile_id": row["business_profile_id"],
         "owner_user_id": row["owner_user_id"],
         "checklist": _load_checklist(row["checklist_json"]),
+        "scenarios": _load_scenarios(row["scenarios_json"]),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -1585,6 +1614,18 @@ def _attach_business_profile(
         assessments_for_profile(connection, profile_id) if profile_id else []
     )
     return record
+
+
+def _load_scenarios(raw: str | None) -> dict[str, Any]:
+    from app.scenarios import blank_scenarios, normalize_stored
+
+    if not raw:
+        return blank_scenarios()
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError:
+        return blank_scenarios()
+    return normalize_stored(loaded)
 
 
 def _load_checklist(raw: str | None) -> dict[str, bool]:

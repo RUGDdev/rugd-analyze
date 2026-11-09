@@ -17,7 +17,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Receive guided intake assistance | Partially met | The intake shows the next missing item. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and an API key are set. |
 | Run the deterministic financial engine | Met | Analyze calls the unchanged 0.1 engine. |
 | View supported financial calculations | Met | Sources and uses, base and downside, and DSCR appear when the engine calculates them. |
-| Compare available scenarios | Met | The comparison is the engine’s base and downside views. |
+| Compare available scenarios | Met | The engine still shows its base and downside views. Results can also save the current result as Base and run one Downside or Upside case. That comparison does not change the official recommendation or a hard gate. |
 | Review a draft recommendation | Met | The recommendation stays a draft. Approval does not rewrite it. |
 | See missing evidence requirements | Met | Missing required fields and `INSUFFICIENT_DEMAND_EVIDENCE` stay visible. The Explore page, the draft, and results show an evidence checklist. Checking an item updates guidance and does not clear a hard gate. |
 | Open the report and audit | Met | Markdown report, JSON audit, a read-only HTML audit page, a research package JSON and Markdown export, and a print-friendly Research Brief are available. Advisor Summary adds a JSON package and a printable HTML view. An owner or reviewer can also open a time-limited or revocable read-only share, including the Advisor Summary. That page cannot edit or approve. |
@@ -62,6 +62,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Read-only share | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve |
 | Advisor Summary | Stored gate, band, components, flags, market snapshot, and Durable Value notes. The download does not change the assessment | Same | Same | Same |
 | Evidence checklist | Guidance for demand evidence, missing inputs, and Durable Value notes. A check does not clear a hard gate | Same on the draft and on results | Same on the draft and on results | Same on the draft and on results |
+| Scenario comparison | After Analyze, one saved Base and one Downside or Upside case. The comparison does not change the official result | Same | Same | Same |
 | Market Pulse | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration |
 
 ## Owner decisions required before further work

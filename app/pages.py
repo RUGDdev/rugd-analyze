@@ -934,6 +934,7 @@ def results_page(
 {_view_summary_block(result)}
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
 </div>
+{_scenario_comparison(record, result)}
 {_evidence_checklist(record, result, notes, return_to="results")}
 {_indicative_block(result, notes)}
 {_analyst_panel(record, result)}
@@ -1021,6 +1022,7 @@ def _results_not_run(
 {details}
 {baseline}
 {_evidence_checklist(record, result, notes, return_to="results")}
+<p class="muted">Scenario comparison is available after Analyze has been run. It does not change a recommendation or a hard gate.</p>
 <p><a class="button" href="/assessments/{escape(record['id'])}">Return to the draft</a>
 <a class="button" href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
 {_guidance_section("explore", notes=notes, record=record)}
@@ -1351,6 +1353,78 @@ def _revenue_bars(base: Any, downside: Any) -> str:
 <p>Downside {escape(str(downside))}</p>
 <div class="bar-track"><div class="bar" style="width: {downside_width}%"></div></div>
 """
+
+
+def _scenario_comparison(record: dict[str, Any], result: dict[str, Any]) -> str:
+    from app.scenarios import DISCLAIMER, METRIC_KEYS, METRIC_LABELS, blank_scenarios
+
+    stored = record.get("scenarios") if isinstance(record.get("scenarios"), dict) else blank_scenarios()
+    base = stored.get("base") if isinstance(stored.get("base"), dict) else None
+    alternative = stored.get("alternative") if isinstance(stored.get("alternative"), dict) else None
+    base_metrics = base.get("metrics") if base else {}
+    alternative_metrics = alternative.get("metrics") if alternative else {}
+    alternative_label = str(alternative.get("label")) if alternative else "Alternative"
+    rows = []
+    for key in METRIC_KEYS:
+        left = _scenario_metric(base_metrics.get(key) if isinstance(base_metrics, dict) else None)
+        right = _scenario_metric(
+            alternative_metrics.get(key) if isinstance(alternative_metrics, dict) else None
+        )
+        if left == "not calculated" and right == "not calculated":
+            continue
+        rows.append(
+            "<tr>"
+            f"<td>{escape(METRIC_LABELS[key])}</td>"
+            f"<td>{escape(left)}</td>"
+            f"<td>{escape(right)}</td>"
+            "</tr>"
+        )
+    if rows:
+        table = (
+            "<table>"
+            f"<tr><th>Metric</th><th>Base</th><th>{escape(alternative_label)}</th></tr>"
+            + "".join(rows)
+            + "</table>"
+        )
+    elif base or alternative:
+        table = "<p>The engine did not calculate a key metric for the saved cases.</p>"
+    else:
+        table = "<p>No Base case is saved.</p>"
+    note = ""
+    if alternative:
+        note = f"<p class=\"muted\">{escape(str(alternative.get('note') or ''))}</p>"
+    flags = [str(flag) for flag in result.get("blocking_flags") or []]
+    if flags:
+        gate_line = (
+            "<p><strong>Official hard gates:</strong> "
+            + escape(", ".join(flags))
+            + ". This comparison did not clear them.</p>"
+        )
+    else:
+        gate_line = "<p><strong>Official hard gates:</strong> none on this result. This comparison did not add or clear one.</p>"
+    assessment_id = escape(str(record.get("id") or ""))
+    return f"""
+<section class="card" id="scenario-comparison">
+<h2>Scenario comparison</h2>
+<p>{escape(DISCLAIMER)}</p>
+<p><strong>Official recommendation:</strong> {escape(str(result.get("recommendation") or "not loaded"))}. This comparison did not change it.</p>
+{gate_line}
+{table}
+{note}
+<form method="post" action="/assessments/{assessment_id}/scenarios">
+<button type="submit" name="case" value="base">Save current result as Base</button>
+<button type="submit" name="case" value="downside">Run Downside case</button>
+<button type="submit" name="case" value="upside">Run Upside case</button>
+</form>
+<p class="muted">One alternative case is kept. Running Downside or Upside replaces the previous alternative. The official engine result stays in place.</p>
+</section>
+"""
+
+
+def _scenario_metric(value: Any) -> str:
+    if value is None:
+        return "not calculated"
+    return str(value)
 
 
 def _financial_table(financial: dict[str, Any] | None) -> str:

@@ -399,3 +399,10 @@ Owner input required before replacing `billing_hooks`:
 - The Explore page, the open draft, and the results page show an evidence checklist. The items name verified demand evidence, missing monthly financial inputs, missing startup inputs on the startup path, key educational Durable Value notes, and any other active hard gate.
 - Checking an item stores that it was noted. A saved intake value or an educational note shows the matching item as recorded. The state is checklist JSON on the assessment. It is not an engine input.
 - Checking or completing an item does not clear a recommend-against flag, change the stored recommendation, or set `human_review_approved`. The official baseline intake stays unchanged.
+
+## Decision: Base and one alternative scenario
+
+- Date: 2026-11-09
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- Results can save the current engine result as Base. One additional case, Downside or Upside, runs the same engine on the current inputs. Downside scales revenue and occupancy by the stored downside multiplier. Upside uses the inverse of that multiplier, and occupancy stops at 1 because the engine rejects a higher occupancy.
+- The two cases are shown side by side with key metrics. The comparison is stored apart from the official result. It does not change the recommendation, a hard gate, or `human_review_approved`. The engine’s own base and downside views inside one result stay as they are. The official baseline intake stays unchanged.

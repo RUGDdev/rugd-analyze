@@ -22,9 +22,10 @@ Current prototype capabilities:
 - An assessment owner or a reviewer can create a read-only share for 24 hours, 7 days, or until it is revoked. The shared page cannot edit the assessment or approve it. The same link can open Advisor Summary.
 - Advisor Summary shows the stored gate status, band, three component scores, key flags, market snapshot, and Durable Value notes. Download Advisor Package is JSON, and a printable HTML view includes provenance. Neither file runs the engine or changes the assessment.
 - The Explore page, the open draft, and the results page show an evidence checklist for verified demand, missing financial inputs, and key Durable Value notes. Checking or completing an item updates guidance only. It does not clear a hard gate.
+- Results can save the current engine result as Base and run one Downside or Upside case from the current inputs. The comparison does not change the official recommendation or a hard gate.
 - Optional public extracts: BLS QCEW, ACS, County Business Patterns, BEA Regional, and BLS LAUS. A failed part falls back to the synthetic snapshot. The figures do not clear a flag.
 
-Tests are `python -m unittest discover -s tests` from this directory. The current suite is 134 tests.
+Tests are `python -m unittest discover -s tests` from this directory. The current suite is 136 tests.
 
 ## Owner decisions required before further work
 

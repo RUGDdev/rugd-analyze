@@ -106,6 +106,7 @@ from app.store import (
     save_checklist,
     save_profile,
     save_result,
+    save_scenarios,
     seed,
 )
 
@@ -480,6 +481,9 @@ class AppHandler(BaseHTTPRequestHandler):
         if action == "checklist":
             self._save_checklist(connection, record, form)
             return
+        if action == "scenarios":
+            self._save_scenario(connection, record, form)
+            return
         if action == "save":
             if record["read_only"]:
                 self._html(assessment_form(record, "This baseline cannot be edited."), status=403)
@@ -607,6 +611,31 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(layout("Not allowed", f"<h1>Not allowed</h1><p>{escape(str(exc))}</p>"), status=403)
             return
         self._redirect(f"/assessments/{record['id']}?share={issued['token']}")
+
+    def _save_scenario(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
+        from app.scenarios import update_scenarios
+
+        stored = record.get("result") if isinstance(record.get("result"), dict) else None
+        if not stored or not stored.get("engine_ran"):
+            self._html(
+                results_page(
+                    record,
+                    stored or {"engine_ran": False, "message": "Analyze has not been run."},
+                    list_guidance_notes(connection, record["id"]),
+                ),
+                status=400,
+            )
+            return
+        try:
+            state = update_scenarios(record, form.get("case") or "")
+        except ValueError as exc:
+            self._html(
+                layout("Not allowed", f"<h1>Not allowed</h1><p>{escape(str(exc))}</p>"),
+                status=400,
+            )
+            return
+        save_scenarios(connection, record["id"], state)
+        self._redirect(f"/assessments/{record['id']}/results")
 
     def _save_checklist(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
         from app.checklist import apply_posted, posted_checks
