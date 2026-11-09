@@ -136,6 +136,10 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
             "ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0"
         )
         connection.execute("UPDATE users SET email_verified = 1")
+    if "notification_preferences" not in user_columns:
+        connection.execute(
+            "ALTER TABLE users ADD COLUMN notification_preferences TEXT NOT NULL DEFAULT '{}'"
+        )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS account_tokens (
@@ -1248,7 +1252,7 @@ def count_users_with_role(connection: sqlite3.Connection, role: str) -> int:
 def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
-        SELECT id, email, password_hash, role, created_at, email_verified
+        SELECT id, email, password_hash, role, created_at, email_verified, notification_preferences
         FROM users
         WHERE email = ?
         """,
@@ -1262,7 +1266,7 @@ def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, A
 def get_user_by_id(connection: sqlite3.Connection, user_id: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
-        SELECT id, email, password_hash, role, created_at, email_verified
+        SELECT id, email, password_hash, role, created_at, email_verified, notification_preferences
         FROM users
         WHERE id = ?
         """,
@@ -1353,6 +1357,21 @@ def mark_account_token_used(connection: sqlite3.Connection, token_hash: str, use
     return cursor.rowcount == 1
 
 
+def save_notification_preferences(
+    connection: sqlite3.Connection,
+    user_id: str,
+    preferences: dict[str, Any],
+) -> None:
+    """Store the known email preferences. Role, password, and assessments stay as they are."""
+    from app.notifications import normalize_preferences
+
+    connection.execute(
+        "UPDATE users SET notification_preferences = ? WHERE id = ?",
+        (json.dumps(normalize_preferences(preferences), sort_keys=True), user_id),
+    )
+    connection.commit()
+
+
 def _user_from_row(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "id": row["id"],
@@ -1361,7 +1380,18 @@ def _user_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "role": row["role"],
         "created_at": row["created_at"],
         "email_verified": bool(row["email_verified"]),
+        "notification_preferences": _stored_preferences(row["notification_preferences"]),
     }
+
+
+def _stored_preferences(raw: str | None) -> dict[str, bool]:
+    from app.notifications import normalize_preferences
+
+    try:
+        parsed = json.loads(raw or "{}")
+    except json.JSONDecodeError:
+        parsed = {}
+    return normalize_preferences(parsed)
 
 
 def record_reviewer_event(

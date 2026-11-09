@@ -63,11 +63,12 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Advisor Summary | Stored gate, band, components, flags, market snapshot, and Durable Value notes. The download does not change the assessment | Same | Same | Same |
 | Evidence checklist | Guidance for demand evidence, missing inputs, and Durable Value notes. A check does not clear a hard gate | Same on the draft and on results | Same on the draft and on results | Same on the draft and on results |
 | Scenario comparison | After Analyze, one saved Base and one Downside or Upside case. The comparison does not change the official result | Same | Same | Same |
+| Email preferences | Stored on the signed-in account. A chosen notice is written to the server log when SMTP_HOST is unset. The notice does not approve or clear a flag | Same | Same | Same |
 | Market Pulse | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration |
 
 ## Owner decisions required before further work
 
-These remain open. Local accounts, email verification, password reset, the indicative assessment, read-only sharing, the two onboarding paths, and the prepared Render pilot are already in this prototype. They do not close the items below.
+These remain open. Local accounts, email verification, password reset, the indicative assessment, read-only sharing, the two onboarding paths, stored email preferences, and the prepared Render pilot are already in this prototype. They do not close the items below.
 
 - Production authentication beyond local email and password, including OAuth or an external identity provider
 - Real market data sources beyond the optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts, including a commercial or live feed

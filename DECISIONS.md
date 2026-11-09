@@ -406,3 +406,12 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
 - Results can save the current engine result as Base. One additional case, Downside or Upside, runs the same engine on the current inputs. Downside scales revenue and occupancy by the stored downside multiplier. Upside uses the inverse of that multiplier, and occupancy stops at 1 because the engine rejects a higher occupancy.
 - The two cases are shown side by side with key metrics. The comparison is stored apart from the official result. It does not change the recommendation, a hard gate, or `human_review_approved`. The engine’s own base and downside views inside one result stay as they are. The official baseline intake stays unchanged.
+
+## Decision: Email preferences and the pilot handoff
+
+- Date: 2026-11-09
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- Settings stores three email preferences for the signed-in account: assessment shared, review requested, and review recorded. A new account starts with all three off. The preference is stored on the user row. It is not an engine input.
+- When the owner has turned an event on, the existing mail path sends one notice to that owner. With `SMTP_HOST` unset, the running server writes the notice to its log. The raw share token is not included. Verification and password-reset messages stay available and are not gated by these preferences.
+- A notice does not approve an assessment, clear a recommend-against flag, change a role, or set `human_review_approved`. An assessment with no owner, including the official baseline, sends no preference notice.
+- `HANDOFF.md` records that the local prototype is ready for a guided pilot and lists the owner decisions that remain open. Those decisions stay open. The official baseline intake stays unchanged.

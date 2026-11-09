@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 136 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 138 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -48,6 +48,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Advisor Summary | Stored gate, band, components, flags, market snapshot, and Durable Value notes. The download does not change the assessment | Same | Same | Same |
 | Evidence checklist | Guidance for demand evidence, missing inputs, and Durable Value notes. A check does not clear a hard gate | Same on the draft and on results | Same on the draft and on results | Same on the draft and on results |
 | Scenario comparison | After Analyze, one saved Base and one Downside or Upside case. The comparison does not change the official result | Same | Same | Same |
+| Email preferences | Stored on the signed-in account. A chosen notice is written to the server log when SMTP_HOST is unset. The notice does not approve or clear a flag | Same | Same | Same |
 | Market Pulse | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration |
 
 ## Unfinished
@@ -374,3 +375,10 @@ Further work on production authentication, real market data, an approved scoring
 - Results can save the current engine result as Base and run one Downside or Upside case from the current inputs and the stored downside multiplier. The two cases are shown side by side with key engine metrics.
 - The comparison is stored apart from the official result. It does not change the recommendation, a hard gate, or `human_review_approved`.
 - The unittest suite is 136 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 notification preferences and pilot handoff
+
+- Settings stores email preferences for assessment shared, review requested, and review recorded. The preference starts off. A notice is sent only to the owner of that assessment, and only when that account opted in. With `SMTP_HOST` unset, the running server writes it to the log. Verification and password-reset messages stay available.
+- The notice does not approve an assessment, clear a recommend-against flag, change a role, or set `human_review_approved`. A share notice does not include the raw token.
+- `HANDOFF.md` has a Ready for pilot users section. The remaining owner decisions stay open: production authentication, real market data beyond the public extracts, an approved scoring methodology, billing, investor matchmaking, recurring monitoring and rate limiting, an external analyst provider, LongArc or DVT, the Webflow site, a replacement frontend, official logo artwork, and completed named-pilot intakes or an investor summary.
+- The unittest suite is 138 tests, all passing. The official baseline intake was not edited.

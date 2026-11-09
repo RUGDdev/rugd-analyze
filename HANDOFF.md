@@ -23,13 +23,31 @@ Current prototype capabilities:
 - Advisor Summary shows the stored gate status, band, three component scores, key flags, market snapshot, and Durable Value notes. Download Advisor Package is JSON, and a printable HTML view includes provenance. Neither file runs the engine or changes the assessment.
 - The Explore page, the open draft, and the results page show an evidence checklist for verified demand, missing financial inputs, and key Durable Value notes. Checking or completing an item updates guidance only. It does not clear a hard gate.
 - Results can save the current engine result as Base and run one Downside or Upside case from the current inputs. The comparison does not change the official recommendation or a hard gate.
+- Settings stores email preferences for assessment shared, review requested, and review recorded. The notice goes to the assessment owner when that account opted in. With `SMTP_HOST` unset, the server log prints it. Verification and password-reset messages stay available. A notice does not approve an assessment or clear a flag.
 - Optional public extracts: BLS QCEW, ACS, County Business Patterns, BEA Regional, and BLS LAUS. A failed part falls back to the synthetic snapshot. The figures do not clear a flag.
 
-Tests are `python -m unittest discover -s tests` from this directory. The current suite is 136 tests.
+Tests are `python -m unittest discover -s tests` from this directory. The current suite is 138 tests.
+
+## Ready for pilot users
+
+A guided pilot can use this local prototype now. Start it with the Python 3.12 path in `README.md`: `python -m app`. With `RUGD_ENV` unset it binds to 127.0.0.1:8765. Every screen keeps the warning: Local prototype. Not production security. This screen does not grant investor-ready status.
+
+A pilot user can:
+
+- Register a customer account, verify the email, and reset the password. With `SMTP_HOST` unset, those messages are written to the server log.
+- Start a startup or existing-business assessment, save it, and run Analyze.
+- Read the indicative assessment, the evidence checklist, and one Base versus Downside or Upside comparison.
+- Open Advisor Summary and download the package.
+- Create a read-only share for 24 hours, 7 days, or until it is revoked.
+- Store email preferences for assessment shared, review requested, and review recorded. The preference is stored on the account. With `SMTP_HOST` unset, a chosen notice is written to the server log.
+
+The official RUGD Intelligence baseline stays draft do-not-proceed, blocking flag `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. A pilot draft does not change that file.
+
+Remaining owner decisions: production authentication beyond local email and password; real market data beyond the optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts; an approved scoring methodology, including any feasibility score; billing; investor matchmaking; recurring Partner monitoring, scheduled jobs, and rate limiting; an external AI provider; a LongArc or DVT connection, a Webflow change, or a replacement frontend; official logo artwork; and real completed intakes for Bunny Hive and Small Town Pub, or any investor summary. The same list is below.
 
 ## Owner decisions required before further work
 
-These remain open. The same list is in `ACCEPTANCE.md`. Local accounts, email verification, password reset, the indicative assessment, read-only sharing, the two onboarding paths, and the prepared Render pilot are already in this prototype. They do not close the items below.
+These remain open. The same list is in `ACCEPTANCE.md`. Local accounts, email verification, password reset, the indicative assessment, read-only sharing, the two onboarding paths, stored email preferences, and the prepared Render pilot are already in this prototype. They do not close the items below.
 
 - Production authentication beyond local email and password, including OAuth or an external identity provider
 - Real market data sources beyond the optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts, including a commercial or live feed

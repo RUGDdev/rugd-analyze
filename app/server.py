@@ -105,10 +105,12 @@ from app.store import (
     save_guidance_note,
     save_checklist,
     save_profile,
+    save_notification_preferences,
     save_result,
     save_scenarios,
     seed,
 )
+from app.notifications import notify_owner, preferences_from_form
 
 
 def _keep_venture_path(profile: dict[str, str], original: dict[str, Any]) -> None:
@@ -187,7 +189,12 @@ class AppHandler(BaseHTTPRequestHandler):
         elif path == "/reports":
             self._html(reports_page(list_assessments(connection)))
         elif path == "/settings":
-            self._html(settings_page())
+            with_user = None
+            state = self._account_state(connection)
+            user_id = str(state.get("user_id") or "")
+            if state.get("active") and user_id:
+                with_user = get_user_by_id(connection, user_id)
+            self._html(settings_page(with_user))
         elif path == "/login":
             self._html(login_page(self._safe_next(self._query_value("next"), "/")))
         elif path == "/register":
@@ -321,6 +328,9 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if path == "/reviewer/accounts":
             self._create_reviewer_account(connection, form)
+            return
+        if path == "/settings/notifications":
+            self._save_notification_preferences(connection, form)
             return
         if path in {"/logout", "/reviewer/session/sign-out"}:
             self._account_sign_out(connection, form)
@@ -511,6 +521,7 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if action == "review-request":
             request_review(connection, assessment_id)
+            notify_owner(connection, record, "review_requested")
             self._redirect(f"/assessments/{assessment_id}/validate")
             return
         if action == "share":
@@ -610,6 +621,7 @@ class AppHandler(BaseHTTPRequestHandler):
         except ShareError as exc:
             self._html(layout("Not allowed", f"<h1>Not allowed</h1><p>{escape(str(exc))}</p>"), status=403)
             return
+        notify_owner(connection, record, "assessment_shared")
         self._redirect(f"/assessments/{record['id']}?share={issued['token']}")
 
     def _save_scenario(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
@@ -812,6 +824,9 @@ class AppHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self._html(layout("Reviewer", f"<h1>Reviewer</h1><p>{escape(str(exc))}</p>"), status=400)
             return
+        updated = get_assessment(connection, assessment_id)
+        if updated is not None:
+            notify_owner(connection, updated, "review_recorded")
         self._redirect(f"/reviewer/assessments/{assessment_id}")
 
     def _verify_email(self, connection: Any) -> None:
@@ -949,6 +964,22 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _account_state(self, connection: Any) -> dict[str, Any]:
         return self._reviewer_session_state(connection)
+
+    def _save_notification_preferences(self, connection: Any, form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        user_id = str(state.get("user_id") or "")
+        if not state.get("active") or not user_id:
+            self._html(
+                layout(
+                    "Not allowed",
+                    "<h1>Not allowed</h1><p>Sign in to store email preferences. "
+                    "This does not approve an assessment.</p>",
+                ),
+                status=403,
+            )
+            return
+        save_notification_preferences(connection, user_id, preferences_from_form(form))
+        self._redirect("/settings")
 
     def _query_value(self, name: str) -> str:
         query = parse_qs(urlparse(self.path).query)

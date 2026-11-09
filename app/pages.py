@@ -2616,8 +2616,9 @@ def reports_page(records: list[dict[str, Any]]) -> str:
     )
 
 
-def settings_page() -> str:
+def settings_page(user: dict[str, Any] | None = None) -> str:
     from app.future import future_status
+    from app.notifications import EVENTS
 
     rows = "".join(
         "<li>"
@@ -2625,16 +2626,50 @@ def settings_page() -> str:
         "</li>"
         for item in future_status()["decisions"]
     )
+    if user is None:
+        preferences = """
+<section class="card">
+<h2>Email preferences</h2>
+<p>Sign in with a local account to store which notices this account receives.</p>
+<p class="muted">The preference is stored on the account. With SMTP_HOST unset, a chosen notice is written to the server log. Verification and password-reset messages stay available. A notice does not approve an assessment, clear a recommend-against flag, change a role, or set human_review_approved.</p>
+</section>
+"""
+    else:
+        stored = user.get("notification_preferences") or {}
+        boxes = []
+        for key, label, detail in EVENTS:
+            checked = " checked" if stored.get(key) else ""
+            boxes.append(
+                "<label>"
+                f'<input type="checkbox" name="pref_{escape(key)}" value="1"{checked}> '
+                f"<strong>{escape(label)}</strong>. {escape(detail)}"
+                "</label>"
+            )
+        preferences = (
+            "<section class=\"card\">"
+            "<h2>Email preferences</h2>"
+            "<p>Choose which notices this account receives for assessments it owns. "
+            "The preference is stored here. With SMTP_HOST unset, a chosen notice is written to the server log. "
+            "Verification and password-reset messages stay available.</p>"
+            "<form method=\"post\" action=\"/settings/notifications\">"
+            + "".join(boxes)
+            + "<button type=\"submit\">Save email preferences</button>"
+            "</form>"
+            "<p class=\"muted\">A notice does not approve an assessment, clear a recommend-against flag, "
+            "change a role, or set human_review_approved.</p>"
+            "</section>"
+        )
     body = f"""
 <h1>Settings</h1>
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
 <p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, those messages are written to the server log. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>
+{preferences}
 <h2>Owner decisions not activated</h2>
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>
 <p>Educational guidance on the tier pages is not a DVT evaluation. LongArc / DVT is not connected. The Webflow site is not connected.</p>
-<p>Market Pulse is a hypothetical demonstration. Monitoring is not active. No scheduled job, connector, or notification is configured.</p>
+<p>Market Pulse is a hypothetical demonstration. Monitoring is not active. No scheduled job or connector is configured. Account email preferences on this page are stored for the signed-in account. A chosen notice can be written to the server log. The notice does not approve an assessment or clear a flag.</p>
 <p>Only the RUGD Intelligence assessment is the official baseline. Bunny Hive and Small Town Pub stay empty named-pilot drafts until evidence is entered. They are not completed assessments.</p>
 <p>Authoritative calculations remain in the 0.1 Python engine.</p>
 """

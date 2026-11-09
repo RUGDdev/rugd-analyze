@@ -16,6 +16,7 @@ from app.pages import (
     market_pulse_page,
     new_assessment_page,
     results_page,
+    settings_page,
     shared_assessment_page,
     verification_banner,
 )
@@ -111,10 +112,12 @@ class TestBrandShell(unittest.TestCase):
             {"engine_ran": False},
         )
         reset = forgot_password_page()
+        preferences = settings_page()
         for name, page in {
             "new": fresh,
             "share": shared,
             "reset": reset,
+            "preferences": preferences,
         }.items():
             self.assertIn('class="sidebar"', page, name)
             self.assertIn('src="/static/rugd-logo.png"', page, name)
@@ -122,6 +125,9 @@ class TestBrandShell(unittest.TestCase):
             self.assertIn("#A88958", page, name)
             self.assertIn(NOTE, page, name)
         self.assertIn('class="card"', fresh)
+        self.assertIn('class="card"', preferences)
+        self.assertIn("Email preferences", preferences)
+        self.assertIn("Sign in with a local account to store which notices this account receives.", preferences)
         self.assertIn("Is this a startup idea or an existing or expanding business?", fresh)
         self.assertIn("Read-only share.", shared)
         self.assertIn("Indicative assessment is shown after Analyze has been run.", shared)
