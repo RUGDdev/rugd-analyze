@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 110 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 112 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -282,3 +282,9 @@ Further work on production authentication, real market data, an approved scoring
 - `ACCEPTANCE.md` and this file use the same Capabilities by tier matrix, including Durable Value guidance and the Market Pulse demonstration. `HANDOFF.md` lists the owner decisions still required before 0.3 work.
 - Customer pages, including Market Pulse, carry the local prototype warning. The warning states that the screen does not grant investor-ready status.
 - The unittest suite is 110 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 brand sidebar
+
+- Customer pages use a persistent left sidebar with the existing destinations, an active-section highlight, and the RUGD Intelligence wordmark at `app/static/rugd-logo.png`. The palette is the dark blue-gray, aged bronze, warm ivory, soft stone, antique gold, and charcoal slate set.
+- Prototype warnings, demonstration labels, financial tables, flags, and provenance stay on the pages. The official baseline is unchanged.
+- The unittest suite is 112 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from html import escape
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -73,6 +74,10 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
+        if path == "/static/rugd-logo.png":
+            logo = Path(__file__).resolve().parent / "static" / "rugd-logo.png"
+            self._bytes(logo.read_bytes(), "image/png")
+            return
         with self._db() as connection:
             seed(connection)
             if path == "/":

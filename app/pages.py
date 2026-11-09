@@ -47,10 +47,31 @@ NAV = (
 )
 
 
-def layout(title: str, body: str, *, printable: bool = False) -> str:
-    links = "".join(
-        f'<a href="{href}">{escape(label)}</a>' for href, label in NAV
-    )
+_TITLE_ACTIVE = {
+    "Dashboard": "/",
+    "Explore": "/explore",
+    "Analyze": "/analyze",
+    "Results": "/analyze",
+    "Analyst": "/analyze",
+    "Validate": "/validate",
+    "Partner": "/partner",
+    "Market Intelligence": "/market",
+    "Market Pulse": "/market-pulse",
+    "Reports": "/reports",
+    "Research Brief": "/reports",
+    "Audit view": "/reports",
+    "Settings": "/settings",
+    "New assessment": "/assessments",
+}
+
+
+def layout(title: str, body: str, *, printable: bool = False, active: str = "") -> str:
+    current = active or _TITLE_ACTIVE.get(title, "/assessments")
+    links = []
+    for href, label in NAV:
+        marker = ' class="active" aria-current="page"' if href == current else ""
+        links.append(f'<a href="{href}"{marker}>{escape(label)}</a>')
+    nav = "".join(links)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,47 +84,68 @@ def layout(title: str, body: str, *, printable: bool = False) -> str:
   --gold: #E9D8B7; --slate: #27323B;
 }}
 * {{ box-sizing: border-box; }}
-body {{ margin: 0; font-family: Georgia, "Times New Roman", serif; background: var(--ivory); color: var(--ink); }}
-header {{ background: var(--slate); color: var(--ivory); padding: 1.2rem 1.5rem 0.6rem; }}
-header p {{ margin: 0.2rem 0 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; font-family: "Segoe UI", sans-serif; font-size: 0.78rem; color: var(--gold); }}
-nav {{ display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; padding-bottom: 0.8rem; font-family: "Segoe UI", sans-serif; }}
-nav a {{ color: var(--ivory); text-decoration: none; border-bottom: 1px solid transparent; }}
-nav a:hover {{ border-bottom-color: var(--bronze); }}
-main {{ max-width: 980px; margin: 0 auto; padding: 1.5rem; }}
-h1, h2 {{ font-weight: normal; }}
-.banner {{ background: var(--gold); border-left: 4px solid var(--bronze); padding: 0.8rem 1rem; margin: 1rem 0; }}
-.card {{ background: white; border: 1px solid var(--stone); padding: 1rem 1.1rem; margin: 0.8rem 0; }}
-label {{ display: block; margin: 0.7rem 0 0.2rem; font-family: "Segoe UI", sans-serif; font-size: 0.92rem; }}
-input, select, textarea {{ width: 100%; padding: 0.45rem; border: 1px solid var(--stone); background: var(--ivory); color: var(--ink); font: inherit; }}
-button, .button {{ background: var(--ink); color: var(--ivory); border: 0; padding: 0.55rem 0.9rem; font-family: "Segoe UI", sans-serif; text-decoration: none; display: inline-block; margin: 0.3rem 0.4rem 0.3rem 0; }}
-.muted {{ color: #5c6b76; font-family: "Segoe UI", sans-serif; font-size: 0.92rem; }}
-table {{ width: 100%; border-collapse: collapse; font-family: "Segoe UI", sans-serif; }}
-td, th {{ text-align: left; padding: 0.35rem 0.2rem; border-bottom: 1px solid var(--stone); }}
-.flag {{ color: #7a2e2e; }}
-pre {{ white-space: pre-wrap; font-family: Consolas, monospace; font-size: 0.86rem; }}
+body {{ margin: 0; font-family: "Segoe UI", Calibri, sans-serif; background: var(--ivory); color: var(--ink); line-height: 1.45; }}
+.shell {{ display: flex; min-height: 100vh; align-items: stretch; }}
+.sidebar {{ width: 16.5rem; flex: 0 0 16.5rem; background: var(--slate); color: var(--ivory); padding: 0 0 1.5rem; }}
+.brand {{ display: block; background: var(--ivory); padding: 0.85rem 0.9rem 0.4rem; }}
+.brand img {{ display: block; width: 100%; height: auto; }}
+.brand-meta {{ margin: 0.75rem 1rem 1rem; color: var(--gold); font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; }}
+nav {{ display: flex; flex-direction: column; gap: 0.15rem; padding: 0 0.75rem; }}
+nav a {{ color: var(--ivory); text-decoration: none; padding: 0.55rem 0.7rem; border-left: 3px solid transparent; }}
+nav a:hover {{ background: #324656; }}
+nav a.active {{ background: #324656; color: var(--gold); border-left-color: var(--bronze); }}
+.workspace {{ flex: 1; min-width: 0; }}
+main {{ max-width: 980px; margin: 0 auto; padding: 2rem 1.75rem 3rem; }}
+h1 {{ font-weight: 600; font-size: 2rem; letter-spacing: -0.02em; margin: 0 0 0.6rem; }}
+h2 {{ font-weight: 600; font-size: 1.35rem; margin-top: 1.6rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--stone); }}
+h3 {{ font-weight: 600; }}
+.banner {{ background: var(--gold); border-left: 4px solid var(--bronze); padding: 0.85rem 1rem; margin: 1rem 0; }}
+.card {{ background: white; border: 1px solid var(--stone); padding: 1rem 1.15rem; margin: 0.9rem 0; }}
+label {{ display: block; margin: 0.7rem 0 0.2rem; font-size: 0.92rem; }}
+input, select, textarea {{ width: 100%; padding: 0.5rem; border: 1px solid var(--stone); background: white; color: var(--ink); font: inherit; }}
+button, .button {{ background: var(--ink); color: var(--ivory); border: 0; padding: 0.55rem 0.9rem; text-decoration: none; display: inline-block; margin: 0.35rem 0.45rem 0.35rem 0; }}
+button:hover, .button:hover {{ background: var(--bronze); color: var(--slate); }}
+.muted {{ color: #5c6b76; font-size: 0.92rem; }}
+table {{ width: 100%; border-collapse: collapse; background: white; margin: 0.6rem 0 1rem; }}
+th {{ text-align: left; padding: 0.5rem 0.55rem; background: var(--slate); color: var(--ivory); font-weight: 600; }}
+td {{ text-align: left; padding: 0.45rem 0.55rem; border-bottom: 1px solid var(--stone); }}
+tr:nth-child(even) td {{ background: #faf8f4; }}
+.flag {{ color: #7a2e2e; font-weight: 650; }}
+pre {{ white-space: pre-wrap; font-family: Consolas, monospace; font-size: 0.86rem; background: white; border: 1px solid var(--stone); padding: 0.8rem; }}
 details {{ margin: 0.8rem 0; }}
-summary {{ cursor: pointer; font-family: "Segoe UI", sans-serif; }}
+summary {{ cursor: pointer; }}
 .bar-track {{ background: var(--stone); height: 0.7rem; margin: 0.25rem 0 0.7rem; }}
 .bar {{ background: var(--bronze); height: 0.7rem; }}
+@media (max-width: 800px) {{
+  .shell {{ flex-direction: column; }}
+  .sidebar {{ width: 100%; flex-basis: auto; }}
+  nav {{ flex-direction: row; flex-wrap: wrap; }}
+  main {{ padding: 1.25rem 1rem 2rem; }}
+}}
 @media print {{
-  header, nav, .no-print {{ display: none !important; }}
-  body, main {{ background: white; color: black; max-width: none; }}
+  .sidebar, nav, .no-print {{ display: none !important; }}
+  body, main, .workspace {{ background: white; color: black; max-width: none; }}
   .limitations, .card, h1, h2, ul, table, p, .banner {{ visibility: visible; }}
   a {{ color: black; text-decoration: none; }}
+  th {{ color: black; background: white; }}
 }}
 body.print-view {{ background: white; }}
-body.print-view header {{ display: none; }}
+body.print-view .sidebar {{ display: none; }}
 </style>
 </head>
 <body{" class=\"print-view\"" if printable else ""}>
-<header>
-<strong>RUGD</strong>
-<p>Analyze {escape(APP_VERSION)} · local prototype · not investor-approved</p>
-<nav>{links}</nav>
-</header>
+<div class="shell">
+<aside class="sidebar">
+<a class="brand" href="/"><img src="/static/rugd-logo.png" alt="RUGD Intelligence"></a>
+<p class="brand-meta">Analyze {escape(APP_VERSION)} · local prototype · not investor-approved</p>
+<nav>{nav}</nav>
+</aside>
+<div class="workspace">
 <main>
 {body}
 </main>
+</div>
+</div>
 </body>
 </html>"""
 
