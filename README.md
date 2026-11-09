@@ -24,7 +24,7 @@ Open a terminal in `c:\Projects\RUGD` and run:
 
 The `python` command on this PC is the Windows Store stub. Use the Python 3.12 path above.
 
-The server binds to 127.0.0.1 only and prints:
+With `RUGD_ENV` unset, the server binds to 127.0.0.1 only and prints:
 
 ```text
 RUGD Analyze is running at http://127.0.0.1:8765
@@ -64,6 +64,26 @@ From `c:\Projects\RUGD`:
 ```
 
 The suite must stay green. Tests do not need the browser server.
+
+## Production (Render)
+
+The pilot host is `app.rugdintelligence.com`. Steps, DNS, and the one-instance SQLite disk are in `DEPLOYMENT.md`. The app reads environment variables. It does not load a `.env` file. Local `.env` files stay gitignored.
+
+Set these in the Render dashboard:
+
+- `RUGD_ENV=production`
+- `SECRET_KEY` — at least 32 characters, generated in Render, never committed
+- `RUGD_DATABASE=/var/data/analyze.sqlite`
+- `RUGD_BOOTSTRAP_REVIEWER_EMAIL`
+- `RUGD_BOOTSTRAP_REVIEWER_PASSWORD`
+
+`SECURE_COOKIES=true` is also set in `render.yaml`. Production mode already marks the session cookie Secure, HttpOnly, and SameSite=Lax. Render sets `PORT`. Do not override it.
+
+Optional variables, left unset unless that provider is wanted: `ANALYST_PROVIDER`, `ANALYST_MODEL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `MARKET_PROVIDER`, `MARKET_CENSUS`, `MARKET_CBP`, `MARKET_YEAR`, `ACS_YEAR`, `CBP_YEAR`.
+
+The start command is `python -m app`. Responses send `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: same-origin`. Render terminates HTTPS. Add a CNAME for `app.rugdintelligence.com` to the Render hostname. The apex domain stays on the public website.
+
+This build stays pilot-grade. Prototype warnings stay. There is no rate limit, no email verification, and no public self-service billing. Clear the bootstrap password in the dashboard after the first reviewer can log in.
 
 ## Official baseline
 
@@ -139,8 +159,8 @@ The market view control does not change an assessment. Explore shows the headlin
 The page includes a combined summary of the figures for the current industry and geography, with the source and period beside each one, and the active provider and year. **Download market observations (JSON)** saves the observations for the selected view, including a synthetic snapshot when that is what the page is showing. The file does not include an assessment, a session token, or a passphrase. A suppressed cell is labeled not disclosed. If a selection is outside a provider’s map, or that provider’s request fails, that part returns to the labeled synthetic snapshot. The Partner screen does not call these providers, and recurring monitoring stays off. The figures do not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other flag, and they do not change investor readiness. This is not a live feed and monitoring is not active.
 
 - Bunny Hive and Small Town Pub have no completed assessments
-- Local accounts are pilot-grade: scrypt password hashes, no OAuth, no external identity provider, and the session cookie is not marked Secure
-- No billing, public deployment, live market feed, or investor matchmaking. The optional BLS extract above is an annual file, not a live feed
+- Local accounts are pilot-grade: scrypt password hashes, no OAuth, and no external identity provider. The session cookie is marked Secure when `RUGD_ENV=production` or `SECURE_COOKIES=true`. On local HTTP it is not marked Secure
+- No billing, live market feed, or investor matchmaking. Render files for `app.rugdintelligence.com` are prepared and the service stays pilot-grade. The optional BLS extract above is an annual file, not a live feed
 - React remains deferred
 
 To resume after an owner decision, read `HANDOFF.md`. Disabled seams for authentication, scoring, deployment, and billing live in `app/future.py` and stay off until `DECISIONS.md` records the owner input.

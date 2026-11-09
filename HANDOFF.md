@@ -10,22 +10,22 @@ The official baseline in `intake/samples/rugd_intelligence.json` remains draft d
 
 A customer post whose body contains `human_review_approved` returns 403. Durable Value guidance is educational and is not a DVT evaluation. Market Pulse is a hypothetical demonstration. Monitoring is not active. Business profiles are local prototype records and do not authenticate a user.
 
-Local accounts exist for pilot use. Self-registration creates a customer account only. The first reviewer is created from `RUGD_BOOTSTRAP_REVIEWER_EMAIL` and `RUGD_BOOTSTRAP_REVIEWER_PASSWORD` when no reviewer exists. A signed-in reviewer can create another reviewer. A customer cannot change role or approve. The cookie is HttpOnly and is not marked Secure, because the server is HTTP on 127.0.0.1. This is not production authentication. The shared prototype passphrase is no longer accepted.
+Local accounts exist for pilot use. Self-registration creates a customer account only. The first reviewer is created from `RUGD_BOOTSTRAP_REVIEWER_EMAIL` and `RUGD_BOOTSTRAP_REVIEWER_PASSWORD` when no reviewer exists. A signed-in reviewer can create another reviewer. A customer cannot change role or approve. The cookie is HttpOnly and SameSite=Lax. It is marked Secure when `RUGD_ENV=production` or `SECURE_COOKIES=true`. On local HTTP it is not marked Secure. This is not production authentication. The shared prototype passphrase is no longer accepted.
 
-The local app is `python -m app` with the Python 3.12 path in `README.md`. It binds to 127.0.0.1:8765. Tests are `python -m unittest discover -s tests` from this directory. The current suite is 115 tests.
+The local app is `python -m app` with the Python 3.12 path in `README.md`. With `RUGD_ENV` unset it binds to 127.0.0.1:8765. `DEPLOYMENT.md` and `render.yaml` prepare the same command for Render at `app.rugdintelligence.com`. The service stays pilot-grade: one SQLite instance, prototype warnings, no rate limit, and no email verification. Tests are `python -m unittest discover -s tests` from this directory. The current suite is 118 tests.
 
 ## Owner decisions required before 0.3 work
 
 Do not start 0.3 work on any item below until an owner chooses that item. The same list is in `ACCEPTANCE.md`.
 
-- Production authentication beyond the pilot's local email and password accounts, including OAuth, an external identity provider, or production password policy and TLS cookies
+- Production authentication beyond the pilot's local email and password accounts, including OAuth, an external identity provider, or a production password policy
 - Real market data sources beyond the optional BLS QCEW extract, including Census, American Community Survey, BEA, or a commercial dataset
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing
 - Investor matchmaking, securities solicitation, brokerage, or capital movement
 - Recurring Partner monitoring and scheduled market jobs
 - An external AI provider for the analyst
-- Public deployment
+- Public deployment beyond the prepared Render pilot. `DEPLOYMENT.md` covers `app.rugdintelligence.com`. Rate limiting and email verification are still open
 - A LongArc or DVT connection
 - A change to the Webflow site
 - A replacement frontend, including React

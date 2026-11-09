@@ -317,3 +317,12 @@ Owner input required before replacing `billing_hooks`:
 - The first reviewer is created only when both `RUGD_BOOTSTRAP_REVIEWER_EMAIL` and `RUGD_BOOTSTRAP_REVIEWER_PASSWORD` are set and no reviewer account exists. The password is hashed and is not written into source. If a reviewer already exists, the variables do nothing. If that email is already a customer, the role stays customer.
 - A later reviewer is created at `POST /reviewer/accounts` by a signed-in reviewer. A customer session and a missing session receive 403. There is no control that changes a customer's role to reviewer.
 - Approval still requires that reviewer session, still records that reviewer's email, and still cannot clear a flag, change the recommendation, or grant investor-ready status. The official baseline cannot be approved. Existing reviewer rows remain valid.
+
+## Decision: Render pilot configuration
+
+- Date: 2026-11-09
+- Status: Accepted as deployment preparation. The service remains pilot-grade. This does not enable billing, scoring, or the deployment seam in `app/future.py`.
+- The owner asked to prepare RUGD Analyze for Render at `app.rugdintelligence.com` with HTTPS and secure session handling. `app/config.py` reads the environment. `RUGD_ENV=production` binds `0.0.0.0` to Render's `PORT`, uses `RUGD_DATABASE` for the SQLite file, requires `SECRET_KEY` of at least 32 characters, and marks the session cookie Secure. `SECURE_COOKIES=true` marks the cookie Secure without changing the bind address. Local runs leave both unset and stay on 127.0.0.1:8765.
+- Every response sends `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: same-origin`. No secret is written into the repository. `.env` files stay gitignored.
+- Render terminates HTTPS. The DNS step is a CNAME from `app.rugdintelligence.com` to the Render hostname. The apex domain stays on the public website. The process is `python -m app`, one instance, one SQLite file on the Render disk.
+- Prototype warnings stay. There is no rate limit, no email verification, and no public self-service billing. A customer path still cannot set `human_review_approved`. Market data and the analyst still cannot clear a flag. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.

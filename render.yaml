@@ -1,0 +1,56 @@
+# Render web service for the RUGD Analyze pilot.
+# Secrets are entered in the Render dashboard. This file does not contain them.
+# Keep the service at one instance while the database is the SQLite file on the disk.
+
+services:
+  - type: web
+    name: rugd-analyze
+    runtime: python
+    plan: starter
+    numInstances: 1
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app
+    healthCheckPath: /
+    domains:
+      - app.rugdintelligence.com
+    disk:
+      name: rugd-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: RUGD_ENV
+        value: production
+      - key: SECURE_COOKIES
+        value: "true"
+      - key: RUGD_DATABASE
+        value: /var/data/analyze.sqlite
+      - key: SECRET_KEY
+        generateValue: true
+      - key: RUGD_BOOTSTRAP_REVIEWER_EMAIL
+        sync: false
+      - key: RUGD_BOOTSTRAP_REVIEWER_PASSWORD
+        sync: false
+      - key: ANALYST_PROVIDER
+        sync: false
+      - key: ANALYST_MODEL
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
+      - key: MARKET_PROVIDER
+        sync: false
+      - key: MARKET_CENSUS
+        sync: false
+      - key: MARKET_CBP
+        sync: false
+      - key: MARKET_YEAR
+        sync: false
+      - key: ACS_YEAR
+        sync: false
+      - key: CBP_YEAR
+        sync: false

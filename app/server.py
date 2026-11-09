@@ -1,4 +1,4 @@
-"""Local HTTP server for RUGD Analyze 0.2. Binds to 127.0.0.1 only."""
+"""HTTP server for RUGD Analyze. Local runs bind to 127.0.0.1. Production bind comes from config."""
 
 from __future__ import annotations
 
@@ -13,6 +13,14 @@ from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from app.analysis import analyze_record
+from app.config import (
+    SECURITY_HEADERS,
+    bind_host,
+    bind_port,
+    database_path,
+    production_secret_error,
+    session_cookie,
+)
 from app.market import export_market_observations, get_market_provider
 from app.export import export_assessment, export_drafts, export_research_package, research_package_markdown
 from app.analyst import explain
@@ -682,6 +690,7 @@ class AppHandler(BaseHTTPRequestHandler):
         disposition: str | None = None,
     ) -> None:
         self.send_response(status)
+        self._security_headers()
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
         if disposition:
@@ -689,18 +698,23 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _security_headers(self) -> None:
+        for name, value in SECURITY_HEADERS:
+            self.send_header(name, value)
+
     def _redirect(self, target: str, session_token: str | None = None, clear_session: bool = False) -> None:
         self.send_response(303)
+        self._security_headers()
         self.send_header("Location", target)
         if session_token:
             self.send_header(
                 "Set-Cookie",
-                f"{SESSION_COOKIE}={session_token}; HttpOnly; Path=/; SameSite=Lax; Max-Age={SESSION_LIFETIME_SECONDS}",
+                session_cookie(SESSION_COOKIE, session_token, SESSION_LIFETIME_SECONDS),
             )
         elif clear_session:
             self.send_header(
                 "Set-Cookie",
-                f"{SESSION_COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0",
+                session_cookie(SESSION_COOKIE, "", 0),
             )
         self.end_headers()
 
@@ -739,16 +753,22 @@ def _download_stamp(record: dict[str, Any], result: dict[str, Any]) -> str:
     return "undated"
 
 
-def make_server(db_path, port: int = 8765) -> ThreadingHTTPServer:
+def make_server(db_path, port: int = 8765, host: str = "127.0.0.1") -> ThreadingHTTPServer:
     AppHandler.db_path = db_path
-    return ThreadingHTTPServer(("127.0.0.1", port), AppHandler)
+    return ThreadingHTTPServer((host, port), AppHandler)
 
 
 def main() -> None:
-    server = make_server(DEFAULT_DB)
+    secret_error = production_secret_error()
+    if secret_error:
+        raise SystemExit(secret_error)
+    server = make_server(database_path(DEFAULT_DB), port=bind_port(), host=bind_host())
     host, port = server.server_address
     print(f"RUGD Analyze is running at http://{host}:{port}")
-    print("Press Ctrl+C to stop. This server is local only.")
+    if bind_host() == "127.0.0.1":
+        print("Press Ctrl+C to stop. This server is local only.")
+    else:
+        print("RUGD_ENV=production. The host terminates HTTPS. This build remains pilot-grade.")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

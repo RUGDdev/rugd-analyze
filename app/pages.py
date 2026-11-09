@@ -2153,7 +2153,7 @@ def settings_page() -> str:
 <h1>Settings</h1>
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
-<p>This copy runs on 127.0.0.1 for a local pilot. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. The session cookie is HttpOnly. It is not marked Secure because this server is HTTP on 127.0.0.1. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Business profiles are local prototype records. They do not authenticate a user.</p>
+<p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>
 <h2>Owner decisions not activated</h2>
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 import uuid
@@ -999,7 +998,9 @@ def list_approvals(connection: sqlite3.Connection, assessment_id: str) -> list[d
 
 def session_storage_key(token: str) -> str:
     """Hash stored for a session cookie. The raw token is not written to SQLite."""
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+    from app.config import session_storage_key as configured_key
+
+    return configured_key(token)
 
 
 def session_public_id(token: str) -> str:

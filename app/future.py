@@ -42,7 +42,11 @@ _DECISIONS = (
         "id": "deployment",
         "title": "Deployment settings",
         "status": "disabled",
-        "message": "Public deployment is disabled. The local server stays on 127.0.0.1.",
+        "message": (
+            "This seam stays disabled and does not choose the host. "
+            "Local runs stay on 127.0.0.1. RUGD_ENV=production is read by app/config.py "
+            "for the Render bind, database path, and Secure cookies. Prototype warnings stay on."
+        ),
         "owner_input": (
             "Name the host, port, operator, and whether the app may leave 127.0.0.1. Include TLS and the domain. "
             "Confirm a deployed app does not overwrite the official baseline files."

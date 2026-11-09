@@ -64,14 +64,14 @@ Changing tier does not change a stored recommendation. None of these views grant
 
 Do not start these until an owner chooses them:
 
-- Production authentication beyond the pilot's local email and password accounts, including OAuth, an external identity provider, or production password policy and TLS cookies
+- Production authentication beyond the pilot's local email and password accounts, including OAuth, an external identity provider, or a production password policy
 - Real market data sources beyond the optional BLS QCEW extract, including Census, American Community Survey, BEA, or a commercial dataset
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing
 - Investor matchmaking, securities solicitation, brokerage, or capital movement
 - Recurring Partner monitoring and scheduled market jobs
 - An external AI provider for the analyst
-- Public deployment
+- Public deployment beyond the prepared Render pilot. `DEPLOYMENT.md` covers `app.rugdintelligence.com`. Rate limiting and email verification are still open
 - A LongArc or DVT connection
 - A change to the Webflow site
 - A replacement frontend, including React
