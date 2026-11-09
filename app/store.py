@@ -143,6 +143,17 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS guidance_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id TEXT NOT NULL,
+            pillar_id TEXT NOT NULL,
+            note TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
     return connection
 
 
@@ -461,6 +472,85 @@ def save_result(
         ),
     )
     connection.commit()
+
+
+def list_guidance_notes(
+    connection: sqlite3.Connection, assessment_id: str
+) -> list[dict[str, Any]]:
+    """Educational notes only. They are not copied into the engine result."""
+    from app.durable_value import pillar_by_id
+
+    rows = connection.execute(
+        """
+        SELECT pillar_id, note, created_at
+        FROM guidance_notes
+        WHERE assessment_id = ?
+        ORDER BY id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    notes = []
+    for row in rows:
+        pillar = pillar_by_id(row["pillar_id"])
+        notes.append(
+            {
+                "pillar_id": row["pillar_id"],
+                "pillar_title": pillar["title"] if pillar else row["pillar_id"],
+                "note": row["note"],
+                "created_at": row["created_at"],
+                "authoritative": False,
+            }
+        )
+    return notes
+
+
+def save_guidance_note(
+    connection: sqlite3.Connection,
+    assessment_id: str,
+    pillar_id: str,
+    note: str,
+) -> list[dict[str, Any]]:
+    """Store one educational note. The assessment row, including its result, stays as it was."""
+    from app.durable_value import pillar_by_id
+
+    current = get_assessment(connection, assessment_id)
+    if current is None:
+        raise KeyError(assessment_id)
+    if current["read_only"] or current["id"] == BASELINE_ID:
+        raise PermissionError(
+            "Educational notes cannot be stored on the official baseline."
+        )
+    pillar = pillar_by_id(str(pillar_id or "").strip())
+    if pillar is None:
+        raise ValueError("Choose one of the seven educational pillars.")
+    text = " ".join(str(note or "").split())
+    if not text:
+        raise ValueError("An educational note needs text.")
+    text = text[:1000]
+    columns = (
+        "business_name, purpose, tier, read_only, hypothetical, pilot_label, "
+        "profile_json, intake_json, result_json, review_requested"
+    )
+    before = connection.execute(
+        f"SELECT {columns} FROM assessments WHERE id = ?",
+        (assessment_id,),
+    ).fetchone()
+    connection.execute(
+        """
+        INSERT INTO guidance_notes (assessment_id, pillar_id, note, created_at)
+        VALUES (?, ?, ?, ?)
+        """,
+        (assessment_id, pillar["id"], text, _now()),
+    )
+    after = connection.execute(
+        f"SELECT {columns} FROM assessments WHERE id = ?",
+        (assessment_id,),
+    ).fetchone()
+    if tuple(before) != tuple(after):
+        connection.rollback()
+        raise RuntimeError("An educational note must not change the assessment.")
+    connection.commit()
+    return list_guidance_notes(connection, assessment_id)
 
 
 def request_review(connection: sqlite3.Connection, assessment_id: str) -> dict[str, Any]:

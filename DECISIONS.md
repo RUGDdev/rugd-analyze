@@ -273,3 +273,12 @@ Owner input required before replacing `billing_hooks`:
 
 - Name the payment provider, the products, and the prices.
 - Confirm a payment cannot clear a flag, approve a review, or set investor-ready.
+
+## Decision: Educational Durable Value guidance is not a DVT evaluation
+
+- Date: 2026-11-09
+- Status: Accepted for the local prototype only
+- The seven pillars are the evaluation dimensions already named in the methodology and in `scoring.rules.DIMENSIONS`. The app shows them as educational questions and practical prompts. The visible label is “Educational guidance — not a DVT evaluation.”
+- Explore shows the introductory questions. Analyze places a prompt next to an engine flag or gap only when that pillar lists the flag. Validate and Partner show the same educational content in their demonstration views.
+- An optional note is stored in `guidance_notes`, not in the engine result and not in the intake. The note is non-authoritative. It cannot change the recommendation, flags, readiness, a score, or `human_review_approved`. The official baseline cannot store a note.
+- No pillar is scored. No DVT table, score, or code is imported. A future Durable Value connection still requires a documented, versioned interface and an owner decision.

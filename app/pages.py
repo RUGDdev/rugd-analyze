@@ -293,7 +293,112 @@ def _draft_progress(item: dict[str, Any], result: dict[str, Any]) -> str:
     )
 
 
-def assessment_form(record: dict[str, Any], notice: str = "") -> str:
+def _guidance_section(
+    depth: str,
+    result: dict[str, Any] | None = None,
+    notes: list[dict[str, Any]] | None = None,
+    record: dict[str, Any] | None = None,
+) -> str:
+    from app.durable_value import guidance_for
+
+    view = guidance_for(depth, result)
+    intro = []
+    prompts = []
+    relevant = []
+    other = []
+    for pillar in view["pillars"]:
+        title = escape(str(pillar["title"]))
+        intro.append(
+            f"<li><strong>{title}.</strong> Introductory question: "
+            f"{escape(str(pillar['introductory_question']))}</li>"
+        )
+        prompts.append(
+            f"<li><strong>{title}.</strong> Practical prompt: "
+            f"{escape(str(pillar['practical_prompt']))}</li>"
+        )
+        if pillar["relevant"]:
+            flags = ", ".join(str(flag) for flag in pillar["matched_flags"])
+            relevant.append(
+                f"<li><strong>{title}.</strong> Next to engine flag {escape(flags)}. "
+                f"Practical prompt: {escape(str(pillar['practical_prompt']))}</li>"
+            )
+        else:
+            other.append(
+                f"<li><strong>{title}.</strong> Not next to a flag on this result. "
+                f"Practical prompt: {escape(str(pillar['practical_prompt']))}</li>"
+            )
+    if depth == "explore":
+        body = f"<h3>Introductory questions</h3><ul>{''.join(intro)}</ul>"
+    elif depth == "analyze":
+        if relevant:
+            matched = f"<ul>{''.join(relevant)}</ul>"
+        else:
+            matched = "<p>No pillar is tied to a flag or gap on this result.</p>"
+        body = (
+            "<h3>Considerations next to flags and gaps</h3>"
+            f"{matched}"
+            "<h3>Other educational prompts</h3>"
+            f"<ul>{''.join(other)}</ul>"
+        )
+    else:
+        matched = ""
+        if relevant:
+            matched = (
+                "<h3>Considerations next to flags and gaps</h3>"
+                f"<ul>{''.join(relevant)}</ul>"
+            )
+        body = (
+            "<p>Demonstration view. The questions and prompts below are the same educational content.</p>"
+            f"<h3>Introductory questions</h3><ul>{''.join(intro)}</ul>"
+            f"<h3>Practical prompts</h3><ul>{''.join(prompts)}</ul>"
+            f"{matched}"
+        )
+    note_items = []
+    for item in notes or []:
+        note_items.append(
+            f"<li><strong>{escape(str(item.get('pillar_title') or item.get('pillar_id')))}.</strong> "
+            f"{escape(str(item.get('note') or ''))} Non-authoritative.</li>"
+        )
+    if note_items:
+        stored = f"<ul>{''.join(note_items)}</ul>"
+    elif record and record.get("read_only"):
+        stored = "<p>The official baseline does not store educational notes.</p>"
+    else:
+        stored = "<p>No educational note is stored.</p>"
+    form = ""
+    if record and not record.get("read_only"):
+        options = []
+        for pillar in view["pillars"]:
+            options.append(
+                f'<option value="{escape(str(pillar["id"]))}">{escape(str(pillar["title"]))}</option>'
+            )
+        form = f"""
+<form method="post" action="/assessments/{escape(str(record.get('id')))}/guidance">
+<label>Pillar for an educational note</label>
+<select name="pillar_id">{''.join(options)}</select>
+<label>Educational note</label>
+<textarea name="note"></textarea>
+<button type="submit">Save educational note</button>
+</form>
+<p class="muted">Saving a note does not run the engine. It does not change the recommendation, flags, readiness, or human_review_approved.</p>
+"""
+    return f"""
+<section>
+<h2>Durable Value guidance</h2>
+<p><strong>{escape(view['label'])}</strong></p>
+<p>No score is calculated. These prompts do not change the recommendation, flags, readiness, or human_review_approved.</p>
+{body}
+<h3>Educational notes</h3>
+<p>Optional notes stored on the assessment. Non-authoritative. They are not engine inputs.</p>
+{stored}
+{form}
+</section>
+"""
+
+
+def assessment_form(
+    record: dict[str, Any], notice: str = "", notes: list[dict[str, Any]] | None = None
+) -> str:
     profile = record["profile"]
     locked = "disabled" if record["read_only"] else ""
     purposes = []
@@ -365,6 +470,7 @@ def assessment_form(record: dict[str, Any], notice: str = "") -> str:
 {action}
 <p><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a>
 <a href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
+{_guidance_section("explore", notes=notes, record=record)}
 """
     return layout(record["business_name"], body)
 
@@ -513,9 +619,13 @@ def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:
 """
 
 
-def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
+def results_page(
+    record: dict[str, Any],
+    result: dict[str, Any],
+    notes: list[dict[str, Any]] | None = None,
+) -> str:
     if not result.get("engine_ran"):
-        body = _results_not_run(record, result)
+        body = _results_not_run(record, result, notes)
         return layout("Analyze", body)
     flags = "".join(f"<li class=\"flag\">{escape(flag)}</li>" for flag in result.get("blocking_flags") or []) or "<li>None</li>"
     gaps = "".join(f"<li>{escape(flag)}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
@@ -548,6 +658,7 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 <h2>Recommend-against flags</h2><ul>{flags}</ul>
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
 <h2>Missing information</h2><ul>{missing}</ul>
+{_guidance_section("explore" if str(record.get("tier")) == "explore" else "analyze", result, notes, record)}
 {_tier_research(record, result)}
 <h2>Monthly base and downside</h2>{financial}
 <h2>Sources and uses, scenarios, and DSCR</h2>
@@ -580,7 +691,11 @@ def _output_links(record: dict[str, Any]) -> str:
 """
 
 
-def _results_not_run(record: dict[str, Any], result: dict[str, Any]) -> str:
+def _results_not_run(
+    record: dict[str, Any],
+    result: dict[str, Any],
+    notes: list[dict[str, Any]] | None = None,
+) -> str:
     profile = record.get("profile") or {}
     startup_missing = _missing_labels(profile, _STARTUP_REQUIRED)
     monthly_missing = _missing_labels(profile, _MONTHLY_REQUIRED)
@@ -620,6 +735,7 @@ def _results_not_run(record: dict[str, Any], result: dict[str, Any]) -> str:
 {baseline}
 <p><a class="button" href="/assessments/{escape(record['id'])}">Return to the draft</a>
 <a class="button" href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
+{_guidance_section("explore", notes=notes, record=record)}
 """
 
 
@@ -1425,7 +1541,9 @@ def audit_html_page(
     return layout("Audit view", body, printable=printable)
 
 
-def validate_page(record: dict[str, Any] | None) -> str:
+def validate_page(
+    record: dict[str, Any] | None, notes: list[dict[str, Any]] | None = None
+) -> str:
     if record is None:
         body = (
             "<h1>Validate (demonstration)</h1>"
@@ -1434,6 +1552,7 @@ def validate_page(record: dict[str, Any] | None) -> str:
             "This screen cannot set human_review_approved. Not live monitoring.</div>"
             "<p>Open an assessment from My Assessments to request a review.</p>"
             f"{_review_package(None)}"
+            f"{_guidance_section('demonstration')}"
         )
         return layout("Validate", body)
     requested = "A review has been requested." if record["review_requested"] else "No review has been requested."
@@ -1445,6 +1564,7 @@ def validate_page(record: dict[str, Any] | None) -> str:
 <p><strong>Human review status:</strong> pending</p>
 <p>Human review status stays pending on this customer screen. Requesting a review does not approve it. Investor readiness stays on the existing gate.</p>
 {_review_package(record)}
+{_guidance_section("demonstration", (record or {}).get("result"), notes, record)}
 <form method="post" action="/assessments/{escape(record['id'])}/review-request">
 <button type="submit">Request review</button>
 </form>
@@ -1624,6 +1744,7 @@ def partner_page() -> str:
 <p>No scheduled market, financial, or risk monitor is running. Monitoring active: false.</p>
 </div>
 {_ongoing_intelligence(market_framework())}
+{_guidance_section("demonstration")}
 {_market_block(market_framework())}
 """
     return layout("Partner", body)
@@ -1768,7 +1889,7 @@ def settings_page() -> str:
 <h2>Owner decisions not activated</h2>
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>
-<p>LongArc / DVT is not connected. The Webflow site is not connected.</p>
+<p>Educational guidance on the tier pages is not a DVT evaluation. LongArc / DVT is not connected. The Webflow site is not connected.</p>
 <p>Only the RUGD Intelligence assessment is the official baseline. Bunny Hive and Small Town Pub stay empty named-pilot drafts until evidence is entered. They are not completed assessments.</p>
 <p>Authoritative calculations remain in the 0.1 Python engine.</p>
 """
@@ -1816,6 +1937,7 @@ def explore_page(records: list[dict[str, Any]]) -> str:
 <p>Use a saved draft to clarify the concept, capital assumptions, and missing evidence. Run Analyze only when you want the deterministic engine.</p>
 <p><a class="button" href="/assessments/new">Start an Explore draft</a></p>
 """
+        + _guidance_section("explore")
         + "<ul>"
         + "".join(
             f"<li><a href=\"/assessments/{escape(item['id'])}\">{escape(item['business_name'])}</a></li>"

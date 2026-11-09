@@ -44,6 +44,7 @@ from app.review import (
     reviewer_session_state,
 )
 from app.store import (
+    BASELINE_ID,
     DEFAULT_DB,
     connect,
     create_assessment,
@@ -53,7 +54,9 @@ from app.store import (
     list_assessments,
     list_reviewer_events,
     session_activity,
+    list_guidance_notes,
     request_review,
+    save_guidance_note,
     save_profile,
     save_result,
     seed,
@@ -178,7 +181,7 @@ class AppHandler(BaseHTTPRequestHandler):
         action = parts[2] if len(parts) > 2 else ""
         if action == "results":
             stored = record.get("result") or {"engine_ran": False, "message": "Analyze has not been run."}
-            self._html(results_page(record, stored))
+            self._html(results_page(record, stored, list_guidance_notes(connection, record["id"])))
         elif action == "research":
             package = self._research_package(record)
             form = parts[3] if len(parts) > 3 else ""
@@ -242,9 +245,9 @@ class AppHandler(BaseHTTPRequestHandler):
             payload, _result = self._audit_bytes(connection, record)
             self._bytes(payload, "application/json")
         elif action == "validate":
-            self._html(validate_page(record))
+            self._html(validate_page(record, list_guidance_notes(connection, record["id"])))
         else:
-            self._html(assessment_form(record))
+            self._html(assessment_form(record, notes=list_guidance_notes(connection, record["id"])))
 
     def _assessment_post(self, connection: Any, parts: list[str], form: dict[str, str]) -> None:
         assessment_id = parts[1]
@@ -252,6 +255,9 @@ class AppHandler(BaseHTTPRequestHandler):
         record = get_assessment(connection, assessment_id)
         if record is None:
             self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
+            return
+        if action == "guidance":
+            self._save_guidance(connection, record, form)
             return
         if action == "save":
             if record["read_only"]:
@@ -282,6 +288,39 @@ class AppHandler(BaseHTTPRequestHandler):
             self._redirect(f"/assessments/{assessment_id}/validate")
             return
         self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
+
+    def _save_guidance(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
+        if record["read_only"] or record["id"] == BASELINE_ID:
+            self._html(
+                layout(
+                    "Not allowed",
+                    "<h1>Not allowed</h1><p>Educational notes cannot be stored on the official baseline. "
+                    "This note was not saved and the engine was not run.</p>",
+                ),
+                status=403,
+            )
+            return
+        try:
+            save_guidance_note(
+                connection,
+                record["id"],
+                form.get("pillar_id") or "",
+                form.get("note") or "",
+            )
+        except ValueError as exc:
+            self._html(
+                assessment_form(
+                    record,
+                    str(exc),
+                    list_guidance_notes(connection, record["id"]),
+                ),
+                status=400,
+            )
+            return
+        if record.get("tier") == "explore":
+            self._redirect(f"/assessments/{record['id']}")
+        else:
+            self._redirect(f"/assessments/{record['id']}/results")
 
     def _research_package(self, record: dict[str, Any]) -> dict[str, Any]:
         result = record.get("result") if isinstance(record.get("result"), dict) else None
