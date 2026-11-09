@@ -242,3 +242,34 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - Status: Accepted for the local prototype only
 - Download Research Package writes a JSON file for one assessment. It includes the assessment summary, the stored engine result, market observations with provenance, evidence gaps and flags, the analyst explanation, and the tier and prototype disclaimers. A Markdown copy and a print-friendly Research Brief show the same content.
 - The export does not run the engine and does not change the stored assessment. It omits session tokens, passphrases, and cookies. It does not clear a recommend-against flag or set `human_review_approved`.
+
+## Decision: Future seams stay disabled
+
+- Date: 2026-11-09
+- Status: Accepted for the local prototype only
+- `app/future.py` holds four disabled replacement points: production authentication, scoring methodology, deployment settings, and billing hooks. Environment variables cannot enable them. The running server does not read the deployment seam and stays on 127.0.0.1. No score is calculated. The scoring seam returns “Not calculated — methodology pending approval.” No charge is created. No production identity provider is connected.
+- Activating one seam requires a new written decision that names the owner input below. The other seams stay disabled. The official baseline, the recommend-against flags, and the Investor Readiness Gate stay unchanged.
+
+Owner input required before replacing `production_auth_provider`:
+
+- Name the provider: local accounts, OAuth, or an external identity provider.
+- Say where account records will live and whether passwords will be hashed.
+- Confirm a customer account cannot set `human_review_approved`.
+- Confirm reviewer approval still cannot clear a flag or grant investor-ready by itself.
+
+Owner input required before replacing `scoring_methodology`:
+
+- Approve the score definition and its weights in writing.
+- Confirm the score does not replace a recommend-against flag or the Investor Readiness Gate.
+- Confirm the score cannot clear `INSUFFICIENT_DEMAND_EVIDENCE` or set `human_review_approved`.
+
+Owner input required before replacing `deployment_settings`:
+
+- Name the host, port, operator, TLS, and domain.
+- Say whether the app may leave 127.0.0.1.
+- Confirm a deployed app does not overwrite the official baseline files.
+
+Owner input required before replacing `billing_hooks`:
+
+- Name the payment provider, the products, and the prices.
+- Confirm a payment cannot clear a flag, approve a review, or set investor-ready.

@@ -126,3 +126,5 @@ The page includes a combined summary of the figures for the current industry and
 - Reviewer sign-in is prototype-grade: one source-constant passphrase, no OAuth, no password hash, and no account directory
 - No production accounts, billing, public deployment, live market feed, or investor matchmaking. The optional BLS extract above is an annual file, not a live feed
 - React remains deferred
+
+To resume after an owner decision, read `HANDOFF.md`. Disabled seams for authentication, scoring, deployment, and billing live in `app/future.py` and stay off until `DECISIONS.md` records the owner input.

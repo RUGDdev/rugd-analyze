@@ -353,6 +353,7 @@ def assessment_form(record: dict[str, Any], notice: str = "") -> str:
 """
     body = f"""
 <h1>{escape(record['business_name'])}</h1>
+{_SURFACE_NOTE}
 {banner}
 <div class="card">
 <p><strong>Guidance. Not a decision.</strong></p>
@@ -930,6 +931,8 @@ def analyst_page(record: dict[str, Any], lines: list[str]) -> str:
     label = lines[0] if lines else "Demonstration Analyst"
     body = f"""
 <h1>Analyst</h1>
+{_SURFACE_NOTE}
+<p class="muted">Service tier on this file: {escape(str(record.get('tier') or 'not recorded'))}. The analyst explanation is sourced commentary and is not authoritative.</p>
 <div class="banner">{escape(label)}</div>
 <p class="muted">Optional explanation. The analyst cannot alter authoritative results, clear flags, set human_review_approved, or change investor readiness.</p>
 <ul>{items}</ul>
@@ -1739,7 +1742,9 @@ def reports_page(records: list[dict[str, Any]]) -> str:
     )
     return layout(
         "Reports",
-        f"<h1>Reports</h1>{_SURFACE_NOTE}<ul>{items}</ul>"
+        f"<h1>Reports</h1>{_SURFACE_NOTE}"
+        "<p class=\"muted\">Service tier is stored on each assessment. A report does not change that tier.</p>"
+        f"<ul>{items}</ul>"
         "<p class=\"muted\">Reports are drafts. A report is not investor-ready unless the existing gate "
         "and an authorized review say otherwise. This prototype does not write the official 0.1 output files. "
         "Authoritative financial numbers in a report come only from the 0.1 engine.</p>",
@@ -1747,9 +1752,22 @@ def reports_page(records: list[dict[str, Any]]) -> str:
 
 
 def settings_page() -> str:
-    body = """
+    from app.future import future_status
+
+    rows = "".join(
+        "<li>"
+        f"<strong>{escape(item['title'])}:</strong> {escape(item['status'])}. {escape(item['message'])}"
+        "</li>"
+        for item in future_status()["decisions"]
+    )
+    body = f"""
 <h1>Settings</h1>
+{_SURFACE_NOTE}
+<p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
 <p>This copy runs on 127.0.0.1 for a local pilot. It has no customer accounts, no password store, and no payment processing.</p>
+<h2>Owner decisions not activated</h2>
+<p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
+<ul>{rows}</ul>
 <p>LongArc / DVT is not connected. The Webflow site is not connected.</p>
 <p>Only the RUGD Intelligence assessment is the official baseline. Bunny Hive and Small Town Pub stay empty named-pilot drafts until evidence is entered. They are not completed assessments.</p>
 <p>Authoritative calculations remain in the 0.1 Python engine.</p>
@@ -1763,7 +1781,8 @@ def new_assessment_page() -> str:
         options.append(f'<option value="{escape(key)}">{escape(label)}</option>')
     body = f"""
 <h1>New assessment</h1>
-<p class="muted">Explore collects a draft. It is not a completed feasibility study.</p>
+{_SURFACE_NOTE}
+<p class="muted">Service tier starts at the choice below. Explore collects a draft. It is not a completed feasibility study.</p>
 <form method="post" action="/assessments">
 <label>Business name</label>
 <input name="business_name" required>
@@ -1792,6 +1811,7 @@ def explore_page(records: list[dict[str, Any]]) -> str:
 """
         + _SURFACE_NOTE
         + """
+<p class="muted">Service tier: Explore.</p>
 <div class="banner">Explore is an intake and gap check. It is not a completed feasibility study. It does not clear a flag.</div>
 <p>Use a saved draft to clarify the concept, capital assumptions, and missing evidence. Run Analyze only when you want the deterministic engine.</p>
 <p><a class="button" href="/assessments/new">Start an Explore draft</a></p>
@@ -1813,6 +1833,7 @@ def analyze_index(records: list[dict[str, Any]]) -> str:
     return layout(
         "Analyze",
         f"<h1>Analyze</h1>{_SURFACE_NOTE}"
+        "<p class=\"muted\">Service tier: Analyze.</p>"
         "<p>Results come from the 0.1 deterministic engine. Authoritative financial numbers come only from the 0.1 engine. "
         "This list does not mark a draft or the official baseline investor-ready.</p>"
         f"<ul>{items}</ul>",

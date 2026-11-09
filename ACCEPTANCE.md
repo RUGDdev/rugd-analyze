@@ -1,6 +1,6 @@
 # RUGD Analyze 0.2 acceptance checklist
 
-Updated: 2026-11-08. This maps the original version 0.2 acceptance criteria to the local prototype. It does not change the engine, the gates, or the official baseline.
+Updated: 2026-11-09. This maps the original version 0.2 acceptance criteria to the local prototype. It does not change the engine, the gates, or the official baseline.
 
 The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, and `human_review_approved` false. No feasibility score is calculated.
 
@@ -42,6 +42,20 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Brand colors and local layout | Partially met | The stated brand colors are used. No official logo file is in this repository. |
 | Local persistence and tests | Met | Drafts are in gitignored SQLite. The unittest suite covers the prototype path. |
 | Billing, public deployment, live market feed, matchmaking | Not in 0.2 | An optional annual BLS QCEW extract is available. Billing, public deployment, a live feed, and matchmaking remain owner decisions. |
+
+## Current capabilities by tier
+
+Changing tier does not change a stored recommendation. None of these views grant investor-ready status.
+
+| Capability | Explore | Analyze | Validate | Partner |
+| --- | --- | --- | --- | --- |
+| Intake and saved draft | Yes | Yes | Yes | Yes |
+| Engine result | When Analyze has been run | When Analyze has been run | When Analyze has been run | When Analyze has been run |
+| Research sections | Flag list | Evidence Gaps, Key Assumptions, Risk Summary, and Suggested Next Research Steps | Same as Analyze | Same as Analyze |
+| Market Intelligence | Limited snapshot | Full view and Market Research Summary | Full view, summary, and extended metrics | Full view, summary, and extended metrics |
+| Review | Cannot approve | Cannot approve | Request only. Review Package is prototype-labeled | Cannot approve |
+| Monitoring | Not active | Not active | Not active | Inactive demonstration only |
+| Research package and brief | Yes | Yes | Yes | Yes |
 
 ## Owner decisions required before further work
 

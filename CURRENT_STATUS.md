@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 102 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 104 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -25,6 +25,20 @@ Verified in the browser and over HTTP:
 - A POST that includes `human_review_approved` returns 403.
 
 Run Analyze submits the same intake form as Save draft, so unsaved entries reach the engine.
+
+## Current capabilities by tier
+
+Changing tier does not change a stored recommendation. None of these views grant investor-ready status.
+
+| Capability | Explore | Analyze | Validate | Partner |
+| --- | --- | --- | --- | --- |
+| Intake and saved draft | Yes | Yes | Yes | Yes |
+| Engine result | When Analyze has been run | When Analyze has been run | When Analyze has been run | When Analyze has been run |
+| Research sections | Flag list | Evidence Gaps, Key Assumptions, Risk Summary, and Suggested Next Research Steps | Same as Analyze | Same as Analyze |
+| Market Intelligence | Limited snapshot | Full view and Market Research Summary | Full view, summary, and extended metrics | Full view, summary, and extended metrics |
+| Review | Cannot approve | Cannot approve | Request only | Cannot approve |
+| Monitoring | Not active | Not active | Not active | Inactive demonstration only |
+| Research package and brief | Yes | Yes | Yes | Yes |
 
 ## Unfinished
 
@@ -233,3 +247,9 @@ Further work on production authentication, real market data, an approved scoring
 - Research Brief is a print-friendly HTML view of that package, with source citations and a limitations section.
 - The package does not run the engine, clear a flag, or set `human_review_approved`. Session tokens, passphrases, and cookies are omitted.
 - The unittest suite is 102 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 future seams and handoff
+
+- `app/future.py` holds disabled replacement points for production authentication, scoring, deployment, and billing. Settings lists them as disabled. They do not authenticate, score, deploy, or charge. The scoring seam says methodology pending approval.
+- Customer pages share the local-prototype warning and the statement that the screen does not grant investor-ready status. `HANDOFF.md` explains how to resume after an owner decision.
+- The unittest suite is 104 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
