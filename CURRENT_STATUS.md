@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 119 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 122 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -315,3 +315,9 @@ Further work on production authentication, real market data, an approved scoring
 - County Business Patterns still reads the sector table. A NAICS code missing from that table, including Restaurant 722 and Accommodation 721, is requested from the Census CBP API for that code. No Census API key is sent. A failed part falls back to the synthetic snapshot.
 - The Market Intelligence combined summary lists the figures beside BLS and ACS and states that they do not clear a recommend-against flag. The official baseline intake was not edited.
 - The unittest suite is 119 tests, all passing. The server is stopped.
+
+## Progress — 2026-11-09 indicative score
+
+- Results and the HTML audit show an indicative 0–100 score. The weights are market validity 40, profitability 35, and Durable Value 25. The rules are in `SCORING.md`.
+- Any recommend-against flag forces band Blocked. The engine recommendation, investor readiness, and `human_review_approved` stay as the engine stored them. The feasibility score stays uncalculated.
+- The unittest suite is 122 tests, all passing. The official baseline intake was not edited.

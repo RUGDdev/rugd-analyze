@@ -285,7 +285,14 @@ class AppHandler(BaseHTTPRequestHandler):
             self._bytes(payload, "text/markdown; charset=utf-8")
         elif action == "audit" and len(parts) > 3 and parts[3] == "html":
             result = record.get("result") or self._run(connection, record)
-            self._html(audit_html_page(record, result, list_reviewer_events(connection, record["id"])))
+            self._html(
+                audit_html_page(
+                    record,
+                    result,
+                    list_reviewer_events(connection, record["id"]),
+                    notes=list_guidance_notes(connection, record["id"]),
+                )
+            )
         elif action == "audit" and len(parts) > 3 and parts[3] == "print":
             result = record.get("result") or self._run(connection, record)
             self._html(
@@ -294,6 +301,7 @@ class AppHandler(BaseHTTPRequestHandler):
                     result,
                     list_reviewer_events(connection, record["id"]),
                     printable=True,
+                    notes=list_guidance_notes(connection, record["id"]),
                 )
             )
         elif action == "audit" and len(parts) > 3 and parts[3] == "download":

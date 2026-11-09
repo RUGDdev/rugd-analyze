@@ -25,7 +25,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | View Validate and Partner | Demonstration-only | Validate can request review, shows a prototype Review Package, and cannot approve. Partner states that recurring monitoring is not active and shows an inactive Ongoing Intelligence demonstration. Market Pulse is a separate hypothetical demonstration. |
 | Return to saved assessments | Met | Dashboard history offers Continue and View results. |
 | Baseline status unchanged | Met | do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, internal investor readiness, pending human review. |
-| No unapproved score, final result, or investor-ready status | Met | No feasibility score is invented. `is_final` stays false. Investor-ready still requires every existing gate plus explicit human review approval. |
+| No unapproved score, final result, or investor-ready status | Met | No feasibility score is invented. An indicative 0–100 score is shown on results and the HTML audit. A recommend-against flag forces band Blocked. `is_final` stays false. Investor-ready still requires every existing gate plus explicit human review approval. |
 
 ## Related 0.2 scope
 

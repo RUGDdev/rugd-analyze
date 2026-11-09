@@ -759,6 +759,7 @@ def results_page(
 {_view_summary_block(result)}
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
 </div>
+{_indicative_block(result, notes)}
 {_analyst_panel(record, result)}
 {_LIMITATIONS}
 <h2>Demand evidence</h2>
@@ -867,6 +868,34 @@ def _intake_status(record: dict[str, Any]) -> str:
 <p><strong>human_review_approved:</strong> false</p>
 <p><strong>Demand evidence provenance:</strong> placeholder until Analyze records verified, user, or placeholder.</p>
 </div>
+"""
+
+
+def _indicative_block(result: dict[str, Any], notes: list[dict[str, Any]] | None = None) -> str:
+    from app.indicative_score import indicative_score
+
+    score = indicative_score(result, notes)
+    components = score["components"]
+    lines = "".join(
+        "<li>"
+        f"<strong>{escape(item['name'])}:</strong> {item['score']} of 100. "
+        f"Weight {score['weights'][key]}."
+        "</li>"
+        for key, item in (
+            ("market_validity", components["market_validity"]),
+            ("profitability", components["profitability"]),
+            ("durable_value", components["durable_value"]),
+        )
+    )
+    return f"""
+<section class="indicative-score">
+<h2>Indicative score</h2>
+<p><strong>{escape(score['label'])}</strong></p>
+<p><strong>Indicative score:</strong> {score['score']} of 100</p>
+<p><strong>Band:</strong> {escape(score['band'])}</p>
+<ul>{lines}</ul>
+<p>{escape(score['explanation'])}</p>
+</section>
 """
 
 
@@ -1572,6 +1601,7 @@ def audit_html_page(
     events: list[dict[str, Any]] | None = None,
     *,
     printable: bool = False,
+    notes: list[dict[str, Any]] | None = None,
 ) -> str:
     """Read-only audit view. This page has no control that can change the assessment."""
     from app.analysis import build_view_summary
@@ -1639,6 +1669,7 @@ def audit_html_page(
 <p><strong>Human review status:</strong> {escape(str(summary.get('human_review_status')))}</p>
 <p><strong>human_review_approved:</strong> {"true" if summary.get("human_review_approved") else "false"}</p>
 </div>
+{_indicative_block(result, notes)}
 <h2>Recommend-against flags</h2><ul>{blocking}</ul>
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
 <h2>Demand evidence provenance</h2>
