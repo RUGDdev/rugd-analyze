@@ -227,3 +227,11 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - Geographies now also include Georgia and Fulton County, Georgia.
 - Market Intelligence has a view control. Explore shows the headline snapshot. Analyze adds the full current view and a Market Research Summary. Validate and Partner add the extended metrics. The summary states that it is derived from the cited public sources and that it is not a recommendation. The control does not change a recommendation, a flag, investor readiness, or `human_review_approved`.
 - The Partner screen still does not call these providers. Recurring monitoring is not active.
+
+## Decision: Tiered evaluation outputs
+
+- Date: 2026-11-09
+- Status: Accepted for the local prototype only
+- Analyze results show Evidence Gaps, Key Assumptions, a Risk Summary, and Suggested Next Research Steps. Those sections restate engine flags, missing fields, intake assumptions, and the demonstration market snapshot. They do not add a score, clear a flag, or set `human_review_approved`. Explore does not show the four sections.
+- Validate shows a Review Package with current flags, market context, evidence gaps, and a reviewer-notes placeholder. The customer screen remains request-only. Approval stays on the prototype reviewer screen.
+- Partner shows an Ongoing Intelligence demonstration. Trend alerts and management actions are marked hypothetical. Monitoring stays inactive.

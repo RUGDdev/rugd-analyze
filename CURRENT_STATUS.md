@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 100 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 101 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -14,21 +14,21 @@ Git is on `main`. Commits use a per-command author identity (`RUGD Dev <dev@rugd
 
 ## Analyze 0.2
 
-A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Validate can record a review request and cannot approve. Partner stays a labeled demonstration. Market Intelligence stays on the synthetic snapshot unless `MARKET_PROVIDER=bls`, `MARKET_CENSUS=acs`, or `MARKET_CBP=cbp` is set. Those settings can request a BLS QCEW annual extract, an ACS 5-year population and income extract, and a County Business Patterns extract. The market view control shows a limited snapshot on Explore, the full view and a sourced summary on Analyze, and extended metrics on Validate and Partner. A failed or uncovered part falls back to the synthetic snapshot. The figures do not clear a flag. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Drafts live in gitignored `data/analyze.sqlite`.
+A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Analyze results add Evidence Gaps, Key Assumptions, a Risk Summary, and Suggested Next Research Steps from the engine flags, missing fields, and the demonstration market snapshot. Validate can record a review request, shows a prototype Review Package, and cannot approve. Partner stays a labeled demonstration and adds an inactive Ongoing Intelligence panel. Market Intelligence stays on the synthetic snapshot unless `MARKET_PROVIDER=bls`, `MARKET_CENSUS=acs`, or `MARKET_CBP=cbp` is set. Those settings can request a BLS QCEW annual extract, an ACS 5-year population and income extract, and a County Business Patterns extract. The market view control shows a limited snapshot on Explore, the full view and a sourced summary on Analyze, and extended metrics on Validate and Partner. A failed or uncovered part falls back to the synthetic snapshot. The figures do not clear a flag. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Drafts live in gitignored `data/analyze.sqlite`.
 
 Verified in the browser and over HTTP:
 
 - The baseline results page stays do-not-proceed, internal, and `human_review_approved` false.
 - A hypothetical restaurant draft with user-supplied seat, ticket, occupancy, and cost-build inputs runs the startup projection. The draft stays do-not-proceed because demand evidence is unanswered. Sources and uses, base and downside views, and DSCR appear in the result. `investor_ready` stays false.
 - By default, Market Intelligence is the synthetic snapshot and states that no Census, BLS, or BEA feed is connected. `MARKET_PROVIDER=bls` can show a BLS QCEW extract. `MARKET_CENSUS=acs` can show ACS 5-year population and median household income. `MARKET_CBP=cbp` can show County Business Patterns. Explore is the limited snapshot. Partner stays on the synthetic snapshot.
-- Validate shows human review pending. A review request changes the copy to “A review has been requested.” and does not approve the file.
+- Validate shows human review pending and a prototype Review Package. A review request changes the copy to “A review has been requested.” and does not approve the file. Partner shows an inactive Ongoing Intelligence demonstration.
 - A POST that includes `human_review_approved` returns 403.
 
 Run Analyze submits the same intake form as Save draft, so unsaved entries reach the engine.
 
 ## Unfinished
 
-Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. The default market view is the synthetic snapshot. The optional BLS QCEW extract is an annual file for seven industries and seven geographies. The optional ACS extract is 2024 5-year population and median household income for those geographies, with overlapping-vintage population change and an income-bracket note as extended metrics. The optional County Business Patterns extract defaults to 2023. The year for each extract comes from `MARKET_YEAR`, `ACS_YEAR`, or `CBP_YEAR`. None of them is a live feed. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
+Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. The Ongoing Intelligence panel is a labeled demonstration. The default market view is the synthetic snapshot. The optional BLS QCEW extract is an annual file for seven industries and seven geographies. The optional ACS extract is 2024 5-year population and median household income for those geographies, with overlapping-vintage population change and an income-bracket note as extended metrics. The optional County Business Patterns extract defaults to 2023. The year for each extract comes from `MARKET_YEAR`, `ACS_YEAR`, or `CBP_YEAR`. None of them is a live feed. No production accounts, billing, production reviewer login, public deployment, Webflow change, or LongArc/DVT integration. React remains deferred. The reviewer sign-in that exists is prototype-grade only.
 
 ## Git Checkpoint
 
@@ -219,3 +219,10 @@ Further work on production authentication, real market data, an approved scoring
 - BLS over-the-year percent changes, ACS population change between overlapping 5-year vintages, and the ACS B19001 income-bracket note are extended metrics. Georgia and Fulton County, Georgia, are added to the existing geographies.
 - Market Intelligence opens on Explore, a headline snapshot. Analyze adds the full current view and a Market Research Summary that says it is derived from the cited public sources and is not a recommendation. Validate and Partner add the extended metrics. The view control does not change a flag, a recommendation, or `human_review_approved`. Partner monitoring stays off.
 - The unittest suite is 100 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 evaluation outputs by tier
+
+- Analyze results add Evidence Gaps, Key Assumptions, a Risk Summary, and Suggested Next Research Steps. The text restates engine flags, missing fields, intake assumptions, and the demonstration market snapshot. Explore keeps the flag list and does not show those four sections. No new score is calculated.
+- Validate shows a prototype Review Package: current flags, market context, evidence gaps, and a reviewer-notes placeholder. The customer screen can request review and cannot approve. Approval stays on the prototype reviewer screen.
+- Partner adds an Ongoing Intelligence panel with hypothetical trend alerts and hypothetical management actions. The panel says monitoring is inactive. Recurring monitoring is not active.
+- The unittest suite is 101 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

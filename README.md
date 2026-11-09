@@ -74,8 +74,8 @@ Export does not run the engine and does not fill blank fields. It does not inclu
 
 ## Demonstration only or unfinished
 
-- Validate can request review and cannot approve
-- Partner monitoring is not active
+- Validate can request review, shows a prototype Review Package, and cannot approve
+- Partner monitoring is not active. The Ongoing Intelligence panel is an inactive demonstration
 - Market Intelligence stays on a labeled synthetic snapshot unless `MARKET_PROVIDER=bls`, `MARKET_CENSUS=acs`, or `MARKET_CBP=cbp` is set
 - The Demonstration Analyst is the default. An optional external analyst can be enabled with an environment variable and an API key
 

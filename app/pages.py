@@ -547,6 +547,7 @@ def results_page(record: dict[str, Any], result: dict[str, Any]) -> str:
 <h2>Recommend-against flags</h2><ul>{flags}</ul>
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
 <h2>Missing information</h2><ul>{missing}</ul>
+{_tier_research(record, result)}
 <h2>Monthly base and downside</h2>{financial}
 <h2>Sources and uses, scenarios, and DSCR</h2>
 {projection}
@@ -660,6 +661,109 @@ def _view_summary_block(result: dict[str, Any]) -> str:
 <p><strong>Demand evidence provenance:</strong></p>
 <ul>{provenance}</ul>
 """
+
+
+def _tier_research(record: dict[str, Any], result: dict[str, Any]) -> str:
+    tier = str(record.get("tier") or "explore")
+    if tier == "explore":
+        return """
+<h2>Research depth</h2>
+<p>Explore lists the engine flags and missing fields above. Analyze adds Evidence Gaps, Key Assumptions, Risk Summary, and Suggested Next Research Steps. This note does not change a flag and it does not set human_review_approved.</p>
+"""
+    return _analyze_research(result, record)
+
+
+def _analyze_research(result: dict[str, Any], record: dict[str, Any]) -> str:
+    blocking = [str(flag) for flag in result.get("blocking_flags") or []]
+    gap_flags = [str(flag) for flag in result.get("gap_flags") or []]
+    missing = [str(item) for item in result.get("missing") or []]
+    evidence = []
+    if "INSUFFICIENT_DEMAND_EVIDENCE" in blocking:
+        evidence.append(
+            "INSUFFICIENT_DEMAND_EVIDENCE is an active engine flag. It is listed because the engine raised it."
+        )
+    evidence.extend(f"Engine gap flag: {flag}." for flag in gap_flags)
+    evidence.extend(f"Engine missing field: {item}" for item in missing)
+    if not evidence:
+        evidence.append("The engine did not list a gap flag or a missing field on this result.")
+    evidence_items = "".join(f"<li>{escape(line)}</li>" for line in evidence)
+    assumptions = ((result.get("intake") or {}).get("assumptions") or [])
+    if assumptions:
+        assumption_items = "".join(
+            "<li>"
+            f"{escape(str(item.get('key') or 'assumption'))}: {escape(str(item.get('value')))}. "
+            f"Source: {escape(str(item.get('source') or 'not recorded'))}. "
+            f"{escape(str(item.get('rationale') or ''))}"
+            "</li>"
+            for item in assumptions
+            if isinstance(item, dict)
+        ) or "<li>No intake assumptions are attached to this result.</li>"
+    else:
+        assumption_items = "<li>No intake assumptions are attached to this result. None are invented.</li>"
+    if blocking:
+        risk_lines = [
+            f"Active recommend-against flag: {flag}. The draft recommendation is {result.get('recommendation') or 'not loaded'}."
+            for flag in blocking
+        ]
+    else:
+        risk_lines = [
+            "No recommend-against flag is active on this result. Gap flags remain unevaluated criteria."
+        ]
+    risk_lines.append(
+        "This summary restates engine flags. It is not a new score and it does not clear a recommend-against flag."
+    )
+    risk_items = "".join(f"<li>{escape(line)}</li>" for line in risk_lines)
+    steps = _research_steps(blocking, gap_flags, missing, record)
+    step_items = "".join(f"<li>{escape(line)}</li>" for line in steps)
+    return f"""
+<h2>Evidence Gaps</h2>
+<p>Derived from the engine flags and missing fields already on this result. No score is added.</p>
+<ul>{evidence_items}</ul>
+<h2>Key Assumptions</h2>
+<p>These are the assumptions already stored on the intake. A customer entry is a user-supplied assumption, not verified data.</p>
+<ul>{assumption_items}</ul>
+<h2>Risk Summary</h2>
+<ul>{risk_items}</ul>
+<h2>Suggested Next Research Steps</h2>
+<p>Each step restates an engine flag, a missing field, or the demonstration market snapshot. These steps are not a recommendation.</p>
+<ul>{step_items}</ul>
+"""
+
+
+def _research_steps(
+    blocking: list[str],
+    gap_flags: list[str],
+    missing: list[str],
+    record: dict[str, Any],
+) -> list[str]:
+    from scoring.rules import NEXT_ACTIONS
+
+    steps = []
+    for flag in blocking + gap_flags:
+        action = NEXT_ACTIONS.get(flag)
+        if action:
+            steps.append(f"{flag}: {action}")
+        else:
+            steps.append(f"The engine recorded {flag}. This page does not add a score for it.")
+    for item in missing:
+        steps.append(f"The engine listed this missing item: {item} This page does not fill it.")
+    profile = record.get("profile") or {}
+    snapshot = market_framework(profile.get("industry"), profile.get("market"))
+    examples = snapshot.get("synthetic_examples") or []
+    if examples:
+        steps.append(
+            "Market observation available on this page: "
+            + " ".join(str(item) for item in examples)
+            + " Live feed connected: false. These observations do not clear INSUFFICIENT_DEMAND_EVIDENCE."
+        )
+    else:
+        steps.append(
+            "No market observation is loaded. Live feed connected: false. No market fact is invented."
+        )
+    steps.append(
+        "These steps do not set human_review_approved and do not change investor readiness."
+    )
+    return steps
 
 
 def _demand_status(demand: dict[str, Any]) -> str:
@@ -1323,21 +1427,53 @@ def validate_page(record: dict[str, Any] | None) -> str:
             "<div class=\"banner\">Demonstration only. Customers can request review. "
             "This screen cannot set human_review_approved. Not live monitoring.</div>"
             "<p>Open an assessment from My Assessments to request a review.</p>"
+            f"{_review_package(None)}"
         )
         return layout("Validate", body)
     requested = "A review has been requested." if record["review_requested"] else "No review has been requested."
     body = f"""
 <h1>Validate (demonstration)</h1>
 {_SURFACE_NOTE}
-<div class="banner">Demonstration only. Customers can request review. This screen cannot set human_review_approved. Not live monitoring.</div>
+<div class="banner">Demonstration only. Customers can request review. This screen cannot set human_review_approved. Not live monitoring. Prototype-grade review request.</div>
 <p>{escape(record['business_name'])}: {escape(requested)}</p>
 <p><strong>Human review status:</strong> pending</p>
 <p>Human review status stays pending on this customer screen. Requesting a review does not approve it. Investor readiness stays on the existing gate.</p>
+{_review_package(record)}
 <form method="post" action="/assessments/{escape(record['id'])}/review-request">
 <button type="submit">Request review</button>
 </form>
+<p class="muted">Approval stays on the reviewer screen. This customer screen cannot set human_review_approved.</p>
 """
     return layout("Validate", body)
+
+
+def _review_package(record: dict[str, Any] | None) -> str:
+    result = (record or {}).get("result") or {}
+    profile = (record or {}).get("profile") or {}
+    blocking = [str(flag) for flag in result.get("blocking_flags") or []]
+    gap_flags = [str(flag) for flag in result.get("gap_flags") or []]
+    missing = [str(item) for item in result.get("missing") or []]
+    flag_items = "".join(f"<li class=\"flag\">{escape(flag)}</li>" for flag in blocking) or "<li>None loaded</li>"
+    gap_items = "".join(f"<li>{escape(flag)}</li>" for flag in gap_flags) or "<li>None listed</li>"
+    missing_items = "".join(f"<li>{escape(item)}</li>" for item in missing) or "<li>None listed</li>"
+    snapshot = market_framework(profile.get("industry"), profile.get("market"))
+    examples = "".join(f"<li>{escape(str(item))}</li>" for item in snapshot.get("synthetic_examples") or [])
+    return f"""
+<h2>Review Package</h2>
+<p>Prototype review package. Not an approval. This summary does not set human_review_approved and it does not clear a recommend-against flag.</p>
+<h3>Current flags</h3>
+<ul>{flag_items}</ul>
+<h3>Market context</h3>
+<p>{escape(str(snapshot.get('label')))} Industry: {escape(str(snapshot.get('industry')))}. Geographic market: {escape(str(snapshot.get('geographic_market')))}.</p>
+<p>Live feed connected: false. Monitoring active: false. Source dataset: none.</p>
+<ul>{examples}</ul>
+<p>These observations do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>
+<h3>Evidence gaps</h3>
+<ul>{gap_items}</ul>
+<ul>{missing_items}</ul>
+<h3>Reviewer notes</h3>
+<p>Reviewer notes placeholder. No reviewer note is stored. This placeholder is not an approval.</p>
+"""
 
 
 def reviewer_page(
@@ -1481,9 +1617,39 @@ def partner_page() -> str:
 <p>Partner is the planned tier for an established business that needs ongoing intelligence. A startup feasibility assessment is not required to enter this tier later.</p>
 <p>No scheduled market, financial, or risk monitor is running. Monitoring active: false.</p>
 </div>
+{_ongoing_intelligence(market_framework())}
 {_market_block(market_framework())}
 """
     return layout("Partner", body)
+
+
+def _ongoing_intelligence(snapshot: dict[str, Any]) -> str:
+    alerts = []
+    actions = []
+    for example in snapshot.get("synthetic_examples") or []:
+        text = str(example)
+        alerts.append(
+            f"Hypothetical trend alert. {text} Inactive demonstration. Not a live alert."
+        )
+        actions.append(
+            "Hypothetical management action: read this synthetic note before changing a plan. "
+            f"{text} This is not a recommendation. It does not clear a flag and it does not set human_review_approved."
+        )
+    if not alerts:
+        alerts.append("Hypothetical trend alert. No synthetic example is loaded. Monitoring is not active.")
+        actions.append(
+            "Hypothetical management action: do not treat an empty snapshot as a finding. Monitoring is not active."
+        )
+    alert_items = "".join(f"<li>{escape(item)}</li>" for item in alerts)
+    action_items = "".join(f"<li>{escape(item)}</li>" for item in actions)
+    return f"""
+<h2>Ongoing Intelligence</h2>
+<div class="banner">Ongoing Intelligence is a demonstration panel. Inactive. Recurring monitoring is not active. Recurring monitoring has not been implemented. Monitoring active: false.</div>
+<h3>Sample trend alerts</h3>
+<ul>{alert_items}</ul>
+<h3>Hypothetical management actions</h3>
+<ul>{action_items}</ul>
+"""
 
 
 def _market_block(snapshot: dict[str, Any]) -> str:

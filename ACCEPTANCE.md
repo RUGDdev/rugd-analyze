@@ -22,7 +22,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | See missing evidence requirements | Met | Missing required fields and `INSUFFICIENT_DEMAND_EVIDENCE` stay visible. |
 | Open the report and audit | Met | Markdown report, JSON audit, and a read-only HTML audit page are available. |
 | Explore market intelligence | Partially met | The default is one labeled synthetic snapshot. `MARKET_PROVIDER=bls` can show a BLS QCEW extract, `MARKET_CENSUS=acs` can show ACS population and income, and `MARKET_CBP=cbp` can show County Business Patterns. Explore shows a limited snapshot, Analyze adds the full view and a sourced summary, and Validate and Partner add extended metrics. Failure of any part falls back to the synthetic snapshot. The figures do not clear a flag. |
-| View Validate and Partner | Demonstration-only | Validate can request review and cannot approve. Partner states that recurring monitoring is not active. |
+| View Validate and Partner | Demonstration-only | Validate can request review, shows a prototype Review Package, and cannot approve. Partner states that recurring monitoring is not active and shows an inactive Ongoing Intelligence demonstration. |
 | Return to saved assessments | Met | Dashboard history offers Continue and View results. |
 | Baseline status unchanged | Met | do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, internal investor readiness, pending human review. |
 | No unapproved score, final result, or investor-ready status | Met | No feasibility score is invented. `is_final` stays false. Investor-ready still requires every existing gate plus explicit human review approval. |

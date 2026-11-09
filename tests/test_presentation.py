@@ -1,5 +1,6 @@
 """Dashboard, intake, and results presentation stay tied to stored drafts and engine output."""
 
+import copy
 import hashlib
 import json
 import tempfile
@@ -11,7 +12,7 @@ import urllib.request
 from pathlib import Path
 
 from app.analysis import analyze_record
-from app.pages import assessment_form, dashboard, results_page
+from app.pages import assessment_form, dashboard, partner_page, results_page, reviewer_page, validate_page
 from app.server import make_server
 from app.store import (
     SAMPLE,
@@ -445,6 +446,91 @@ class TestPresentation(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)
+
+    def test_tier_research_leaves_flags_and_baseline_unchanged(self) -> None:
+        baseline = get_assessment(self.connection, "rugd-intelligence-baseline")
+        assert baseline is not None
+        result = analyze_record(baseline)
+        before = copy.deepcopy(result)
+        before_sample = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        before_report = hashlib.sha256(
+            (Path(__file__).resolve().parent.parent / "reports" / "output" / "rugd-intelligence-draft.md").read_bytes()
+        ).hexdigest()
+        explore = dict(baseline)
+        explore["tier"] = "explore"
+        explore_page = results_page(explore, result)
+        analyze_page = results_page(baseline, result)
+        self.assertIn("<h2>Research depth</h2>", explore_page)
+        self.assertNotIn("<h2>Key Assumptions</h2>", explore_page)
+        self.assertNotIn("<h2>Risk Summary</h2>", explore_page)
+        self.assertNotIn("<h2>Suggested Next Research Steps</h2>", explore_page)
+        for heading in (
+            "<h2>Evidence Gaps</h2>",
+            "<h2>Key Assumptions</h2>",
+            "<h2>Risk Summary</h2>",
+            "<h2>Suggested Next Research Steps</h2>",
+        ):
+            self.assertIn(heading, analyze_page)
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", analyze_page)
+        self.assertIn("It is not a new score", analyze_page)
+        self.assertIn("Synthetic example only", analyze_page)
+        self.assertIn("do not clear INSUFFICIENT_DEMAND_EVIDENCE", analyze_page)
+        self.assertNotIn("Investor readiness:</strong> investor-ready", analyze_page)
+        customer = {
+            "id": "draft-cafe",
+            "business_name": "Draft Cafe",
+            "tier": "validate",
+            "read_only": False,
+            "review_requested": False,
+            "human_review_approved": False,
+            "hypothetical": False,
+            "profile": {"industry": "Restaurant", "market": "Example county"},
+            "result": result,
+        }
+        validate = validate_page(customer)
+        self.assertIn("<h2>Review Package</h2>", validate)
+        self.assertIn("Current flags", validate)
+        self.assertIn("Market context", validate)
+        self.assertIn("Evidence gaps", validate)
+        self.assertIn("Reviewer notes placeholder", validate)
+        self.assertIn("Request review", validate)
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", validate)
+        self.assertIn("This screen cannot set human_review_approved.", validate)
+        self.assertNotIn("Record reviewer approval", validate)
+        session = {
+            "active": True,
+            "state": "active",
+            "reviewer_identity": "Local prototype reviewer",
+            "authentication_method": "local-session",
+            "remaining_seconds": 60,
+        }
+        reviewer = reviewer_page(customer, result, session)
+        self.assertIn("Record reviewer approval", reviewer)
+        self.assertIn("Prototype-grade local session", reviewer)
+        self.assertIn("not production authentication", reviewer.lower())
+        partner = partner_page()
+        self.assertIn("<h2>Ongoing Intelligence</h2>", partner)
+        self.assertIn("Hypothetical trend alert.", partner)
+        self.assertIn("Hypothetical management action:", partner)
+        self.assertIn("Monitoring active: false", partner)
+        self.assertIn("Recurring monitoring is not active", partner)
+        self.assertNotIn("Monitoring active: true", partner)
+        self.assertNotIn("Record reviewer approval", partner)
+        results_page(baseline, result)
+        validate_page(customer)
+        partner_page()
+        self.assertEqual(result, before)
+        self.assertEqual(result["recommendation"], "do-not-proceed")
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", result["blocking_flags"])
+        self.assertEqual(result["readiness_status"], "internal")
+        self.assertFalse(result["human_review_approved"])
+        self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
+        self.assertEqual(
+            hashlib.sha256(
+                (Path(__file__).resolve().parent.parent / "reports" / "output" / "rugd-intelligence-draft.md").read_bytes()
+            ).hexdigest(),
+            before_report,
+        )
 
     def _assert_shared_status(self, page: str) -> None:
         self.assertIn("Recommendation:</strong> do-not-proceed", page)
