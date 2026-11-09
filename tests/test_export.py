@@ -97,7 +97,7 @@ class TestEmptyStatesAndExport(unittest.TestCase):
             token="second-raw-token",
             reviewer_identity=PROTOTYPE_REVIEWER_IDENTITY,
             authentication_method="local-session",
-            expires_at="2026-11-09T00:00:00+00:00",
+            expires_at="2027-01-01T00:00:00+00:00",
         )
         stamp = get_assessment(self.connection, draft_id)["updated_at"]
         server = make_server(self.db, port=0)

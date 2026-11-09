@@ -217,3 +217,13 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - Market Intelligence shows a combined summary of the figures for the selected industry and geography. Each line names the source, coverage, and period. The summary also names the active provider and year, or says that no public provider is active.
 - `/market/export` downloads those observations as JSON. A synthetic or failed view exports the labeled synthetic examples. The file does not include an assessment or session secrets. Opening it does not change a saved assessment or the official baseline.
 - The summary and the file repeat that the figures do not clear a recommend-against flag.
+
+## Decision: Multi-source market research view
+
+- Date: 2026-11-09
+- Status: Accepted for the local prototype only
+- `MARKET_CBP=cbp` reads County Business Patterns from the public data.census.gov table for the mapped geographies. `CBP_YEAR` defaults to 2023. No API key is used. The table is sector grain. A NAICS code that is not in the table, including Restaurant 722 and Accommodation 721, falls back for that part only.
+- BLS over-the-year percent changes, the difference between two overlapping ACS 5-year population vintages, the ACS B19001 income-bracket note, and CBP annual payroll are extended metrics. Establishments from County Business Patterns and the existing employment, population, and median-income figures stay in the headline snapshot.
+- Geographies now also include Georgia and Fulton County, Georgia.
+- Market Intelligence has a view control. Explore shows the headline snapshot. Analyze adds the full current view and a Market Research Summary. Validate and Partner add the extended metrics. The summary states that it is derived from the cited public sources and that it is not a recommendation. The control does not change a recommendation, a flag, investor readiness, or `human_review_approved`.
+- The Partner screen still does not call these providers. Recurring monitoring is not active.

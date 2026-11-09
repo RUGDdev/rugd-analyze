@@ -11,12 +11,14 @@ import urllib.request
 from pathlib import Path
 
 from app.market import (
+    CBP_SOURCE,
     CENSUS_SOURCE,
     DEMONSTRATION_LABEL,
     FALLBACK_LABEL,
     PUBLIC_SOURCE,
     BlsQcewProvider,
     CensusAcsProvider,
+    CensusCbpProvider,
     assessment_implications,
     export_market_observations,
     get_market_provider,
@@ -282,7 +284,11 @@ class TestMarketDemonstration(unittest.TestCase):
                 "https://data.census.gov/api/access/data/table?id=ACSDT5Y2024.B19013&g=050XX00US01033",
             ],
         )
-        self.assertEqual(len(observations), 2)
+        self.assertEqual(observations[0]["measure"], "Total population")
+        self.assertEqual(observations[1]["measure"], "Median household income (dollars)")
+        self.assertEqual(observations[2]["measure"], "Population change between overlapping ACS 5-year vintages")
+        self.assertEqual(observations[2]["value"], "0")
+        self.assertEqual(observations[2]["detail"], "extended")
         self.assertEqual(observations[0]["source"], CENSUS_SOURCE)
         self.assertEqual(observations[0]["measure"], "Total population")
         self.assertEqual(observations[0]["value"], "58022")
@@ -381,15 +387,19 @@ class TestMarketDemonstration(unittest.TestCase):
             ("Colbert County, Alabama", "01033", "050XX00US01033"),
             ("Tennessee", "47000", "040XX00US47"),
             ("Hamilton County, Tennessee", "47065", "050XX00US47065"),
+            ("Georgia", "13000", "040XX00US13"),
+            ("Fulton County, Georgia", "13121", "050XX00US13121"),
         ):
+            start = len(seen)
             employment = bls.observations("Restaurant", geography)[0]
             population = census.observations("Restaurant", geography)[0]
-            self.assertIn(f"area/{area}.csv", seen[-3])
+            called = seen[start:]
+            self.assertTrue(any(f"area/{area}.csv" in url for url in called))
             self.assertIn(geography, employment["geographic_coverage"])
             self.assertIn(area, employment["geographic_coverage"])
             self.assertEqual(employment["measurement_period"], "2024 annual")
             self.assertEqual(employment["source"], PUBLIC_SOURCE)
-            self.assertIn(acs_code, seen[-2])
+            self.assertTrue(any(acs_code in url and "B01003" in url for url in called))
             self.assertIn(geography, population["geographic_coverage"])
             self.assertIn(acs_code, population["geographic_coverage"])
             self.assertEqual(population["source"], CENSUS_SOURCE)
@@ -407,6 +417,7 @@ class TestMarketDemonstration(unittest.TestCase):
         self.assertIn("2023 annual", page)
         self.assertIn("Tennessee", page)
         self.assertIn("Hamilton County, Tennessee", page)
+        self.assertIn("Fulton County, Georgia", page)
         self.assertIn("MARKET_YEAR selects the QCEW file.", page)
         self.assertIn("ACS_YEAR selects the ACS vintage.", page)
         self.assertIn("Each defaults to 2024 when it is not set.", page)
@@ -491,7 +502,7 @@ class TestMarketDemonstration(unittest.TestCase):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         host, port = server.server_address
-        saved = {key: os.environ.pop(key, None) for key in ("MARKET_PROVIDER", "MARKET_CENSUS")}
+        saved = {key: os.environ.pop(key, None) for key in ("MARKET_PROVIDER", "MARKET_CENSUS", "MARKET_CBP")}
         try:
             with urllib.request.urlopen(
                 f"http://{host}:{port}/market/export?industry=Restaurant&geographic_market=Example+county"
@@ -518,6 +529,140 @@ class TestMarketDemonstration(unittest.TestCase):
             server.server_close()
             thread.join(timeout=5)
             directory.cleanup()
+
+    def test_cbp_synthesis_and_tiers_leave_flags_and_baseline_unchanged(self) -> None:
+        trend = """area_fips,own_code,industry_code,size_code,disclosure_code,annual_avg_estabs,annual_avg_emplvl,annual_avg_wkly_wage,total_annual_wages,avg_annual_pay,oty_annual_avg_emplvl_pct_chg,oty_annual_avg_wkly_wage_pct_chg
+13121,5,23,0,,1597,20487,900,1000,50000,2.5,-1.2
+"""
+        cbp = json.dumps(
+            {
+                "response": {
+                    "data": [
+                        ["NAICS2017", "LFO", "EMPSZES", "ESTAB", "EMP", "PAYANN", "ESTAB_F", "EMP_F", "PAYANN_F", "NAME"],
+                        ["23", "001", "001", "1597", "20487", "1800000", None, None, None, "Fulton County, Georgia"],
+                    ]
+                }
+            }
+        )
+        brackets = json.dumps(
+            {"response": {"data": [["B19001_001E", "B19001_002E", "B19001_017E"], ["1000", "100", "250"]]}}
+        )
+        seen: list[str] = []
+
+        def transport(url: str) -> str:
+            seen.append(url)
+            if "bls.gov" in url:
+                return trend
+            if "CBP" in url:
+                return cbp
+            if "B19001" in url:
+                return brackets
+            if "B01003" in url:
+                value = "200" if "ACSDT5Y2024" in url else "180"
+                return json.dumps({"response": {"data": [["B01003_001E", "NAME"], [value, "Fulton County, Georgia"]]}})
+            if "B19013" in url:
+                return json.dumps({"response": {"data": [["B19013_001E"], ["70000"]]}})
+            raise RuntimeError(url)
+
+        cbp_provider = CensusCbpProvider(year="2023", transport=transport, retrieved_on="2026-11-09")
+        rows = cbp_provider.observations("Construction", "Fulton County, Georgia")
+        self.assertIn("CBP2023.CB2300CBP", seen[-1])
+        self.assertIn("g=050XX00US13121", seen[-1])
+        self.assertEqual(rows[0]["source"], CBP_SOURCE)
+        self.assertEqual(rows[0]["measure"], "Establishments")
+        self.assertEqual(rows[0]["value"], "1597")
+        self.assertEqual(rows[0]["detail"], "headline")
+        self.assertEqual(rows[1]["measure"], "CBP employment")
+        self.assertEqual(rows[2]["measure"], "Annual payroll (thousands of dollars)")
+        self.assertEqual(rows[2]["detail"], "extended")
+        for field in ("source", "geographic_coverage", "industry_classification", "measurement_period", "retrieval_date", "limitations"):
+            self.assertTrue(rows[0][field], field)
+        self.assertIn("do not clear INSUFFICIENT_DEMAND_EVIDENCE", rows[0]["limitations"])
+        self.assertIn("2023 annual", rows[0]["measurement_period"])
+        missed = load_market("Restaurant", "Fulton County, Georgia", cbp_provider)
+        self.assertEqual(missed["status"], "fallback")
+        self.assertEqual(missed["label"], FALLBACK_LABEL)
+        selected = get_market_provider(environ={"MARKET_CBP": "cbp"}, transport=transport)
+        self.assertEqual(selected.name, "census-cbp")
+        self.assertEqual(selected.year, "2023")
+        self.assertEqual(
+            get_market_provider(environ={"MARKET_CBP": "cbp", "CBP_YEAR": "2022"}, transport=transport).year,
+            "2022",
+        )
+        georgia = BlsQcewProvider(year="2024", transport=transport, retrieved_on="2026-11-09")
+        georgia.observations("Construction", "Georgia")
+        self.assertIn("area/13000.csv", seen[-1])
+
+        combined = get_market_provider(
+            environ={
+                "MARKET_PROVIDER": "bls",
+                "MARKET_CENSUS": "acs",
+                "MARKET_CBP": "cbp",
+                "MARKET_YEAR": "2024",
+                "ACS_YEAR": "2024",
+                "CBP_YEAR": "2023",
+            },
+            transport=transport,
+        )
+        self.assertEqual(combined.name, "combined")
+        explore = market_page([], "Construction", "Fulton County, Georgia", provider=combined, tier="explore")
+        analyze = market_page([], "Construction", "Fulton County, Georgia", provider=combined, tier="analyze")
+        validate = market_page([], "Construction", "Fulton County, Georgia", provider=combined, tier="validate")
+        partner = market_page([], "Construction", "Fulton County, Georgia", provider=combined, tier="partner")
+        self.assertIn("Private annual average employment:", explore)
+        self.assertIn("Total population:", explore)
+        self.assertIn("Establishments:", explore)
+        self.assertNotIn("Private total annual wages:", explore)
+        self.assertNotIn("Market Research Summary", explore)
+        self.assertNotIn("Annual payroll (thousands of dollars):", explore)
+        self.assertIn("Private total annual wages:", analyze)
+        self.assertIn("CBP employment:", analyze)
+        self.assertIn("<h2>Market Research Summary</h2>", analyze)
+        self.assertIn("derived from the cited public sources", analyze)
+        self.assertIn("It is not a recommendation.", analyze)
+        self.assertNotIn("Annual payroll (thousands of dollars):", analyze)
+        self.assertNotIn("higher than the prior period", analyze)
+        for page in (validate, partner):
+            self.assertIn("Annual payroll (thousands of dollars):", page)
+            self.assertIn("1800000", page)
+            self.assertIn("Households under $10,000:", page)
+            self.assertIn("derived whole-number share 10 percent, rounded down", page)
+            self.assertIn("higher than the prior period", page)
+            self.assertIn("lower than the prior period", page)
+            self.assertIn("Population change between overlapping ACS 5-year vintages:", page)
+            self.assertIn("It is not a recommendation.", page)
+            self.assertIn("does not set human_review_approved", page)
+        self.assertIn("Monitoring active: false", partner)
+        self.assertNotIn("Monitoring active: true", partner)
+        self.assertIn("20", partner)
+        exported = export_market_observations(
+            "Construction",
+            "Fulton County, Georgia",
+            combined,
+            tier="explore",
+        )
+        measures = [item["measure"] for item in exported["observations"]]
+        self.assertIn("Establishments", measures)
+        self.assertNotIn("Annual payroll (thousands of dollars)", measures)
+        self.assertNotIn("detail", json.dumps(exported["observations"]))
+        result = {
+            "recommendation": "do-not-proceed",
+            "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+            "readiness_status": "internal",
+            "human_review_approved": False,
+        }
+        before = copy.deepcopy(result)
+        before_sample = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        before_report = hashlib.sha256((ROOT / "reports" / "output" / "rugd-intelligence-draft.md").read_bytes()).hexdigest()
+        market_page([], "Construction", "Fulton County, Georgia", provider=combined, tier="partner")
+        export_market_observations("Construction", "Fulton County, Georgia", combined, tier="partner")
+        self.assertEqual(result, before)
+        self.assertFalse(result["human_review_approved"])
+        self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
+        self.assertEqual(
+            hashlib.sha256((ROOT / "reports" / "output" / "rugd-intelligence-draft.md").read_bytes()).hexdigest(),
+            before_report,
+        )
 
 
 if __name__ == "__main__":

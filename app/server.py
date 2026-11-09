@@ -80,8 +80,14 @@ class AppHandler(BaseHTTPRequestHandler):
                 query = parse_qs(urlparse(self.path).query)
                 industry = (query.get("industry") or [""])[-1]
                 geographic_market = (query.get("geographic_market") or [""])[-1]
+                tier = (query.get("tier") or ["explore"])[-1]
                 payload = json.dumps(
-                    export_market_observations(industry, geographic_market, provider=get_market_provider()),
+                    export_market_observations(
+                        industry,
+                        geographic_market,
+                        provider=get_market_provider(),
+                        tier=tier,
+                    ),
                     indent=2,
                 ).encode("utf-8")
                 self._bytes(payload, "application/json", disposition=_market_disposition(industry, geographic_market))
@@ -89,12 +95,14 @@ class AppHandler(BaseHTTPRequestHandler):
                 query = parse_qs(urlparse(self.path).query)
                 industry = (query.get("industry") or [""])[-1]
                 geographic_market = (query.get("geographic_market") or [""])[-1]
+                tier = (query.get("tier") or ["explore"])[-1]
                 self._html(
                     market_page(
                         list_assessments(connection),
                         industry,
                         geographic_market,
                         provider=get_market_provider(),
+                        tier=tier,
                     )
                 )
             elif path == "/reports":

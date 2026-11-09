@@ -93,6 +93,7 @@ OBSERVATION_FIELDS = (
 )
 PUBLIC_SOURCE = "U.S. Bureau of Labor Statistics, Quarterly Census of Employment and Wages"
 CENSUS_SOURCE = "U.S. Census Bureau, American Community Survey 5-year estimates"
+CBP_SOURCE = "U.S. Census Bureau, County Business Patterns"
 ACS_LABEL = (
     "Public source: U.S. Census Bureau, American Community Survey 5-year estimates. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
@@ -100,6 +101,11 @@ ACS_LABEL = (
 )
 PUBLIC_LABEL = (
     "Public source: U.S. Bureau of Labor Statistics, Quarterly Census of Employment and Wages. "
+    "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
+    "or any recommend-against flag."
+)
+CBP_LABEL = (
+    "Public source: U.S. Census Bureau, County Business Patterns. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
     "or any recommend-against flag."
 )
@@ -133,13 +139,18 @@ _INDUSTRIES = {
 }
 PUBLIC_INDUSTRIES = ("Not selected",) + tuple(_INDUSTRIES)
 _CORE_MEASURES = (
-    ("annual_avg_emplvl", "Private annual average employment"),
-    ("annual_avg_wkly_wage", "Private annual average weekly wage"),
-    ("annual_avg_estabs", "Private annual average establishments"),
+    ("annual_avg_emplvl", "Private annual average employment", "headline"),
+    ("annual_avg_wkly_wage", "Private annual average weekly wage", "detail"),
+    ("annual_avg_estabs", "Private annual average establishments", "detail"),
 )
 _EXTRA_MEASURES = (
-    ("total_annual_wages", "Private total annual wages"),
-    ("avg_annual_pay", "Private average annual pay"),
+    ("total_annual_wages", "Private total annual wages", "detail"),
+    ("avg_annual_pay", "Private average annual pay", "detail"),
+)
+_TREND_MEASURES = (
+    ("oty_annual_avg_emplvl_pct_chg", "Private employment change from the prior year (percent)"),
+    ("oty_annual_avg_wkly_wage_pct_chg", "Private weekly wage change from the prior year (percent)"),
+    ("oty_annual_avg_estabs_pct_chg", "Private establishment count change from the prior year (percent)"),
 )
 _GEOGRAPHIES = {
     "United States": ("US000", "United States"),
@@ -147,6 +158,8 @@ _GEOGRAPHIES = {
     "Colbert County, Alabama": ("01033", "Colbert County, Alabama"),
     "Tennessee": ("47000", "Tennessee"),
     "Hamilton County, Tennessee": ("47065", "Hamilton County, Tennessee"),
+    "Georgia": ("13000", "Georgia"),
+    "Fulton County, Georgia": ("13121", "Fulton County, Georgia"),
 }
 PUBLIC_GEOGRAPHIES = ("Not selected",) + tuple(_GEOGRAPHIES) + (
     "Unspecified demonstration market",
@@ -219,6 +232,8 @@ _ACS_GEOGRAPHIES = {
     "Colbert County, Alabama": "050XX00US01033",
     "Tennessee": "040XX00US47",
     "Hamilton County, Tennessee": "050XX00US47065",
+    "Georgia": "040XX00US13",
+    "Fulton County, Georgia": "050XX00US13121",
 }
 _ACS_TABLES = (
     ("B01003", "B01003_001E", "Total population"),
@@ -275,8 +290,173 @@ class CensusAcsProvider:
                     "limitations": _ACS_LIMITATION,
                     "measure": measure,
                     "value": value,
+                    "detail": "headline",
                 }
             )
+        change = self._population_change(
+            geo_code,
+            observations[0]["value"],
+            coverage,
+            retrieved_on,
+        )
+        if change is not None:
+            observations.append(change)
+        distribution = self._income_distribution(geo_code, coverage, period, retrieved_on)
+        if distribution is not None:
+            observations.append(distribution)
+        return observations
+
+    def _population_change(
+        self,
+        geo_code: str,
+        current_value: str,
+        coverage: str,
+        retrieved_on: str,
+    ) -> dict[str, str] | None:
+        if not str(current_value).isdigit():
+            return None
+        prior_year = str(int(self.year) - 1)
+        url = (
+            "https://data.census.gov/api/access/data/table"
+            f"?id=ACSDT5Y{prior_year}.B01003&g={geo_code}"
+        )
+        try:
+            prior_value = _acs_estimate(self._transport(url), "B01003_001E")
+        except (LookupError, ValueError, RuntimeError, OSError):
+            return None
+        if not str(prior_value).isdigit():
+            return None
+        prior_period = f"{int(prior_year) - 4}-{prior_year} 5-year"
+        current_period = f"{int(self.year) - 4}-{self.year} 5-year"
+        return {
+            "source": CENSUS_SOURCE,
+            "geographic_coverage": coverage,
+            "industry_classification": "Demographic. Not a NAICS industry.",
+            "measurement_period": f"{prior_period} to {current_period}",
+            "retrieval_date": retrieved_on,
+            "limitations": (
+                "Derived by subtracting the prior ACS 5-year total population, table B01003, "
+                "from the selected vintage. The two 5-year periods overlap, so this is not a "
+                "one-year population change. It does not clear INSUFFICIENT_DEMAND_EVIDENCE or "
+                "any other recommend-against flag, and it does not set human_review_approved."
+            ),
+            "measure": "Population change between overlapping ACS 5-year vintages",
+            "value": str(int(current_value) - int(prior_value)),
+            "detail": "extended",
+        }
+
+    def _income_distribution(
+        self,
+        geo_code: str,
+        coverage: str,
+        period: str,
+        retrieved_on: str,
+    ) -> dict[str, str] | None:
+        url = (
+            "https://data.census.gov/api/access/data/table"
+            f"?id=ACSDT5Y{self.year}.B19001&g={geo_code}"
+        )
+        try:
+            counts = _acs_columns(
+                self._transport(url),
+                ("B19001_001E", "B19001_002E", "B19001_017E"),
+            )
+        except (LookupError, ValueError, RuntimeError, OSError):
+            return None
+        limitations = (
+            "American Community Survey 5-year table B19001 household income brackets. "
+            "The note uses the published count under $10,000 and the published count at "
+            "$200,000 or more. A whole-number share is derived from those counts and is rounded down. "
+            "This is not a recommendation. It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any "
+            "other recommend-against flag, and it does not set human_review_approved."
+        )
+        base = {
+            "source": CENSUS_SOURCE,
+            "geographic_coverage": coverage,
+            "industry_classification": "Demographic. Not a NAICS industry.",
+            "measurement_period": period,
+            "retrieval_date": retrieved_on,
+            "limitations": limitations,
+            "measure": "Household income distribution note",
+            "detail": "extended",
+        }
+        if counts is None:
+            return {**base, "value": "Not disclosed"}
+        total, low, high = counts
+        if total <= 0:
+            return {**base, "value": "Not disclosed"}
+        low_share = (low * 100) // total
+        high_share = (high * 100) // total
+        return {
+            **base,
+            "value": (
+                f"Households under $10,000: {low} of {total} "
+                f"(derived whole-number share {low_share} percent, rounded down). "
+                f"Households at $200,000 or more: {high} of {total} "
+                f"(derived whole-number share {high_share} percent, rounded down)."
+            ),
+        }
+
+
+class CensusCbpProvider:
+    """County Business Patterns establishments, employment, and payroll for one mapped industry."""
+
+    name = "census-cbp"
+
+    def __init__(
+        self,
+        *,
+        year: str = "2023",
+        transport: Fetch | None = None,
+        retrieved_on: str | None = None,
+    ) -> None:
+        self.year = year if len(year) == 4 and year.isdigit() else "2023"
+        self._transport = transport or _fetch_text
+        self._retrieved_on = retrieved_on
+
+    def observations(self, industry: str | None, geography: str | None) -> list[dict[str, str]]:
+        industry_name = str(industry or "").strip()
+        geography_name = str(geography or "").strip()
+        industry_spec = _INDUSTRIES.get(industry_name)
+        geo_code = _ACS_GEOGRAPHIES.get(geography_name)
+        if industry_spec is None or geo_code is None:
+            raise NotCovered("selection is not covered")
+        code, classification = industry_spec
+        table = f"CBP{self.year}.CB{self.year[-2:]}00CBP"
+        url = f"https://data.census.gov/api/access/data/table?id={table}&g={geo_code}"
+        row = _cbp_row(self._transport(url), code)
+        retrieved_on = self._retrieved_on or _today()
+        limitations = (
+            f"County Business Patterns table {table}, all legal forms and all employment sizes. "
+            "This release is published at sector grain, so a 6-digit NAICS code that is not in the "
+            "table is not covered. Annual payroll is published in thousands of dollars. "
+            "These are establishment counts, employment, and payroll, not revenue or demand for any "
+            "one business. They do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other "
+            "recommend-against flag, and they do not set human_review_approved. "
+            "This is not a live feed. Monitoring is not active."
+        )
+        base = {
+            "source": CBP_SOURCE,
+            "geographic_coverage": f"{geography_name} (CBP geography {geo_code})",
+            "industry_classification": f"{classification}; County Business Patterns",
+            "measurement_period": f"{self.year} annual",
+            "retrieval_date": retrieved_on,
+            "limitations": limitations,
+        }
+        fields = (
+            ("ESTAB", "Establishments", "headline"),
+            ("EMP", "CBP employment", "detail"),
+            ("PAYANN", "Annual payroll (thousands of dollars)", "extended"),
+        )
+        observations = []
+        for field, label, detail in fields:
+            flag = str(row.get(f"{field}_F") or "").strip()
+            raw = "" if row.get(field) is None else str(row.get(field)).strip()
+            if flag or not raw.isdigit():
+                value = "Not disclosed"
+            else:
+                value = raw
+            observations.append({**base, "measure": label, "value": value, "detail": detail})
         return observations
 
 
@@ -296,6 +476,7 @@ def get_market_provider(environ: Any | None = None, transport: Fetch | None = No
     env = os.environ if environ is None else environ
     raw = str(env.get("MARKET_PROVIDER") or "").strip().lower()
     census_raw = str(env.get("MARKET_CENSUS") or "").strip().lower()
+    cbp_raw = str(env.get("MARKET_CBP") or "").strip().lower()
     parts: list[Any] = []
     if raw in {"bls", "qcew", "bls-qcew"}:
         parts.append(BlsQcewProvider(year=_year(env, "MARKET_YEAR", "2024"), transport=transport))
@@ -305,6 +486,10 @@ def get_market_provider(environ: Any | None = None, transport: Fetch | None = No
         parts.append(CensusAcsProvider(year=_year(env, "ACS_YEAR", "2024"), transport=transport))
     elif census_raw not in {"", "none", "off", "synthetic", "demo", "demonstration"}:
         parts.append(UnavailableMarketProvider(census_raw))
+    if cbp_raw in {"cbp", "census-cbp", "patterns"}:
+        parts.append(CensusCbpProvider(year=_year(env, "CBP_YEAR", "2023"), transport=transport))
+    elif cbp_raw not in {"", "none", "off", "synthetic", "demo", "demonstration"}:
+        parts.append(UnavailableMarketProvider(cbp_raw))
     if not parts:
         return SyntheticMarketProvider()
     if len(parts) == 1 and not isinstance(parts[0], UnavailableMarketProvider):
@@ -345,7 +530,7 @@ def load_market(
         provider_name = str(getattr(selected, "name", "") or "")
         return {
             "status": "public",
-            "label": ACS_LABEL if provider_name == "census-acs" else PUBLIC_LABEL,
+            "label": {"census-acs": ACS_LABEL, "census-cbp": CBP_LABEL}.get(provider_name, PUBLIC_LABEL),
             "reason": None,
             "provider_name": provider_name,
             "year": str(getattr(selected, "year", "") or ""),
@@ -367,16 +552,21 @@ def export_market_observations(
     industry: str | None = None,
     geographic_market: str | None = None,
     provider: Any | None = None,
+    tier: str | None = None,
 ) -> dict[str, Any]:
     """Copy the observations for this selection. This does not read or change an assessment."""
+    selected_tier = _tier_name(tier)
     view = load_market(industry, geographic_market, provider)
     observations = [
         {field: str(item.get(field) or "") for field in OBSERVATION_FIELDS}
-        for item in view.get("observations") or []
+        for item in _for_tier(view.get("observations") or [], selected_tier)
     ]
     synthetic = _synthetic_observations(view)
+    if selected_tier == "explore":
+        synthetic = synthetic[:1]
     payload = {
         "kind": "rugd-market-observations",
+        "tier": selected_tier,
         "status": view.get("status") or "",
         "industry": str(industry or ""),
         "geographic_market": str(geographic_market or ""),
@@ -457,24 +647,52 @@ def _observations_from_qcew(
                     "total annual wages, average annual pay, and establishment size coverage"
                 ),
                 "value": "Not disclosed",
+                "detail": "headline",
             }
         ]
     limitations = _PUBLIC_LIMITATION
+    trend_limitations = (
+        f"{_PUBLIC_LIMITATION} The percent is the over-the-year change published in the annual file. "
+        "A direction word derived from its sign is not a recommendation."
+    )
     observations = []
-    for field, label in _CORE_MEASURES:
+    for field, label, detail in _CORE_MEASURES:
         value = str(match.get(field) or "").strip()
         if not value:
             raise ValueError("public measure is blank")
-        observations.append({**base, "limitations": limitations, "measure": label, "value": value})
-    for field, label in _EXTRA_MEASURES:
+        observations.append(
+            {**base, "limitations": limitations, "measure": label, "value": value, "detail": detail}
+        )
+    for field, label, detail in _EXTRA_MEASURES:
         value = str(match.get(field) or "").strip()
         if value:
-            observations.append({**base, "limitations": limitations, "measure": label, "value": value})
+            observations.append(
+                {**base, "limitations": limitations, "measure": label, "value": value, "detail": detail}
+            )
     size_code = str(match.get("size_code") or "").strip()
     if size_code:
         coverage = "All size classes combined" if size_code == "0" else f"Size code {size_code}"
         observations.append(
-            {**base, "limitations": limitations, "measure": "Establishment size coverage", "value": coverage}
+            {
+                **base,
+                "limitations": limitations,
+                "measure": "Establishment size coverage",
+                "value": coverage,
+                "detail": "detail",
+            }
+        )
+    for field, label in _TREND_MEASURES:
+        value = _percent_text(str(match.get(field) or ""))
+        if value is None:
+            continue
+        observations.append(
+            {
+                **base,
+                "limitations": trend_limitations,
+                "measure": label,
+                "value": value,
+                "detail": "extended",
+            }
         )
     return observations
 
@@ -517,8 +735,9 @@ def _load_combined(
     return {
         "status": "public",
         "label": (
-            "Public sources: BLS Quarterly Census of Employment and Wages and "
-            "Census American Community Survey 5-year estimates. Not a live feed. Not monitoring. "
+            "Public sources: "
+            + "; ".join(active)
+            + ". Not a live feed. Not monitoring. "
             "These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any recommend-against flag."
         ),
         "reason": None,
@@ -537,6 +756,8 @@ def _provider_caption(provider: Any) -> str:
         return "BLS Quarterly Census of Employment and Wages"
     if name == "census-acs":
         return "U.S. Census Bureau, American Community Survey 5-year estimates"
+    if name == "census-cbp":
+        return "U.S. Census Bureau, County Business Patterns"
     if name == "unavailable":
         requested = str(getattr(provider, "requested", "") or "").strip()
         return f"Requested provider {requested}" if requested else "Requested provider"
@@ -546,6 +767,32 @@ def _provider_caption(provider: Any) -> str:
 def _year(env: Any, key: str, default: str) -> str:
     year = str(env.get(key) or default).strip()
     return year if len(year) == 4 and year.isdigit() else default
+
+
+def _tier_name(tier: str | None) -> str:
+    text = str(tier or "analyze").strip().lower()
+    if text in {"explore", "analyze", "validate", "partner"}:
+        return text
+    return "analyze"
+
+
+def _for_tier(observations: list[dict[str, str]], tier: str) -> list[dict[str, str]]:
+    if tier == "explore":
+        return [item for item in observations if str(item.get("detail") or "") == "headline"]
+    if tier == "analyze":
+        return [item for item in observations if str(item.get("detail") or "") != "extended"]
+    return list(observations)
+
+
+def _percent_text(raw: str) -> str | None:
+    text = raw.strip()
+    if not text:
+        return None
+    try:
+        float(text)
+    except ValueError:
+        return None
+    return text
 
 
 def _acs_estimate(body: str, column: str) -> str:
@@ -563,6 +810,44 @@ def _acs_estimate(body: str, column: str) -> str:
     if not text or text.startswith("-") or not text.isdigit():
         return "Not disclosed"
     return text
+
+
+def _acs_columns(body: str, columns: tuple[str, ...]) -> tuple[int, ...] | None:
+    try:
+        payload = json.loads(body)
+        rows = payload["response"]["data"]
+        header = [str(item) for item in rows[0]]
+        values = rows[1]
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("census table was not readable") from exc
+    if any(column not in header for column in columns):
+        raise ValueError("census estimate column is missing")
+    parsed: list[int] = []
+    for column in columns:
+        raw = values[header.index(column)]
+        text = "" if raw is None else str(raw).strip()
+        if not text.isdigit():
+            return None
+        parsed.append(int(text))
+    return tuple(parsed)
+
+
+def _cbp_row(body: str, naics: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(body)
+        rows = payload["response"]["data"]
+        header = [str(item) for item in rows[0]]
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("county business patterns table was not readable") from exc
+    for values in rows[1:]:
+        record = {header[index]: values[index] for index in range(min(len(header), len(values)))}
+        if (
+            str(record.get("NAICS2017") or "") == naics
+            and str(record.get("LFO") or "") == "001"
+            and str(record.get("EMPSZES") or "") == "001"
+        ):
+            return record
+    raise LookupError("CBP does not publish this NAICS code in this table")
 
 
 def _fallback_view(provider: Any, snapshot: dict[str, Any], label: str, reason: str) -> dict[str, Any]:

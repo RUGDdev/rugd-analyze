@@ -21,6 +21,8 @@ from app.market import (
     DEMONSTRATION_INDUSTRIES,
     PUBLIC_GEOGRAPHIES,
     PUBLIC_INDUSTRIES,
+    _for_tier,
+    _tier_name,
     assessment_implications,
     load_market,
     market_framework,
@@ -857,20 +859,24 @@ def market_page(
     industry: str | None = None,
     geographic_market: str | None = None,
     provider: Any | None = None,
+    tier: str | None = None,
 ) -> str:
     records = records or []
+    selected = _tier_name(tier)
     if provider is None or getattr(provider, "name", None) == "synthetic":
-        return _synthetic_market_page(records, industry, geographic_market)
+        return _synthetic_market_page(records, industry, geographic_market, selected)
     view = load_market(industry, geographic_market, provider)
+    view = {**view, "observations": _for_tier(list(view.get("observations") or []), selected)}
     if view["status"] == "public":
-        return _public_market_page(records, industry, geographic_market, view)
-    return _fallback_market_page(records, industry, geographic_market, view)
+        return _public_market_page(records, industry, geographic_market, view, selected)
+    return _fallback_market_page(records, industry, geographic_market, view, selected)
 
 
 def _synthetic_market_page(
     records: list[dict[str, Any]],
     industry: str | None,
     geographic_market: str | None,
+    tier: str,
 ) -> str:
     snapshot = market_framework(industry, geographic_market)
     implications = "".join(
@@ -878,6 +884,14 @@ def _synthetic_market_page(
     )
     industry_options = _demo_options(DEMONSTRATION_INDUSTRIES, snapshot["industry"])
     geography_options = _demo_options(DEMONSTRATION_GEOGRAPHIES, snapshot["geographic_market"])
+    view = _synthetic_view(snapshot)
+    research = "" if tier == "explore" else _research_summary(view["observations"])
+    shown = (
+        f"<div class=\"banner\">{escape(snapshot['label'])}</div>"
+        "<p>Live feed connected: false. Monitoring active: false. Source dataset: none.</p>"
+        if tier == "explore"
+        else _market_block(snapshot)
+    )
     body = f"""
 <h1>Market Intelligence (demonstration)</h1>
 {_SURFACE_NOTE}
@@ -887,11 +901,13 @@ def _synthetic_market_page(
 <select name="industry">{industry_options}</select>
 <label>Demonstration geographic market</label>
 <select name="geographic_market">{geography_options}</select>
+{_tier_select(tier)}
 <button type="submit">Show demonstration selection</button>
 </form>
-<p class="muted">The choices are labels for this demonstration. They are not a dataset and they do not describe a real market.</p>
-{_market_summary(_synthetic_view(snapshot), snapshot["industry"], snapshot["geographic_market"])}
-{_market_block(snapshot)}
+<p class="muted">{_tier_note(tier)} The choices are labels for this demonstration. They are not a dataset and they do not describe a real market.</p>
+{_market_summary(view, snapshot["industry"], snapshot["geographic_market"], tier)}
+{research}
+{shown}
 <h2>Implications for this assessment</h2>
 <ul>{implications}</ul>
 <p class="muted">The same demonstration snapshot is available on Partner. Neither view loads Census, BLS, or BEA data.</p>
@@ -904,10 +920,12 @@ def _public_market_page(
     industry: str | None,
     geographic_market: str | None,
     view: dict[str, Any],
+    tier: str,
 ) -> str:
     industry_options = _demo_options(PUBLIC_INDUSTRIES, str(industry or "Not selected"))
     geography_options = _demo_options(PUBLIC_GEOGRAPHIES, str(geographic_market or "Not selected"))
-    cards = _observation_cards(view["observations"])
+    cards = "" if tier == "explore" else _observation_cards(view["observations"])
+    research = "" if tier == "explore" else _research_summary(view["observations"])
     partial = _partial_synthetic(view)
     notes = []
     for record in records:
@@ -934,11 +952,13 @@ def _public_market_page(
 <select name="industry">{industry_options}</select>
 <label>Geographic coverage</label>
 <select name="geographic_market">{geography_options}</select>
+{_tier_select(tier)}
 <button type="submit">Request public observations</button>
 </form>
-<p class="muted">Optional public extract. {_active_provider(view)} Live feed connected: false. Monitoring active: false. This request does not change an assessment.</p>
+<p class="muted">{_tier_note(tier)} Optional public extract. {_active_provider(view)} Live feed connected: false. Monitoring active: false. This request does not change an assessment.</p>
 <p class="muted">{_YEAR_NOTE}</p>
-{_market_summary(view, industry, geographic_market)}
+{_market_summary(view, industry, geographic_market, tier)}
+{research}
 {cards}
 {partial}
 <h2>Implications for this assessment</h2>
@@ -952,6 +972,7 @@ def _fallback_market_page(
     industry: str | None,
     geographic_market: str | None,
     view: dict[str, Any],
+    tier: str,
 ) -> str:
     snapshot = view["snapshot"]
     implications = "".join(
@@ -968,11 +989,13 @@ def _fallback_market_page(
 <select name="industry">{industry_options}</select>
 <label>Geographic coverage</label>
 <select name="geographic_market">{geography_options}</select>
+{_tier_select(tier)}
 <button type="submit">Request public observations</button>
 </form>
-<p class="muted">{_active_provider(view)} A mapped industry and geography can request the public extract. Any other selection stays on the synthetic snapshot.</p>
+<p class="muted">{_tier_note(tier)} {_active_provider(view)} A mapped industry and geography can request the public extract. Any other selection stays on the synthetic snapshot.</p>
 <p class="muted">{_YEAR_NOTE}</p>
-{_market_summary(view, industry, geographic_market)}
+{_market_summary(view, industry, geographic_market, tier)}
+{"" if tier == "explore" else _research_summary(view["observations"])}
 {_market_block(snapshot)}
 <h2>Implications for this assessment</h2>
 <ul>{implications}</ul>
@@ -984,7 +1007,9 @@ def _fallback_market_page(
 _YEAR_NOTE = (
     "The year is controlled by an environment variable. "
     "MARKET_YEAR selects the QCEW file. ACS_YEAR selects the ACS vintage. "
-    "Each defaults to 2024 when it is not set. This is prototype behavior."
+    "Each defaults to 2024 when it is not set. "
+    "CBP_YEAR selects the County Business Patterns release and defaults to 2023. "
+    "This is prototype behavior."
 )
 
 
@@ -999,7 +1024,12 @@ def _synthetic_view(snapshot: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _market_summary(view: dict[str, Any], industry: str | None, geographic_market: str | None) -> str:
+def _market_summary(
+    view: dict[str, Any],
+    industry: str | None,
+    geographic_market: str | None,
+    tier: str = "analyze",
+) -> str:
     rows = []
     for item in view.get("observations") or []:
         rows.append(
@@ -1011,7 +1041,10 @@ def _market_summary(view: dict[str, Any], industry: str | None, geographic_marke
             "</li>"
         )
     if view.get("status") != "public" or view.get("partial_notes"):
-        for example in (view.get("snapshot") or {}).get("synthetic_examples") or []:
+        examples = list((view.get("snapshot") or {}).get("synthetic_examples") or [])
+        if tier == "explore":
+            examples = examples[:1]
+        for example in examples:
             rows.append(f"<li>{escape(str(example))}</li>")
     if not rows:
         rows.append("<li>No observations are loaded.</li>")
@@ -1019,6 +1052,7 @@ def _market_summary(view: dict[str, Any], industry: str | None, geographic_marke
         {
             "industry": str(industry or ""),
             "geographic_market": str(geographic_market or ""),
+            "tier": tier,
         }
     )
     return (
@@ -1041,9 +1075,95 @@ def _active_provider(view: dict[str, Any]) -> str:
     labels = {
         "bls-qcew": "BLS Quarterly Census of Employment and Wages",
         "census-acs": "U.S. Census Bureau, American Community Survey 5-year estimates",
+        "census-cbp": "U.S. Census Bureau, County Business Patterns",
     }
     label = labels.get(name, name or "public market provider")
     return f"Active provider: {escape(label)}. Year: {escape(year or 'not set')}."
+
+
+def _tier_select(tier: str) -> str:
+    labels = (
+        ("explore", "Explore (limited snapshot)"),
+        ("analyze", "Analyze (full view and summary)"),
+        ("validate", "Validate (extended metrics)"),
+        ("partner", "Partner (extended metrics)"),
+    )
+    options = "".join(
+        f'<option value="{key}"{" selected" if key == tier else ""}>{escape(label)}</option>'
+        for key, label in labels
+    )
+    return f"<label>Market view</label><select name=\"tier\">{options}</select>"
+
+
+def _tier_note(tier: str) -> str:
+    notes = {
+        "explore": (
+            "Explore shows a limited snapshot: headline employment, population, median household income, "
+            "and establishment count when a public source published them."
+        ),
+        "analyze": (
+            "Analyze shows the full current market view and the Market Research Summary. "
+            "Extended trend and distribution metrics stay on Validate and Partner."
+        ),
+        "validate": "Validate shows the full view, the Market Research Summary, and extended metrics.",
+        "partner": (
+            "Partner shows the same market view as Validate, including extended metrics. "
+            "Recurring monitoring is not active."
+        ),
+    }
+    return notes.get(tier, notes["analyze"])
+
+
+def _research_summary(observations: list[dict[str, str]]) -> str:
+    groups: list[tuple[str, list[dict[str, str]]]] = []
+    for item in observations:
+        source = str(item.get("source") or "")
+        if not groups or groups[-1][0] != source:
+            groups.append((source, []))
+        groups[-1][1].append(item)
+    lines = []
+    for source, rows in groups:
+        parts = [
+            f"{row.get('measure')} is {row.get('value')} ({row.get('measurement_period')})"
+            for row in rows
+        ]
+        lines.append(f"From {source}: " + "; ".join(parts) + ".")
+    for row in observations:
+        measure = str(row.get("measure") or "")
+        if "change" not in measure.lower() or str(row.get("value") or "") == "Not disclosed":
+            continue
+        direction = _trend_direction(str(row.get("value") or ""))
+        if not direction:
+            continue
+        lines.append(
+            f"Trend direction for {measure}: {direction}. "
+            f"Source: {row.get('source')}. Measurement period: {row.get('measurement_period')}."
+        )
+    if not lines:
+        lines.append(
+            "No public observation is cited for this selection. Any examples on this page are a synthetic snapshot."
+        )
+    body = "".join(f"<p>{escape(line)}</p>" for line in lines)
+    return (
+        "<h2>Market Research Summary</h2>"
+        "<p>This overview is derived from the cited public sources in this section. "
+        "It is not a recommendation. It does not clear INSUFFICIENT_DEMAND_EVIDENCE "
+        "or any other recommend-against flag, and it does not set human_review_approved.</p>"
+        f"{body}"
+    )
+
+
+def _trend_direction(value: str) -> str:
+    token = value.strip().split(" ", 1)[0].replace(",", "")
+    try:
+        number = float(token)
+    except ValueError:
+        return ""
+    if number > 0:
+        return "higher than the prior period"
+    if number < 0:
+        return "lower than the prior period"
+    return "unchanged from the prior period"
 
 
 def _observation_cards(observations: list[dict[str, str]]) -> str:
