@@ -69,6 +69,7 @@ _TITLE_ACTIVE = {
     "Reset password": "/login",
     "Verify email": "/login",
     "Read-only share": "",
+    "Advisor Summary": "/analyze",
     "Register": "/register",
     "Log out": "/logout",
     "New assessment": "/assessments",
@@ -79,7 +80,10 @@ _TITLE_ACTIVE = {
 
 
 def layout(title: str, body: str, *, printable: bool = False, active: str = "") -> str:
-    current = active or _TITLE_ACTIVE.get(title, "/assessments")
+    if active == "none":
+        current = ""
+    else:
+        current = active or _TITLE_ACTIVE.get(title, "/assessments")
     links = []
     for href, label in NAV:
         marker = ' class="active" aria-current="page"' if href == current else ""
@@ -666,6 +670,8 @@ def shared_assessment_page(
     record: dict[str, Any],
     result: dict[str, Any] | None = None,
     notes: list[dict[str, Any]] | None = None,
+    *,
+    share_path: str = "",
 ) -> str:
     """A share link. No save, analyze, review-request, or approval control."""
     result = result or {}
@@ -704,11 +710,18 @@ def shared_assessment_page(
             "<p>Indicative assessment is shown after Analyze has been run. "
             "No feasibility score is calculated.</p>"
         )
+    advisor_link = ""
+    if share_path:
+        advisor_link = (
+            f'<p class="no-print"><a class="button" href="{escape(share_path)}/advisor">'
+            "Open Advisor Summary</a></p>"
+        )
     body = f"""
 <h1>Read-only share for {escape(record['business_name'])}</h1>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
 <div class="banner">Read-only share. This link cannot edit the assessment, request review, or approve it. It does not grant investor-ready status.</div>
+{advisor_link}
 <div class="card">
 {standing}
 <p class="muted">Authoritative figures come only from the 0.1 engine. This page does not run the engine.</p>
@@ -957,7 +970,9 @@ def _output_links(record: dict[str, Any]) -> str:
 <a class="button" href="/assessments/{assessment_id}/audit/download">Download JSON audit</a>
 <a class="button" href="/assessments/{assessment_id}/research">Download Research Package</a>
 <a class="button" href="/assessments/{assessment_id}/research/markdown">Download research Markdown</a>
-<a class="button" href="/assessments/{assessment_id}/research/brief">Research Brief</a></p>
+<a class="button" href="/assessments/{assessment_id}/research/brief">Research Brief</a>
+<a class="button" href="/assessments/{assessment_id}/advisor">Advisor Summary</a>
+<a class="button" href="/assessments/{assessment_id}/advisor/download">Download Advisor Package</a></p>
 """
 
 
@@ -2336,6 +2351,116 @@ def _market_block(snapshot: dict[str, Any]) -> str:
 <h2>Synthetic examples</h2>
 <ul>{examples}</ul>
 """
+
+
+def advisor_summary_page(
+    package: dict[str, Any],
+    *,
+    printable: bool = False,
+    link_base: str = "",
+    active: str = "",
+) -> str:
+    """Render the advisor package. The package is already a copy and this view does not save it."""
+    assessment = package.get("assessment") or {}
+    indicative = package.get("indicative") or {}
+    market = package.get("market_snapshot") or {}
+    provenance = market.get("provenance") or {}
+    durable = package.get("durable_value") or {}
+    if indicative:
+        components = indicative.get("components") or {}
+        rows = []
+        for key in ("market_validity", "financial_viability", "stewardship_readiness"):
+            item = components.get(key) or {}
+            width = max(0, min(100, int(item.get("score") or 0)))
+            weight = (indicative.get("weights") or {}).get(key, "")
+            rows.append(
+                "<li>"
+                f"<strong>{escape(str(item.get('name') or ''))}:</strong> {escape(str(item.get('score')))} of 100. "
+                f"Weight {escape(str(weight))}."
+                f'<div class="bar-track"><div class="bar" style="width: {width}%"></div></div>'
+                "</li>"
+            )
+        score_block = f"""
+<p><strong>{escape(str(indicative.get('label') or ''))}</strong></p>
+<p><strong>Gate status:</strong> {escape(str(indicative.get('gate_status') or ''))}</p>
+<p><strong>Band:</strong> {escape(str(indicative.get('band') or ''))}</p>
+<p><strong>Gate recommendation:</strong> {escape(str(indicative.get('gate_recommendation') or ''))}</p>
+<ul>{''.join(rows)}</ul>
+<p class="muted"><strong>Overall number (indicative only):</strong> {escape(str(indicative.get('score')))} of 100</p>
+"""
+    else:
+        score_block = """
+<p><strong>Gate status:</strong> Not run</p>
+<p><strong>Band:</strong> Not run</p>
+<p>Indicative assessment is shown after Analyze has been run. No feasibility score is calculated.</p>
+"""
+    flags = package.get("key_flags") or []
+    flag_list = "".join(f'<li class="flag">{escape(str(flag))}</li>' for flag in flags) or "<li>None</li>"
+    examples = "".join(
+        f"<li>{escape(str(line))}</li>" for line in market.get("synthetic_examples") or []
+    ) or "<li>None</li>"
+    note_rows = []
+    for item in durable.get("notes") or []:
+        note_rows.append(
+            "<li>"
+            f"<strong>{escape(str(item.get('pillar_title') or ''))}:</strong> "
+            f"{escape(str(item.get('note') or ''))}"
+            "</li>"
+        )
+    notes = "".join(note_rows) or "<li>No educational note is stored.</li>"
+    downloads = ""
+    if link_base and not printable:
+        downloads = f"""
+<p class="no-print"><a class="button" href="{escape(link_base)}/download">Download Advisor Package</a>
+<a class="button" href="{escape(link_base)}/print">Printable Advisor Package</a></p>
+"""
+    share_note = ""
+    if active == "none":
+        share_note = (
+            '<div class="banner">Read-only share. This Advisor Summary cannot edit the assessment, '
+            "request review, or approve it. It does not grant investor-ready status.</div>"
+        )
+    body = f"""
+<h1>Advisor Summary</h1>
+{downloads}
+{_SURFACE_NOTE}
+<div class="banner">{escape(str(package.get('prototype_disclaimer') or ''))}</div>
+{share_note}
+<div class="card">
+<p><strong>Business:</strong> {escape(str(assessment.get('business_name') or ''))}</p>
+<p><strong>Stored recommendation:</strong> {escape(str(assessment.get('recommendation')))}</p>
+<p><strong>Score:</strong> {escape(str(assessment.get('score_line') or ''))}</p>
+<p><strong>Investor readiness:</strong> {escape(str(assessment.get('readiness_status')))}</p>
+<p><strong>Human review status:</strong> {escape(str(assessment.get('human_review_status')))}</p>
+<p><strong>human_review_approved:</strong> {"true" if assessment.get("human_review_approved") else "false"}</p>
+<p class="muted">{escape(str(assessment.get('status_source') or ''))}</p>
+</div>
+<h2>Indicative assessment</h2>
+{score_block}
+<h2>Key flags</h2>
+<ul>{flag_list}</ul>
+<h2>Market snapshot</h2>
+<p><strong>Industry:</strong> {escape(str(market.get('industry') or ''))}</p>
+<p><strong>Geography:</strong> {escape(str(market.get('geography') or ''))}</p>
+<p><strong>Stage:</strong> {escape(str(market.get('stage') or ''))}</p>
+<p>{escape(str(market.get('label') or ''))} Live feed connected: false. Monitoring active: false.</p>
+<ul>{examples}</ul>
+<p>{escape(str(provenance.get('limitations') or ''))}</p>
+<h2>Durable Value notes</h2>
+<p><strong>{escape(str(durable.get('label') or ''))}</strong></p>
+<ul>{notes}</ul>
+<h2>Provenance</h2>
+<p><strong>Status source:</strong> {escape(str(assessment.get('status_source') or ''))}</p>
+<p><strong>Market source:</strong> {escape(str(provenance.get('source') or 'none'))}</p>
+<p><strong>Geographic coverage:</strong> {escape(str(provenance.get('geographic_coverage') or ''))}</p>
+<p><strong>Industry classification:</strong> {escape(str(provenance.get('industry_classification') or ''))}</p>
+<p><strong>Measurement period:</strong> {escape(str(provenance.get('measurement_period') or ''))}</p>
+<p><strong>Retrieval date:</strong> {escape(str(provenance.get('retrieval_date') or ''))}</p>
+<p><strong>Limitations:</strong> {escape(str(provenance.get('limitations') or ''))}</p>
+<p>Educational notes are not engine inputs. This view does not change the stored assessment.</p>
+{_LIMITATIONS}
+"""
+    return layout("Advisor Summary", body, printable=printable, active=active)
 
 
 def research_brief_page(package: dict[str, Any]) -> str:

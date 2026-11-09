@@ -19,10 +19,11 @@ Current prototype capabilities:
 - Local email and password accounts. Self-registration creates a customer. A reviewer is created from the bootstrap variables or by a signed-in reviewer. Email verification lasts 24 hours and password reset lasts one hour. With `SMTP_HOST` unset, the server log prints the message. Neither link changes a role.
 - Start a new assessment asks whether this is a startup idea or an existing or expanding business. A startup idea uses the current Explore intake. An existing or expanding business skips the startup-only cost-build questions and still collects the monthly engine inputs. The choice is stored on the business profile.
 - Analyze shows an indicative assessment for market validity, financial viability, and stewardship readiness. The rules are in `SCORING.md`. A recommend-against flag forces band Blocked. The feasibility line stays “Not calculated — methodology pending approval.”
-- An assessment owner or a reviewer can create a read-only share for 24 hours, 7 days, or until it is revoked. The shared page cannot edit the assessment or approve it.
+- An assessment owner or a reviewer can create a read-only share for 24 hours, 7 days, or until it is revoked. The shared page cannot edit the assessment or approve it. The same link can open Advisor Summary.
+- Advisor Summary shows the stored gate status, band, three component scores, key flags, market snapshot, and Durable Value notes. Download Advisor Package is JSON, and a printable HTML view includes provenance. Neither file runs the engine or changes the assessment.
 - Optional public extracts: BLS QCEW, ACS, County Business Patterns, BEA Regional, and BLS LAUS. A failed part falls back to the synthetic snapshot. The figures do not clear a flag.
 
-Tests are `python -m unittest discover -s tests` from this directory. The current suite is 130 tests.
+Tests are `python -m unittest discover -s tests` from this directory. The current suite is 132 tests.
 
 ## Owner decisions required before further work
 

@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 130 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 132 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -45,6 +45,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Business profile | Shared identity, industry, geography, stage, and onboarding path | Shared identity, industry, geography, stage, and onboarding path | Shared identity, industry, geography, stage, and onboarding path | Shared identity, industry, geography, stage, and onboarding path |
 | Indicative assessment | After Analyze has been run | After Analyze has been run | After Analyze has been run | After Analyze has been run |
 | Read-only share | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve |
+| Advisor Summary | Stored gate, band, components, flags, market snapshot, and Durable Value notes. The download does not change the assessment | Same | Same | Same |
 | Market Pulse | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration |
 
 ## Unfinished
@@ -353,3 +354,9 @@ Further work on production authentication, real market data, an approved scoring
 - The verification notice, read-only share panel, onboarding choice, and indicative assessment use the same cards, brand colors, and left sidebar as the rest of the prototype. The indicative components use the bronze score bars. The dashboard has a What’s new note for the indicative assessment and read-only sharing.
 - `HANDOFF.md` and `ACCEPTANCE.md` record the current capabilities. The remaining owner decisions are production authentication, real market data beyond the public extracts, an approved scoring methodology, billing, investor matchmaking, recurring monitoring and rate limiting, an external analyst provider, LongArc or DVT, the Webflow site, a replacement frontend, official logo artwork, and completed named-pilot intakes or an investor summary.
 - The unittest suite is 130 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 advisor summary
+
+- Advisor Summary shows the stored gate status, band, three component scores, key flags, the labeled market snapshot, and Durable Value notes. Download Advisor Package is JSON, and the printable HTML includes the same content plus provenance.
+- A read-only share can open the summary and the downloads. The package does not run the engine, does not clear a flag, and does not set `human_review_approved`. A hard gate still forces band Blocked.
+- The unittest suite is 132 tests, all passing. The official baseline intake was not edited.

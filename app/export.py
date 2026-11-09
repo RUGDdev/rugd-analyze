@@ -135,6 +135,150 @@ def export_research_package(
     return _without_secrets(payload)
 
 
+_ADVISOR_DISCLAIMER = (
+    "Local prototype. Not production security. This Advisor Summary is a draft view. "
+    "It does not grant investor-ready status. It does not clear a recommend-against flag "
+    "and it does not set human_review_approved."
+)
+_FEASIBILITY_LINE = "Not calculated — methodology pending approval."
+_MARKET_LIMITATION = (
+    "Synthetic demonstration snapshot. No live feed was called. "
+    "These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any recommend-against flag "
+    "and do not set human_review_approved."
+)
+
+
+def export_advisor_package(
+    record: dict[str, Any],
+    result: dict[str, Any] | None = None,
+    notes: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Copy an advisor package. This does not run the engine or change the record."""
+    from app.durable_value import LABEL as DURABLE_LABEL
+    from app.indicative_score import indicative_score
+    from app.market import market_framework
+
+    stored = result if result is not None else (record.get("result") or {})
+    if not isinstance(stored, dict):
+        stored = {}
+    profile = record.get("profile") if isinstance(record.get("profile"), dict) else {}
+    industry = str(profile.get("industry") or "not entered")
+    geography = str(profile.get("market") or "not entered")
+    stage = str(profile.get("stage") or "not entered")
+    snapshot = market_framework(industry, geography)
+    engine_ran = bool(stored.get("engine_ran"))
+    official = _is_baseline(record)
+    blocking = [str(flag) for flag in stored.get("blocking_flags") or []]
+    gap_flags = [str(flag) for flag in stored.get("gap_flags") or []]
+    if engine_ran:
+        recommendation = stored.get("recommendation")
+        readiness = stored.get("readiness_status")
+        review_status = stored.get("human_review_status") or "pending"
+        indicative = indicative_score(stored, notes)
+        status_source = "stored engine result"
+    elif official:
+        recommendation = "do-not-proceed"
+        readiness = "internal"
+        review_status = "pending"
+        blocking = ["INSUFFICIENT_DEMAND_EVIDENCE"]
+        indicative = None
+        status_source = "stored official baseline status. This package did not run Analyze."
+    else:
+        recommendation = None
+        readiness = None
+        review_status = "pending"
+        indicative = None
+        status_source = "Analyze has not been run."
+    approved = record.get("human_review_approved") is True
+    copied_notes = []
+    for item in notes or []:
+        if not isinstance(item, dict):
+            continue
+        copied_notes.append(
+            {
+                "pillar_id": str(item.get("pillar_id") or ""),
+                "pillar_title": str(item.get("pillar_title") or item.get("pillar_id") or ""),
+                "note": str(item.get("note") or ""),
+                "created_at": str(item.get("created_at") or ""),
+                "authoritative": False,
+            }
+        )
+    components = None
+    indicative_public = None
+    if isinstance(indicative, dict):
+        components = {
+            key: {
+                "name": indicative["components"][key]["name"],
+                "score": indicative["components"][key]["score"],
+            }
+            for key in ("market_validity", "financial_viability", "stewardship_readiness")
+        }
+        indicative_public = {
+            "label": indicative["label"],
+            "gate_status": indicative["gate_status"],
+            "band": indicative["band"],
+            "gate_recommendation": indicative["gate_recommendation"],
+            "score": indicative["score"],
+            "score_role": indicative["score_role"],
+            "weights": dict(indicative["weights"]),
+            "components": components,
+            "hard_gates": list(indicative["hard_gates"]),
+            "overrides_flags": False,
+            "sets_human_review_approved": False,
+            "changes_investor_readiness": False,
+            "changes_recommendation": False,
+        }
+    payload = {
+        "kind": "rugd-advisor-package",
+        "prototype_disclaimer": _ADVISOR_DISCLAIMER,
+        "does_not_clear_recommend_against_flags": True,
+        "does_not_set_human_review_approved": True,
+        "does_not_run_the_engine": True,
+        "assessment": {
+            "id": record.get("id"),
+            "business_name": record.get("business_name"),
+            "tier": record.get("tier"),
+            "read_only": bool(record.get("read_only")),
+            "official_baseline": official,
+            "human_review_approved": approved,
+            "recommendation": recommendation,
+            "readiness_status": readiness,
+            "human_review_status": review_status,
+            "engine_ran": engine_ran,
+            "status_source": status_source,
+            "score_line": stored.get("score_line") or _FEASIBILITY_LINE,
+            "feasibility_score": None,
+        },
+        "indicative": indicative_public,
+        "key_flags": blocking,
+        "gap_flags": gap_flags,
+        "market_snapshot": {
+            "industry": industry,
+            "geography": geography,
+            "stage": stage,
+            "label": snapshot["label"],
+            "live_feed": False,
+            "monitoring_active": False,
+            "source_dataset": None,
+            "synthetic_examples": list(snapshot["synthetic_examples"]),
+            "provenance": {
+                "source": "none",
+                "geographic_coverage": geography,
+                "industry_classification": industry,
+                "measurement_period": "not a measurement",
+                "retrieval_date": "not retrieved",
+                "limitations": _MARKET_LIMITATION,
+            },
+        },
+        "durable_value": {
+            "label": DURABLE_LABEL,
+            "notes": copied_notes,
+            "authoritative": False,
+        },
+    }
+    return _without_secrets(payload)
+
+
 def research_package_markdown(package: dict[str, Any]) -> str:
     """Render the research package as Markdown. The package is already free of session secrets."""
     summary = package.get("assessment_summary") or {}

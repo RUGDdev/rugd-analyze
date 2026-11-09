@@ -384,3 +384,10 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
 - The verification notice, read-only share, onboarding choice, and indicative assessment use the left sidebar, the brand colors, and the same cards as the rest of the prototype. The dashboard states what the indicative assessment and a read-only share do.
 - `HANDOFF.md` and `ACCEPTANCE.md` list the capabilities already in the prototype and the owner decisions that remain open. Those open items are production authentication, real market data beyond the public extracts, an approved scoring methodology, billing, investor matchmaking, recurring monitoring and rate limiting, an external analyst provider, LongArc or DVT, the Webflow site, a replacement frontend, official logo artwork, and completed named-pilot intakes or an investor summary.
+
+## Decision: Advisor Summary and export package
+
+- Date: 2026-11-09
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- Advisor Summary reads the stored result. It shows gate status, band, the three component scores, key flags, the labeled market snapshot, and educational Durable Value notes. Download Advisor Package is JSON. The printable HTML includes the same content and the provenance lines.
+- A read-only share can open that summary and those downloads. A POST to the share address stays refused. The package does not run the engine, does not clear a recommend-against flag, and does not set `human_review_approved`. A hard gate still forces band Blocked and the gate recommendation do-not-proceed. The stored engine recommendation is not rewritten. The feasibility line stays “Not calculated — methodology pending approval.”

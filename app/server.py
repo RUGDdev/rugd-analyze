@@ -23,7 +23,13 @@ from app.config import (
     session_cookie,
 )
 from app.market import export_market_observations, get_market_provider
-from app.export import export_assessment, export_drafts, export_research_package, research_package_markdown
+from app.export import (
+    export_advisor_package,
+    export_assessment,
+    export_drafts,
+    export_research_package,
+    research_package_markdown,
+)
 from app.analyst import explain
 from app.pages import (
     analyst_page,
@@ -45,6 +51,7 @@ from app.pages import (
     verification_banner,
     verify_email_page,
     reports_page,
+    advisor_summary_page,
     research_brief_page,
     results_page,
     share_panel,
@@ -341,6 +348,8 @@ class AppHandler(BaseHTTPRequestHandler):
         if action == "results":
             stored = record.get("result") or {"engine_ran": False, "message": "Analyze has not been run."}
             self._html(results_page(record, stored, list_guidance_notes(connection, record["id"])))
+        elif action == "advisor":
+            self._advisor_get(connection, record, parts)
         elif action == "research":
             package = self._research_package(record)
             form = parts[3] if len(parts) > 3 else ""
@@ -498,11 +507,25 @@ class AppHandler(BaseHTTPRequestHandler):
         self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
 
     def _share_get(self, connection: Any, path: str) -> None:
-        token = path.split("/", 2)[-1] if path.startswith("/share/") else ""
+        parts = [part for part in path.split("/") if part]
+        token = parts[1] if len(parts) > 1 else ""
         try:
             record = open_share(connection, token)
         except ShareError as exc:
             self._html(layout("Read-only share", f"<h1>Read-only share</h1><p>{escape(str(exc))}</p>"), status=403)
+            return
+        action = parts[2] if len(parts) > 2 else ""
+        if action == "advisor":
+            self._advisor_response(
+                record,
+                list_guidance_notes(connection, record["id"]),
+                parts[3] if len(parts) > 3 else "",
+                link_base=f"/share/{token}/advisor",
+                active="none",
+            )
+            return
+        if action:
+            self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
             return
         stored = record.get("result") or {"engine_ran": False}
         self._html(
@@ -510,6 +533,57 @@ class AppHandler(BaseHTTPRequestHandler):
                 record,
                 stored,
                 list_guidance_notes(connection, record["id"]),
+                share_path=f"/share/{token}",
+            )
+        )
+
+    def _advisor_get(self, connection: Any, record: dict[str, Any], parts: list[str]) -> None:
+        form = parts[3] if len(parts) > 3 else ""
+        self._advisor_response(
+            record,
+            list_guidance_notes(connection, record["id"]),
+            form,
+            link_base=f"/assessments/{record['id']}/advisor",
+            active="",
+        )
+
+    def _advisor_response(
+        self,
+        record: dict[str, Any],
+        notes: list[dict[str, Any]],
+        form: str,
+        *,
+        link_base: str,
+        active: str,
+    ) -> None:
+        stored = record.get("result") if isinstance(record.get("result"), dict) else None
+        package = export_advisor_package(record, stored, notes)
+        if form == "download":
+            payload = json.dumps(package, indent=2).encode("utf-8")
+            self._bytes(
+                payload,
+                "application/json",
+                disposition=_download_disposition(record, stored or {}, "advisor", "json"),
+            )
+            return
+        if form == "print":
+            self._html(
+                advisor_summary_page(
+                    package,
+                    printable=True,
+                    link_base="",
+                    active=active,
+                )
+            )
+            return
+        if form:
+            self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
+            return
+        self._html(
+            advisor_summary_page(
+                package,
+                link_base=link_base,
+                active=active,
             )
         )
 
