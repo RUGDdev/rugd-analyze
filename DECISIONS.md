@@ -361,3 +361,11 @@ Owner input required before replacing `billing_hooks`:
 - Forgot password sends a reset link when the email is registered. The page uses the same sentence when the email is not registered. The link expires in one hour, works once, and stores a new scrypt hash. It does not change the role.
 - Leave `SMTP_HOST` unset and the running server writes the message to its log. Set `SMTP_HOST` to send through SMTP. Optional settings are `SMTP_PORT` (default 587), `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, and `SMTP_USE_TLS`. `RUGD_PUBLIC_URL` is the base of the link. On Render that value is `https://app.rugdintelligence.com`. The message does not include a password. A failed SMTP send uses the log.
 - A posted role on registration or on the reset form does not change the stored role. A customer still cannot approve or create a reviewer. The links do not set `human_review_approved` and do not grant investor-ready status. The official baseline stays unchanged. Rate limiting remains an owner decision.
+
+## Decision: Read-only assessment sharing
+
+- Date: 2026-11-09
+- Status: Accepted for the local pilot only. A share link is not an approval and is not investor-ready.
+- A new assessment records the signed-in account as `owner_user_id`. Assessments created before that, including the official baseline, have no owner. The owner or a reviewer can create a read-only link. Another customer cannot. The lifetimes are 24 hours, 7 days, and until revoked. Any of those links can be revoked by the owner or a reviewer.
+- The raw token is shown once. SQLite stores only its hash. The shared page shows the engine result when Analyze has been run, the indicative assessment with its non-overriding label, the industry, geography, and stage stored on the assessment, a labeled synthetic market note, and an audit summary. It includes the prototype warning. It has no form, no save, no analyze, no review request, and no approval control.
+- A POST to the share address returns 403, including a body that contains `human_review_approved`. The link does not change the recommendation, flags, readiness, or `human_review_approved`. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.

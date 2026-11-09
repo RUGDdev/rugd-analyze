@@ -49,6 +49,8 @@ The password is stored as a scrypt hash. It is not written into the repository. 
 
 A signed-in reviewer can open `/reviewer/accounts` and create another reviewer. A customer account and a signed-out request are refused. Creating a reviewer does not approve an assessment or set `human_review_approved`.
 
+An assessment owner or a reviewer can create a read-only link from the assessment page. The lifetime is 24 hours, 7 days, or until revoked. The shared page shows the result, the indicative assessment, market context, and an audit summary. It cannot edit the assessment or approve it.
+
 A new account can log in before the email is verified. The pages show a banner until the verification link is opened. That link expires in 24 hours. Forgot password, on the login page, emails a reset link that expires in one hour and works once. Neither link changes a role.
 
 Leave `SMTP_HOST` unset and the running server prints the message, including the link, to its log. To send through an SMTP server later, set `SMTP_HOST`. Optional values are `SMTP_PORT` (587), `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, and `SMTP_USE_TLS` (`true` by default). Set `RUGD_PUBLIC_URL` to the public base of the link, such as `https://app.rugdintelligence.com` on Render. The message does not include the password.

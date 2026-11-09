@@ -47,6 +47,8 @@ from app.pages import (
     reports_page,
     research_brief_page,
     results_page,
+    share_panel,
+    shared_assessment_page,
     reviewer_accounts_page,
     reviewer_home,
     reviewer_page,
@@ -64,6 +66,7 @@ from app.accounts import (
     send_verification,
 )
 import app.mail as account_mail
+from app.share import ShareError, active_share_links, can_manage_share, issue_share_link, open_share, revoke_share
 from app.review import (
     SESSION_COOKIE,
     SESSION_LIFETIME_SECONDS,
@@ -193,6 +196,8 @@ class AppHandler(BaseHTTPRequestHandler):
             self._reviewer_get(connection, path)
         elif path.startswith("/assessments/"):
             self._assessment_get(connection, path)
+        elif path.startswith("/share/"):
+            self._share_get(connection, path)
         else:
             self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
 
@@ -228,6 +233,12 @@ class AppHandler(BaseHTTPRequestHandler):
                             "Only a customer business profile can be selected here."
                         )
                     business_name = str(business["display_name"] or business_name)
+                state = self._account_state(connection)
+                owner = (
+                    str(state.get("user_id") or "")
+                    if state.get("active") and state.get("role") in {"customer", "reviewer"}
+                    else ""
+                )
                 assessment_id = create_assessment(
                     connection,
                     business_name=business_name,
@@ -235,6 +246,7 @@ class AppHandler(BaseHTTPRequestHandler):
                     tier=form.get("tier") or "explore",
                     pilot_label=label_for_new_assessment(business_name),
                     business_profile_id=profile_id or None,
+                    owner_user_id=owner or None,
                 )
             except PermissionError:
                 self._html(
@@ -280,6 +292,15 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if len(parts) >= 3 and parts[0] == "assessments":
             self._assessment_post(connection, parts, form)
+            return
+        if parts and parts[0] == "share":
+            self._html(
+                layout(
+                    "Not allowed",
+                    "<h1>Not allowed</h1><p>A read-only share cannot change the assessment or approve it.</p>",
+                ),
+                status=403,
+            )
             return
         self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
 
@@ -367,7 +388,25 @@ class AppHandler(BaseHTTPRequestHandler):
         elif action == "validate":
             self._html(validate_page(record, list_guidance_notes(connection, record["id"])))
         else:
-            self._html(assessment_form(record, notes=list_guidance_notes(connection, record["id"])))
+            page = assessment_form(record, notes=list_guidance_notes(connection, record["id"]))
+            state = self._account_state(connection)
+            if can_manage_share(state, record):
+                revealed = ""
+                token = self._query_value("share")
+                if token:
+                    try:
+                        shared = open_share(connection, token)
+                    except ShareError:
+                        shared = None
+                    if shared is not None and shared["id"] == record["id"]:
+                        revealed = f"/share/{token}"
+                panel = share_panel(
+                    record,
+                    active_share_links(connection, record["id"]),
+                    reveal_path=revealed,
+                )
+                page = page.replace("</main>", panel + "</main>", 1)
+            self._html(page)
 
     def _assessment_post(self, connection: Any, parts: list[str], form: dict[str, str]) -> None:
         assessment_id = parts[1]
@@ -426,7 +465,39 @@ class AppHandler(BaseHTTPRequestHandler):
             request_review(connection, assessment_id)
             self._redirect(f"/assessments/{assessment_id}/validate")
             return
+        if action == "share":
+            self._share_post(connection, record, parts, form)
+            return
         self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
+
+    def _share_get(self, connection: Any, path: str) -> None:
+        token = path.split("/", 2)[-1] if path.startswith("/share/") else ""
+        try:
+            record = open_share(connection, token)
+        except ShareError as exc:
+            self._html(layout("Read-only share", f"<h1>Read-only share</h1><p>{escape(str(exc))}</p>"), status=403)
+            return
+        stored = record.get("result") or {"engine_ran": False}
+        self._html(
+            shared_assessment_page(
+                record,
+                stored,
+                list_guidance_notes(connection, record["id"]),
+            )
+        )
+
+    def _share_post(self, connection: Any, record: dict[str, Any], parts: list[str], form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        try:
+            if len(parts) >= 5 and parts[4] == "revoke":
+                revoke_share(connection, record, state, parts[3])
+                self._redirect(f"/assessments/{record['id']}")
+                return
+            issued = issue_share_link(connection, record, state, form.get("lifetime") or "7d")
+        except ShareError as exc:
+            self._html(layout("Not allowed", f"<h1>Not allowed</h1><p>{escape(str(exc))}</p>"), status=403)
+            return
+        self._redirect(f"/assessments/{record['id']}?share={issued['token']}")
 
     def _save_guidance(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
         if record["read_only"] or record["id"] == BASELINE_ID:

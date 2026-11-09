@@ -68,6 +68,7 @@ _TITLE_ACTIVE = {
     "Forgot password": "/login",
     "Reset password": "/login",
     "Verify email": "/login",
+    "Read-only share": "",
     "Register": "/register",
     "Log out": "/logout",
     "New assessment": "/assessments",
@@ -584,6 +585,120 @@ def assessment_form(
 {_guidance_section("explore", notes=notes, record=record)}
 """
     return layout(record["business_name"], body)
+
+
+def share_panel(
+    record: dict[str, Any],
+    links: list[dict[str, Any]],
+    *,
+    reveal_path: str = "",
+    message: str = "",
+) -> str:
+    """Owner or reviewer controls. These forms are not part of the shared view."""
+    notice = f"<p class=\"flag\">{escape(message)}</p>" if message else ""
+    revealed = ""
+    if reveal_path:
+        revealed = (
+            "<p><strong>Read-only link, shown once:</strong> "
+            f"<a href=\"{escape(reveal_path)}\">{escape(reveal_path)}</a></p>"
+            "<p class=\"muted\">This link cannot edit the assessment or approve it.</p>"
+        )
+    rows = []
+    for item in links:
+        expiry = item.get("expires_at") or "Until revoked"
+        rows.append(
+            "<li>"
+            f"Created {escape(str(item.get('created_at') or ''))}. "
+            f"Expires: {escape(str(expiry))}. "
+            f"<form method=\"post\" action=\"/assessments/{escape(record['id'])}/share/{escape(item['id'])}/revoke\">"
+            "<button type=\"submit\">Revoke</button></form>"
+            "</li>"
+        )
+    listed = "".join(rows) or "<li>No active read-only link.</li>"
+    return f"""
+<h2>Read-only share</h2>
+{notice}
+{revealed}
+<p>An assessment owner or a reviewer can create a time-limited or revocable read-only link. The shared view has no edit controls and no approval controls.</p>
+<form method="post" action="/assessments/{escape(record['id'])}/share">
+<label>Link lifetime</label>
+<select name="lifetime">
+<option value="24h">24 hours</option>
+<option value="7d" selected>7 days</option>
+<option value="until-revoked">Until revoked</option>
+</select>
+<button type="submit">Create read-only link</button>
+</form>
+<ul>{listed}</ul>
+"""
+
+
+def shared_assessment_page(
+    record: dict[str, Any],
+    result: dict[str, Any] | None = None,
+    notes: list[dict[str, Any]] | None = None,
+) -> str:
+    """A share link. No save, analyze, review-request, or approval control."""
+    result = result or {}
+    profile = record.get("profile") or {}
+    industry = str(profile.get("industry") or "not entered")
+    geography = str(profile.get("market") or "not entered")
+    stage = str(profile.get("stage") or "not entered")
+    snapshot = market_framework(industry, geography)
+    examples = "".join(f"<li>{escape(line)}</li>" for line in snapshot["synthetic_examples"])
+    if result.get("engine_ran"):
+        standing = _view_summary_block(result)
+        indicative = _indicative_block(result, notes)
+    elif record.get("read_only"):
+        standing = """
+<p><strong>Recommendation:</strong> do-not-proceed</p>
+<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> present</p>
+<p><strong>Investor readiness:</strong> internal</p>
+<p><strong>Human review status:</strong> pending</p>
+<p><strong>human_review_approved:</strong> false</p>
+<p><strong>Score:</strong> Not calculated — methodology pending approval.</p>
+"""
+        indicative = (
+            "<p>Indicative assessment is shown after Analyze has been run. "
+            "No feasibility score is calculated.</p>"
+        )
+    else:
+        standing = """
+<p><strong>Recommendation:</strong> not run</p>
+<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> not run</p>
+<p><strong>Investor readiness:</strong> not run</p>
+<p><strong>Human review status:</strong> pending</p>
+<p><strong>human_review_approved:</strong> false</p>
+<p><strong>Score:</strong> Not calculated — methodology pending approval.</p>
+"""
+        indicative = (
+            "<p>Indicative assessment is shown after Analyze has been run. "
+            "No feasibility score is calculated.</p>"
+        )
+    body = f"""
+<h1>Read-only share for {escape(record['business_name'])}</h1>
+{_pilot_banner(record)}
+{_SURFACE_NOTE}
+<div class="banner">Read-only share. This link cannot edit the assessment, request review, or approve it. It does not grant investor-ready status.</div>
+<div class="card">
+{standing}
+<p class="muted">Authoritative figures come only from the 0.1 engine. This page does not run the engine.</p>
+</div>
+{indicative}
+<h2>Market context</h2>
+<p><strong>Industry:</strong> {escape(industry)}</p>
+<p><strong>Geography:</strong> {escape(geography)}</p>
+<p><strong>Stage:</strong> {escape(stage)}</p>
+<p>{escape(snapshot['label'])} Live feed connected: false. Monitoring active: false.</p>
+<ul>{examples}</ul>
+<p>These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>
+<h2>Audit summary</h2>
+<div class="card">
+{standing}
+</div>
+{_LIMITATIONS}
+"""
+    return layout("Read-only share", body)
 
 
 def _fields(profile: dict[str, Any], locked: str) -> str:

@@ -201,6 +201,21 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
     }
     if "business_profile_id" not in assessment_columns:
         connection.execute("ALTER TABLE assessments ADD COLUMN business_profile_id TEXT")
+    if "owner_user_id" not in assessment_columns:
+        connection.execute("ALTER TABLE assessments ADD COLUMN owner_user_id TEXT")
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS share_links (
+            id TEXT PRIMARY KEY,
+            token_hash TEXT NOT NULL UNIQUE,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT,
+            revoked_at TEXT
+        )
+        """
+    )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS business_profiles (
@@ -444,6 +459,7 @@ def create_assessment(
     hypothetical: bool = False,
     business_profile_id: str | None = None,
     from_link: bool = False,
+    owner_user_id: str | None = None,
 ) -> str:
     profile = blank_profile(business_name=business_name, purpose=purpose, tier=tier)
     profile["hypothetical"] = hypothetical
@@ -486,6 +502,7 @@ def create_assessment(
         profile=profile,
         intake=None,
         business_profile_id=business_profile_id,
+        owner_user_id=owner_user_id,
     )
     return assessment_id
 
@@ -522,6 +539,7 @@ def create_linked_assessment(
         hypothetical=bool(source["hypothetical"]),
         business_profile_id=source["business_profile_id"],
         from_link=True,
+        owner_user_id=source.get("owner_user_id"),
     )
 
 
@@ -605,6 +623,91 @@ def save_result(
         ),
     )
     connection.commit()
+
+
+def create_share_link(
+    connection: sqlite3.Connection,
+    *,
+    share_id: str,
+    token_hash: str,
+    assessment_id: str,
+    created_by: str,
+    created_at: str,
+    expires_at: str | None,
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO share_links (
+            id, token_hash, assessment_id, created_by, created_at, expires_at, revoked_at
+        ) VALUES (?, ?, ?, ?, ?, ?, NULL)
+        """,
+        (share_id, token_hash, assessment_id, created_by, created_at, expires_at),
+    )
+    connection.commit()
+
+
+def list_share_links(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, expires_at, revoked_at
+        FROM share_links
+        WHERE assessment_id = ?
+        ORDER BY created_at
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_share_from_row(row) for row in rows]
+
+
+def get_share_link(connection: sqlite3.Connection, share_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, expires_at, revoked_at
+        FROM share_links
+        WHERE id = ?
+        """,
+        (share_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _share_from_row(row)
+
+
+def get_share_by_token_hash(connection: sqlite3.Connection, token_hash: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, expires_at, revoked_at
+        FROM share_links
+        WHERE token_hash = ?
+        """,
+        (token_hash,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _share_from_row(row)
+
+
+def revoke_share_link(connection: sqlite3.Connection, share_id: str, revoked_at: str) -> None:
+    connection.execute(
+        """
+        UPDATE share_links
+        SET revoked_at = ?
+        WHERE id = ? AND revoked_at IS NULL
+        """,
+        (revoked_at, share_id),
+    )
+    connection.commit()
+
+
+def _share_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "assessment_id": row["assessment_id"],
+        "created_by": row["created_by"],
+        "created_at": row["created_at"],
+        "expires_at": row["expires_at"],
+        "revoked_at": row["revoked_at"],
+    }
 
 
 def list_guidance_notes(
@@ -922,6 +1025,7 @@ def _insert(
     profile: dict[str, Any],
     intake: dict[str, Any] | None,
     business_profile_id: str | None = None,
+    owner_user_id: str | None = None,
 ) -> None:
     now = _now()
     connection.execute(
@@ -929,8 +1033,8 @@ def _insert(
         INSERT INTO assessments (
             id, business_name, purpose, tier, read_only, hypothetical, pilot_label,
             profile_json, intake_json, result_json, review_requested, created_at, updated_at,
-            business_profile_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?)
+            business_profile_id, owner_user_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?)
         """,
         (
             assessment_id,
@@ -945,6 +1049,7 @@ def _insert(
             now,
             now,
             business_profile_id,
+            owner_user_id,
         ),
     )
     connection.commit()
@@ -1411,6 +1516,7 @@ def _public_row(row: sqlite3.Row) -> dict[str, Any]:
         "review_requested": bool(row["review_requested"]),
         "human_review_approved": False,
         "business_profile_id": row["business_profile_id"],
+        "owner_user_id": row["owner_user_id"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
