@@ -9,6 +9,7 @@ from app.pages import (
     dashboard,
     explore_page,
     market_page,
+    market_pulse_page,
     partner_page,
     reports_page,
     results_page,
@@ -83,6 +84,7 @@ class TestAcceptanceChecklist(unittest.TestCase):
             "validate": validate_page(None),
             "partner": partner_page(),
             "market": market_page(),
+            "market_pulse": market_pulse_page(),
             "reports": reports_page([baseline]),
             "audit": audit_html_page(baseline, {"engine_ran": False, "message": "Analyze did not run."}),
         }

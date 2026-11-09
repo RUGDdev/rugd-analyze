@@ -118,7 +118,7 @@ def dashboard(records: list[dict[str, Any]]) -> str:
 <p class="muted">Local test profile. This prototype has no accounts and no production security.</p>
 <div class="card">
 <p>Working now: Explore intake, Analyze through the 0.1 engine, reports, and the audit.</p>
-<p>Demonstration only: Market Intelligence, Validate review requests, and the Partner dashboard. Partner monitoring is not running.</p>
+<p>Demonstration only: Market Intelligence, Market Pulse, Validate review requests, and the Partner dashboard. Partner monitoring is not running. Market Pulse monitoring is not active.</p>
 </div>
 <p><a class="button" href="/assessments/new">Start a new assessment</a>
 <a class="button" href="/assessments/export">Export all drafts</a></p>

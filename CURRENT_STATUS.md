@@ -28,9 +28,9 @@ Run Analyze submits the same intake form as Save draft, so unsaved entries reach
 
 The consolidated product architecture was reviewed on 2026-11-09 against this prototype. A file with that title was not in the repository, so the review used the governing 0.2 architecture: four tiers, shared business information, Market Intelligence, a future Market Pulse, and Durable Value kept outside this app. COMPETITIVE_MATRIX.md, ARCHITECTURE_GAP.md, and ZERO_POINT_TWO_PLAN.md record that review. No application code was changed.
 
-## Current capabilities by tier
+## Capabilities by tier
 
-Changing tier does not change a stored recommendation. None of these views grant investor-ready status.
+Changing tier does not change a stored recommendation. None of these views grant investor-ready status. Durable Value guidance is educational and is not a DVT evaluation. Market Pulse is a hypothetical demonstration and monitoring is not active.
 
 | Capability | Explore | Analyze | Validate | Partner |
 | --- | --- | --- | --- | --- |
@@ -38,7 +38,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Engine result | When Analyze has been run | When Analyze has been run | When Analyze has been run | When Analyze has been run |
 | Research sections | Flag list | Evidence Gaps, Key Assumptions, Risk Summary, and Suggested Next Research Steps | Same as Analyze | Same as Analyze |
 | Market Intelligence | Limited snapshot | Full view and Market Research Summary | Full view, summary, and extended metrics | Full view, summary, and extended metrics |
-| Review | Cannot approve | Cannot approve | Request only | Cannot approve |
+| Review | Cannot approve | Cannot approve | Request only. Review Package is prototype-labeled | Cannot approve |
 | Monitoring | Not active | Not active | Not active | Inactive demonstration only |
 | Research package and brief | Yes | Yes | Yes | Yes |
 | Durable Value guidance | Introductory questions | Considerations next to flags and gaps | Same educational content | Same educational content |
@@ -275,4 +275,10 @@ Further work on production authentication, real market data, an approved scoring
 
 - Market Pulse is a demonstration dashboard. Internal examples include revenue trend and labor. External examples include local demographics, competitive developments, operating-cost pressure, and an emerging opportunity. Every card is marked “Hypothetical demonstration — monitoring not active.”
 - Eight actionable recommendation questions are a static template. They are questions, not answers. Durable Value pillar names appear as educational labels. The dashboard does not schedule a job, connect a feed, send a notification, clear a flag, or set `human_review_approved`.
+- The unittest suite is 110 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 consolidation and handoff
+
+- `ACCEPTANCE.md` and this file use the same Capabilities by tier matrix, including Durable Value guidance and the Market Pulse demonstration. `HANDOFF.md` lists the owner decisions still required before 0.3 work.
+- Customer pages, including Market Pulse, carry the local prototype warning. The warning states that the screen does not grant investor-ready status.
 - The unittest suite is 110 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

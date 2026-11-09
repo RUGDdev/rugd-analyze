@@ -22,7 +22,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | See missing evidence requirements | Met | Missing required fields and `INSUFFICIENT_DEMAND_EVIDENCE` stay visible. |
 | Open the report and audit | Met | Markdown report, JSON audit, a read-only HTML audit page, a research package JSON and Markdown export, and a print-friendly Research Brief are available. |
 | Explore market intelligence | Partially met | The default is one labeled synthetic snapshot. `MARKET_PROVIDER=bls` can show a BLS QCEW extract, `MARKET_CENSUS=acs` can show ACS population and income, and `MARKET_CBP=cbp` can show County Business Patterns. Explore shows a limited snapshot, Analyze adds the full view and a sourced summary, and Validate and Partner add extended metrics. Failure of any part falls back to the synthetic snapshot. The figures do not clear a flag. |
-| View Validate and Partner | Demonstration-only | Validate can request review, shows a prototype Review Package, and cannot approve. Partner states that recurring monitoring is not active and shows an inactive Ongoing Intelligence demonstration. |
+| View Validate and Partner | Demonstration-only | Validate can request review, shows a prototype Review Package, and cannot approve. Partner states that recurring monitoring is not active and shows an inactive Ongoing Intelligence demonstration. Market Pulse is a separate hypothetical demonstration. |
 | Return to saved assessments | Met | Dashboard history offers Continue and View results. |
 | Baseline status unchanged | Met | do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, internal investor readiness, pending human review. |
 | No unapproved score, final result, or investor-ready status | Met | No feasibility score is invented. `is_final` stays false. Investor-ready still requires every existing gate plus explicit human review approval. |
@@ -43,9 +43,9 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Local persistence and tests | Met | Drafts are in gitignored SQLite. The unittest suite covers the prototype path. |
 | Billing, public deployment, live market feed, matchmaking | Not in 0.2 | An optional annual BLS QCEW extract is available. Billing, public deployment, a live feed, and matchmaking remain owner decisions. |
 
-## Current capabilities by tier
+## Capabilities by tier
 
-Changing tier does not change a stored recommendation. None of these views grant investor-ready status.
+Changing tier does not change a stored recommendation. None of these views grant investor-ready status. Durable Value guidance is educational and is not a DVT evaluation. Market Pulse is a hypothetical demonstration and monitoring is not active.
 
 | Capability | Explore | Analyze | Validate | Partner |
 | --- | --- | --- | --- | --- |
@@ -56,6 +56,9 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Review | Cannot approve | Cannot approve | Request only. Review Package is prototype-labeled | Cannot approve |
 | Monitoring | Not active | Not active | Not active | Inactive demonstration only |
 | Research package and brief | Yes | Yes | Yes | Yes |
+| Durable Value guidance | Introductory questions | Considerations next to flags and gaps | Same educational content | Same educational content |
+| Business profile | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage |
+| Market Pulse | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration |
 
 ## Owner decisions required before further work
 
