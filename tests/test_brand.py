@@ -11,9 +11,13 @@ from app.analysis import analyze_record
 from app.pages import (
     audit_html_page,
     dashboard,
+    forgot_password_page,
     market_page,
     market_pulse_page,
+    new_assessment_page,
     results_page,
+    shared_assessment_page,
+    verification_banner,
 )
 from app.server import make_server
 from app.store import BASELINE_ID, SAMPLE, connect, get_assessment, seed
@@ -82,6 +86,71 @@ class TestBrandShell(unittest.TestCase):
         finally:
             connection.close()
             directory.cleanup()
+
+    def test_new_surfaces_use_the_sidebar_and_brand_cards(self) -> None:
+        home = dashboard([])
+        self.assertIn("What's new", home)
+        self.assertIn("indicative assessment", home)
+        self.assertIn("read-only share", home)
+        self.assertIn("No feasibility score is calculated.", home)
+        self.assertIn('class="sidebar"', home)
+        noticed = home.replace("<main>", "<main>\n" + verification_banner(), 1)
+        self.assertLess(noticed.index('class="sidebar"'), noticed.index('id="email-unverified"'))
+        self.assertIn("Your email is not verified.", noticed)
+        self.assertIn('class="banner"', noticed)
+        fresh = new_assessment_page()
+        shared = shared_assessment_page(
+            {
+                "id": "polish-draft",
+                "business_name": "Polish Cafe",
+                "tier": "explore",
+                "read_only": False,
+                "pilot_label": "Customer draft. Not a completed assessment.",
+                "profile": {},
+            },
+            {"engine_ran": False},
+        )
+        reset = forgot_password_page()
+        for name, page in {
+            "new": fresh,
+            "share": shared,
+            "reset": reset,
+        }.items():
+            self.assertIn('class="sidebar"', page, name)
+            self.assertIn('src="/static/rugd-logo.png"', page, name)
+            self.assertIn("#263746", page, name)
+            self.assertIn("#A88958", page, name)
+            self.assertIn(NOTE, page, name)
+        self.assertIn('class="card"', fresh)
+        self.assertIn("Is this a startup idea or an existing or expanding business?", fresh)
+        self.assertIn("Read-only share.", shared)
+        self.assertIn("Indicative assessment is shown after Analyze has been run.", shared)
+        self.assertIn('class="bar"', results_page(
+            {
+                "id": "rugd-intelligence-baseline",
+                "business_name": "RUGD Intelligence",
+                "tier": "analyze",
+                "read_only": True,
+                "pilot_label": "Official baseline. Not a completed customer study.",
+                "human_review_approved": False,
+            },
+            {
+                "engine_ran": True,
+                "model_version": "0.1-pilot",
+                "recommendation": "do-not-proceed",
+                "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+                "gap_flags": [],
+                "missing": [],
+                "human_review_approved": False,
+                "human_review_status": "pending",
+                "readiness_status": "internal",
+                "financial": None,
+                "projection": None,
+                "projection_text": "",
+                "demand": {"status": "uncleared"},
+                "score_line": "Not calculated — methodology pending approval.",
+            },
+        ))
 
     def test_logo_route_does_not_change_the_baseline(self) -> None:
         before = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()

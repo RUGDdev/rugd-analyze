@@ -12,26 +12,32 @@ A customer post whose body contains `human_review_approved` returns 403. Durable
 
 Local accounts exist for pilot use. Self-registration creates a customer account only. The first reviewer is created from `RUGD_BOOTSTRAP_REVIEWER_EMAIL` and `RUGD_BOOTSTRAP_REVIEWER_PASSWORD` when no reviewer exists. A signed-in reviewer can create another reviewer. A customer cannot change role or approve. The cookie is HttpOnly and SameSite=Lax. It is marked Secure when `RUGD_ENV=production` or `SECURE_COOKIES=true`. On local HTTP it is not marked Secure. This is not production authentication. The shared prototype passphrase is no longer accepted.
 
-The local app is `python -m app` with the Python 3.12 path in `README.md`. With `RUGD_ENV` unset it binds to 127.0.0.1:8765. `DEPLOYMENT.md` and `render.yaml` prepare the same command for Render at `app.rugdintelligence.com`. The service stays pilot-grade: one SQLite instance, prototype warnings, and no rate limit. Email verification and password reset are local-account links. With `SMTP_HOST` unset, the server log prints the message. Tests are `python -m unittest discover -s tests` from this directory. The current suite is 129 tests. An indicative score is documented in `SCORING.md`. It does not replace the feasibility line below.
+The local app is `python -m app` with the Python 3.12 path in `README.md`. With `RUGD_ENV` unset it binds to 127.0.0.1:8765. `DEPLOYMENT.md` and `render.yaml` prepare the same command for Render at `app.rugdintelligence.com`. The service stays pilot-grade: one SQLite instance, prototype warnings, and no rate limit. The customer shell is the left sidebar, the brand colors, and the cropped wordmark.
 
-## Owner decisions required before 0.3 work
+Current prototype capabilities:
 
-Do not start 0.3 work on any item below until an owner chooses that item. The same list is in `ACCEPTANCE.md`.
+- Local email and password accounts. Self-registration creates a customer. A reviewer is created from the bootstrap variables or by a signed-in reviewer. Email verification lasts 24 hours and password reset lasts one hour. With `SMTP_HOST` unset, the server log prints the message. Neither link changes a role.
+- Start a new assessment asks whether this is a startup idea or an existing or expanding business. A startup idea uses the current Explore intake. An existing or expanding business skips the startup-only cost-build questions and still collects the monthly engine inputs. The choice is stored on the business profile.
+- Analyze shows an indicative assessment for market validity, financial viability, and stewardship readiness. The rules are in `SCORING.md`. A recommend-against flag forces band Blocked. The feasibility line stays “Not calculated — methodology pending approval.”
+- An assessment owner or a reviewer can create a read-only share for 24 hours, 7 days, or until it is revoked. The shared page cannot edit the assessment or approve it.
+- Optional public extracts: BLS QCEW, ACS, County Business Patterns, BEA Regional, and BLS LAUS. A failed part falls back to the synthetic snapshot. The figures do not clear a flag.
 
-- Production authentication beyond the pilot's local email and password accounts, including OAuth, an external identity provider, or a production password policy
-- Real market data sources beyond the optional BLS QCEW, ACS, County Business Patterns, and BEA Regional extracts, including a commercial dataset
+Tests are `python -m unittest discover -s tests` from this directory. The current suite is 130 tests.
+
+## Owner decisions required before further work
+
+These remain open. The same list is in `ACCEPTANCE.md`. Local accounts, email verification, password reset, the indicative assessment, read-only sharing, the two onboarding paths, and the prepared Render pilot are already in this prototype. They do not close the items below.
+
+- Production authentication beyond local email and password, including OAuth or an external identity provider
+- Real market data sources beyond the optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts, including a commercial or live feed
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing
 - Investor matchmaking, securities solicitation, brokerage, or capital movement
-- Recurring Partner monitoring and scheduled market jobs
+- Recurring Partner monitoring, scheduled market jobs, and rate limiting
 - An external AI provider for the analyst
-- Public deployment beyond the prepared Render pilot. `DEPLOYMENT.md` covers `app.rugdintelligence.com`. Rate limiting is still open. Email verification and password reset are local-account links, not production authentication
-- A LongArc or DVT connection
-- A change to the Webflow site
-- A replacement frontend, including React
-- Supplying the official logo artwork
-- Real completed intakes for Bunny Hive and Small Town Pub
-- Releasing an investor summary for any assessment, which still depends on the existing gate and an authorized review
+- A LongArc or DVT connection, a change to the Webflow site, or a replacement frontend
+- Supplying the official logo artwork. The sidebar uses a cropped wordmark
+- Real completed intakes for Bunny Hive and Small Town Pub, and any investor summary, which still depends on the existing gate and an authorized review
 
 Optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and BLS LAUS extracts can already be requested. BEA needs `BEA_USER_ID`. They do not close the real-market-data decision. `app/future.py` keeps production authentication, scoring methodology, deployment settings, and billing hooks disabled.
 

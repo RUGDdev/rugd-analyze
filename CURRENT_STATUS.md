@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 129 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 130 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -42,7 +42,9 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Monitoring | Not active | Not active | Not active | Inactive demonstration only |
 | Research package and brief | Yes | Yes | Yes | Yes |
 | Durable Value guidance | Introductory questions | Considerations next to flags and gaps | Same educational content | Same educational content |
-| Business profile | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage |
+| Business profile | Shared identity, industry, geography, stage, and onboarding path | Shared identity, industry, geography, stage, and onboarding path | Shared identity, industry, geography, stage, and onboarding path | Shared identity, industry, geography, stage, and onboarding path |
+| Indicative assessment | After Analyze has been run | After Analyze has been run | After Analyze has been run | After Analyze has been run |
+| Read-only share | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve |
 | Market Pulse | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration |
 
 ## Unfinished
@@ -345,3 +347,9 @@ Further work on production authentication, real market data, an approved scoring
 - Start a new assessment asks whether this is a startup idea or an existing or expanding business. A startup idea opens the current Explore intake, including the startup cost build. An existing or expanding business opens a shorter intake that skips those startup-only questions and still asks for demand, operator capacity, regulatory and liability, stewardship, and the four monthly engine inputs.
 - The choice is stored on the business profile and on the draft. An omitted choice stays on the startup path, so the named-pilot buttons keep the current Explore form. Selecting an existing customer profile uses the path already stored on that profile. A later save cannot change the path or set `human_review_approved`.
 - The unittest suite is 129 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. The sample intake was not edited.
+
+## Progress — 2026-11-09 production polish and handoff
+
+- The verification notice, read-only share panel, onboarding choice, and indicative assessment use the same cards, brand colors, and left sidebar as the rest of the prototype. The indicative components use the bronze score bars. The dashboard has a What’s new note for the indicative assessment and read-only sharing.
+- `HANDOFF.md` and `ACCEPTANCE.md` record the current capabilities. The remaining owner decisions are production authentication, real market data beyond the public extracts, an approved scoring methodology, billing, investor matchmaking, recurring monitoring and rate limiting, an external analyst provider, LongArc or DVT, the Webflow site, a replacement frontend, official logo artwork, and completed named-pilot intakes or an investor summary.
+- The unittest suite is 130 tests, all passing. The official baseline intake was not edited.

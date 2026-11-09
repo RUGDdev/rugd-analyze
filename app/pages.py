@@ -175,6 +175,11 @@ def dashboard(records: list[dict[str, Any]]) -> str:
 <p>Working now: Explore intake, Analyze through the 0.1 engine, reports, and the audit.</p>
 <p>Demonstration only: Market Intelligence, Market Pulse, Validate review requests, and the Partner dashboard. Partner monitoring is not running. Market Pulse monitoring is not active.</p>
 </div>
+<div class="card">
+<h2>What's new</h2>
+<p>An indicative assessment is shown after Analyze. It covers market validity, financial viability, and stewardship readiness. It does not override engine flags or human review. No feasibility score is calculated.</p>
+<p>An assessment owner or a reviewer can create a read-only share for 24 hours, 7 days, or until it is revoked. The shared page cannot edit the assessment or approve it.</p>
+</div>
 <p><a class="button" href="/assessments/new">Start a new assessment</a>
 <a class="button" href="/assessments/export">Export all drafts</a></p>
 {_draft_empty_state(records)}
@@ -638,6 +643,7 @@ def share_panel(
         )
     listed = "".join(rows) or "<li>No active read-only link.</li>"
     return f"""
+<section class="card">
 <h2>Read-only share</h2>
 {notice}
 {revealed}
@@ -652,6 +658,7 @@ def share_panel(
 <button type="submit">Create read-only link</button>
 </form>
 <ul>{listed}</ul>
+</section>
 """
 
 
@@ -1030,25 +1037,29 @@ def _indicative_block(result: dict[str, Any], notes: list[dict[str, Any]] | None
 
     score = indicative_score(result, notes)
     components = score["components"]
-    lines = "".join(
-        "<li>"
-        f"<strong>{escape(item['name'])}:</strong> {item['score']} of 100. "
-        f"Weight {score['weights'][key]}."
-        "</li>"
-        for key, item in (
-            ("market_validity", components["market_validity"]),
-            ("financial_viability", components["financial_viability"]),
-            ("stewardship_readiness", components["stewardship_readiness"]),
+    lines = []
+    for key, item in (
+        ("market_validity", components["market_validity"]),
+        ("financial_viability", components["financial_viability"]),
+        ("stewardship_readiness", components["stewardship_readiness"]),
+    ):
+        width = max(0, min(100, int(item["score"])))
+        lines.append(
+            "<li>"
+            f"<strong>{escape(item['name'])}:</strong> {item['score']} of 100. "
+            f"Weight {score['weights'][key]}."
+            f'<div class="bar-track"><div class="bar" style="width: {width}%"></div></div>'
+            "</li>"
         )
-    )
+    rendered = "".join(lines)
     return f"""
-<section class="indicative-score">
+<section class="indicative-score card">
 <h2>Indicative assessment</h2>
 <p><strong>{escape(score['label'])}</strong></p>
 <p><strong>Gate status:</strong> {escape(score['gate_status'])}</p>
 <p><strong>Band:</strong> {escape(score['band'])}</p>
 <p><strong>Gate recommendation:</strong> {escape(score['gate_recommendation'])}</p>
-<ul>{lines}</ul>
+<ul>{rendered}</ul>
 <p class="muted"><strong>Overall number (indicative only):</strong> {score['score']} of 100</p>
 <p>{escape(score['explanation'])}</p>
 </section>
@@ -2098,8 +2109,8 @@ def login_page(next_path: str = "/", message: str = "") -> str:
 
 def verification_banner() -> str:
     return """
-<div class="banner" id="email-unverified">Your email is not verified. You can keep using this account.
-Verification does not change your role and does not grant investor-ready status.
+<div class="card" id="email-unverified">
+<div class="banner">Your email is not verified. You can keep using this account. Verification does not change your role and does not grant investor-ready status.</div>
 <form method="post" action="/account/verification">
 <button type="submit">Send verification email again</button>
 </form>
@@ -2441,6 +2452,7 @@ def new_assessment_page(
 {notice}
 <p class="muted">A startup idea opens the current Explore intake. An existing or expanding business opens a shorter intake. Explore collects a draft. It is not a completed feasibility study.</p>
 <form method="post" action="/assessments">
+<div class="card">
 <label>Is this a startup idea or an existing or expanding business?</label>
 <select name="venture_path" required>
 <option value="">Choose one</option>
@@ -2448,6 +2460,7 @@ def new_assessment_page(
 <option value="existing">An existing or expanding business</option>
 </select>
 <p class="muted">A startup idea uses the current Explore intake, including the startup cost build. An existing or expanding business skips those startup-only questions and still asks for the monthly engine inputs. The choice is saved on the business profile. If you select an existing customer profile, its saved path is used. This choice does not change a recommendation.</p>
+</div>
 <label>Business name</label>
 <input name="business_name" required>
 <label>Business profile</label>

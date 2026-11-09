@@ -377,3 +377,10 @@ Owner input required before replacing `billing_hooks`:
 - Start a new assessment asks whether the draft is a startup idea or an existing or expanding business. A startup idea uses the current Explore intake, including construction cost, seats, occupancy, and the worksheet lines. An existing or expanding business skips those startup-only questions. It still collects demand evidence, operator capacity, regulatory or liability, stewardship, and the four monthly engine inputs: initial capital, monthly fixed costs, gross margin, and projected monthly base revenue.
 - The choice is stored as `venture_path` on the business profile, `startup` or `existing`, and copied onto the draft. Existing profiles and the official baseline default to `startup`. A named-pilot button that omits the question stays on the startup path. Selecting a customer profile uses the path already stored there. A later save cannot switch the path.
 - Skipped startup fields stay blank. The engine reports that the startup cost build was not calculated. It does not receive invented construction or seat figures. The choice does not clear a recommend-against flag, change a recommendation, or set `human_review_approved`.
+
+## Decision: Production polish and the remaining owner list
+
+- Date: 2026-11-09
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- The verification notice, read-only share, onboarding choice, and indicative assessment use the left sidebar, the brand colors, and the same cards as the rest of the prototype. The dashboard states what the indicative assessment and a read-only share do.
+- `HANDOFF.md` and `ACCEPTANCE.md` list the capabilities already in the prototype and the owner decisions that remain open. Those open items are production authentication, real market data beyond the public extracts, an approved scoring methodology, billing, investor matchmaking, recurring monitoring and rate limiting, an external analyst provider, LongArc or DVT, the Webflow site, a replacement frontend, official logo artwork, and completed named-pilot intakes or an investor summary.

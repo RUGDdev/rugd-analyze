@@ -8,11 +8,11 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 
 | Criterion | Status | Note |
 | --- | --- | --- |
-| View the RUGD customer dashboard | Met | The local dashboard lists saved assessments, progress, and a next step. |
-| Navigate Explore, Analyze, Validate, and Partner | Met | One navigation bar includes those destinations. Validate and Partner are labeled demonstration. |
+| View the RUGD customer dashboard | Met | The local dashboard lists saved assessments, progress, a next step, and a What’s new note for the indicative assessment and read-only sharing. |
+| Navigate Explore, Analyze, Validate, and Partner | Met | The left sidebar includes those destinations. Validate and Partner are labeled demonstration. |
 | Open the existing RUGD Intelligence assessment | Met | The sample is loaded as the read-only official baseline. |
 | See its blocking flags and incomplete status | Met | The baseline shows do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, internal readiness, and pending human review. |
-| Create a new restaurant startup assessment | Met | A labeled hypothetical restaurant draft and new startup drafts can be created. |
+| Create a new restaurant startup assessment | Met | A labeled hypothetical restaurant draft and new startup drafts can be created. Start a new assessment asks whether this is a startup idea or an existing or expanding business. The choice is stored on the business profile. |
 | Enter and save business information | Met | Save and resume keep the values that were entered, including a blank field. |
 | Receive guided intake assistance | Partially met | The intake shows the next missing item. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and an API key are set. |
 | Run the deterministic financial engine | Met | Analyze calls the unchanged 0.1 engine. |
@@ -39,9 +39,9 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Customer approval control | Met | An ordinary customer post that includes `human_review_approved` returns 403. |
 | Reports identify draft status and limitations | Met | Results and the HTML audit include a limitations note. Reports do not overwrite the official 0.1 files. |
 | Named pilots | Met | Bunny Hive and Small Town Pub are empty drafts. Only RUGD Intelligence is the official baseline. |
-| Brand colors and local layout | Partially met | The stated brand colors are used. No official logo file is in this repository. |
+| Brand colors and local layout | Partially met | The left sidebar uses the stated brand colors and a cropped wordmark. Official logo artwork is still an owner decision. |
 | Local persistence and tests | Met | Drafts are in gitignored SQLite. The unittest suite covers the prototype path. |
-| Billing, public deployment, live market feed, matchmaking | Not in 0.2 | An optional annual BLS QCEW extract is available. Billing, public deployment, a live feed, and matchmaking remain owner decisions. |
+| Billing, public deployment, live market feed, matchmaking | Not in this prototype | Optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts are available. Render files for `app.rugdintelligence.com` are prepared. Billing, a live feed, matchmaking, and rate limiting remain owner decisions. |
 
 ## Capabilities by tier
 
@@ -57,24 +57,22 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Monitoring | Not active | Not active | Not active | Inactive demonstration only |
 | Research package and brief | Yes | Yes | Yes | Yes |
 | Durable Value guidance | Introductory questions | Considerations next to flags and gaps | Same educational content | Same educational content |
-| Business profile | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage |
+| Business profile | Shared identity, industry, geography, stage, and onboarding path | Shared identity, industry, geography, stage, and onboarding path | Shared identity, industry, geography, stage, and onboarding path | Shared identity, industry, geography, stage, and onboarding path |
+| Indicative assessment | After Analyze has been run | After Analyze has been run | After Analyze has been run | After Analyze has been run |
+| Read-only share | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve | Owner or reviewer. The shared page cannot edit or approve |
 | Market Pulse | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration |
 
 ## Owner decisions required before further work
 
-Do not start these until an owner chooses them:
+These remain open. Local accounts, email verification, password reset, the indicative assessment, read-only sharing, the two onboarding paths, and the prepared Render pilot are already in this prototype. They do not close the items below.
 
-- Production authentication beyond the pilot's local email and password accounts, including OAuth, an external identity provider, or a production password policy
-- Real market data sources beyond the optional BLS QCEW, ACS, County Business Patterns, and BEA Regional extracts, including a commercial dataset
+- Production authentication beyond local email and password, including OAuth or an external identity provider
+- Real market data sources beyond the optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts, including a commercial or live feed
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing
 - Investor matchmaking, securities solicitation, brokerage, or capital movement
-- Recurring Partner monitoring and scheduled market jobs
+- Recurring Partner monitoring, scheduled market jobs, and rate limiting
 - An external AI provider for the analyst
-- Public deployment beyond the prepared Render pilot. `DEPLOYMENT.md` covers `app.rugdintelligence.com`. Rate limiting is still open. Email verification and password reset are local-account links, not production authentication
-- A LongArc or DVT connection
-- A change to the Webflow site
-- A replacement frontend, including React
-- Supplying the official logo artwork
-- Real completed intakes for Bunny Hive and Small Town Pub
-- Releasing an investor summary for any assessment, which still depends on the existing gate and an authorized review
+- A LongArc or DVT connection, a change to the Webflow site, or a replacement frontend
+- Supplying the official logo artwork. The sidebar uses a cropped wordmark
+- Real completed intakes for Bunny Hive and Small Town Pub, and any investor summary, which still depends on the existing gate and an authorized review
