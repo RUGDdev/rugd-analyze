@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 106 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 108 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -14,7 +14,7 @@ Git is on `main`. Commits use a per-command author identity (`RUGD Dev <dev@rugd
 
 ## Analyze 0.2
 
-A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Analyze results add Evidence Gaps, Key Assumptions, a Risk Summary, and Suggested Next Research Steps from the engine flags, missing fields, and the demonstration market snapshot. Validate can record a review request, shows a prototype Review Package, and cannot approve. Partner stays a labeled demonstration and adds an inactive Ongoing Intelligence panel. Market Intelligence stays on the synthetic snapshot unless `MARKET_PROVIDER=bls`, `MARKET_CENSUS=acs`, or `MARKET_CBP=cbp` is set. Those settings can request a BLS QCEW annual extract, an ACS 5-year population and income extract, and a County Business Patterns extract. The market view control shows a limited snapshot on Explore, the full view and a sourced summary on Analyze, and extended metrics on Validate and Partner. A failed or uncovered part falls back to the synthetic snapshot. The figures do not clear a flag. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Educational Durable Value guidance shows the seven methodology dimensions as questions and prompts. The label is “Educational guidance — not a DVT evaluation.” Optional notes are stored apart from the engine result and cannot change a recommendation, a flag, readiness, or a score. A results page can download a research package as JSON or Markdown, and open a print-friendly Research Brief. The package omits session secrets and does not change the stored assessment. Drafts live in gitignored `data/analyze.sqlite`.
+A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Analyze results add Evidence Gaps, Key Assumptions, a Risk Summary, and Suggested Next Research Steps from the engine flags, missing fields, and the demonstration market snapshot. Validate can record a review request, shows a prototype Review Package, and cannot approve. Partner stays a labeled demonstration and adds an inactive Ongoing Intelligence panel. Market Intelligence stays on the synthetic snapshot unless `MARKET_PROVIDER=bls`, `MARKET_CENSUS=acs`, or `MARKET_CBP=cbp` is set. Those settings can request a BLS QCEW annual extract, an ACS 5-year population and income extract, and a County Business Patterns extract. The market view control shows a limited snapshot on Explore, the full view and a sourced summary on Analyze, and extended metrics on Validate and Partner. A failed or uncovered part falls back to the synthetic snapshot. The figures do not clear a flag. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Educational Durable Value guidance shows the seven methodology dimensions as questions and prompts. The label is “Educational guidance — not a DVT evaluation.” Optional notes are stored apart from the engine result and cannot change a recommendation, a flag, readiness, or a score. A local business profile holds identity, industry, geography, and stage, and more than one draft can share it so a new tier does not require those fields again. The official baseline and named-pilot profiles stay isolated. Profiles do not authenticate a user. A results page can download a research package as JSON or Markdown, and open a print-friendly Research Brief. The package omits session secrets and does not change the stored assessment. Drafts live in gitignored `data/analyze.sqlite`.
 
 Verified in the browser and over HTTP:
 
@@ -42,6 +42,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Monitoring | Not active | Not active | Not active | Inactive demonstration only |
 | Research package and brief | Yes | Yes | Yes | Yes |
 | Durable Value guidance | Introductory questions | Considerations next to flags and gaps | Same educational content | Same educational content |
+| Business profile | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage | Shared identity, industry, geography, and stage |
 
 ## Unfinished
 
@@ -262,3 +263,9 @@ Further work on production authentication, real market data, an approved scoring
 - Explore shows introductory questions for the seven methodology dimensions. Analyze shows a practical prompt next to an engine flag or gap when that pillar is related to the flag, and labels the other pillars as not next to a flag. Validate and Partner show the same questions and prompts in their demonstration views.
 - An optional note is stored on the assessment in a separate table. It is labeled non-authoritative. Saving it does not change the stored result, the profile, the recommendation, the flags, readiness, or `human_review_approved`. The official baseline refuses the note. No score is calculated. LongArc / DVT is not connected.
 - The unittest suite is 106 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 business profile scaffolding
+
+- A business profile stores identity, industry, geography, and stage. A draft can be linked to one profile, and more than one draft can share a customer profile. Starting another assessment copies those four fields and leaves financial entries and evidence on the original draft.
+- The official baseline has its own profile and cannot be linked to a draft. Named-pilot and demonstration profiles stay separate from the baseline and from customer profiles. This is local prototype structure. It does not authenticate a user.
+- The unittest suite is 108 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

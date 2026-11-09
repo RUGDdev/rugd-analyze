@@ -396,6 +396,61 @@ def _guidance_section(
 """
 
 
+def _business_profile_card(record: dict[str, Any]) -> str:
+    business = record.get("business_profile") or {}
+    if not business:
+        return """
+<h2>Business profile</h2>
+<p>No business profile is linked yet. Local prototype structure. It does not authenticate a user.</p>
+"""
+    linked = "".join(
+        f"<li><a href=\"/assessments/{escape(str(item.get('id')))}\">{escape(str(item.get('business_name')))}</a>"
+        f" · {escape(str(item.get('tier')))}</li>"
+        for item in record.get("linked_assessments") or []
+    ) or "<li>None</li>"
+    if business.get("isolation") == "baseline":
+        standing = (
+            "<p>Official baseline profile. Isolated from drafts and named pilots. "
+            "This profile cannot be linked to another assessment.</p>"
+        )
+    elif business.get("isolation") == "pilot":
+        standing = (
+            "<p>Named-pilot or demonstration profile. Isolated from the official baseline "
+            "and from customer profiles.</p>"
+        )
+    else:
+        standing = "<p>Local prototype business profile. It does not authenticate a user.</p>"
+    form = ""
+    if not record.get("read_only") and business.get("isolation") != "baseline":
+        options = []
+        for key in ("explore", "analyze", "validate", "partner"):
+            selected = " selected" if record.get("tier") == key else ""
+            options.append(f'<option value="{key}"{selected}>{key.title()}</option>')
+        form = f"""
+<form method="post" action="/assessments/{escape(str(record.get('id')))}/linked">
+<label>Another assessment for this business</label>
+<select name="tier">{''.join(options)}</select>
+<input type="hidden" name="purpose" value="{escape(str(record.get('purpose') or ''))}">
+<button type="submit">Start another assessment for this business</button>
+</form>
+<p class="muted">Identity, industry, geography, and stage are copied. Financial entries and evidence stay on the current draft. This does not change a recommendation.</p>
+"""
+    industry = str(business.get("industry") or "") or "not entered"
+    geography = str(business.get("geography") or "") or "not entered"
+    stage = str(business.get("stage") or "") or "not entered"
+    return f"""
+<h2>Business profile</h2>
+{standing}
+<p><strong>Identity:</strong> {escape(str(business.get('display_name') or ''))}</p>
+<p><strong>Industry:</strong> {escape(industry)}</p>
+<p><strong>Geography:</strong> {escape(geography)}</p>
+<p><strong>Stage:</strong> {escape(stage)}</p>
+<p>Linked assessments</p>
+<ul>{linked}</ul>
+{form}
+"""
+
+
 def assessment_form(
     record: dict[str, Any], notice: str = "", notes: list[dict[str, Any]] | None = None
 ) -> str:
@@ -466,6 +521,7 @@ def assessment_form(
 <p class="muted">This note does not clear a flag, change the recommendation, or mark the assessment investor-ready.</p>
 </div>
 {_intake_status(record)}
+{_business_profile_card(record)}
 <p class="muted">Tier {escape(record['tier'])}. Changing tier does not change a recommendation. Entered answers stay user-supplied assumptions.</p>
 {action}
 <p><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a>
@@ -1885,7 +1941,7 @@ def settings_page() -> str:
 <h1>Settings</h1>
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
-<p>This copy runs on 127.0.0.1 for a local pilot. It has no customer accounts, no password store, and no payment processing.</p>
+<p>This copy runs on 127.0.0.1 for a local pilot. It has no customer accounts, no password store, and no payment processing. Business profiles are local prototype records. They do not authenticate a user.</p>
 <h2>Owner decisions not activated</h2>
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>
@@ -1896,7 +1952,7 @@ def settings_page() -> str:
     return layout("Settings", body)
 
 
-def new_assessment_page() -> str:
+def new_assessment_page(profiles: list[dict[str, Any]] | None = None) -> str:
     options = []
     for key, label in {**ENGINE_PURPOSES, **UNSUPPORTED_PURPOSES}.items():
         options.append(f'<option value="{escape(key)}">{escape(label)}</option>')
@@ -1907,6 +1963,16 @@ def new_assessment_page() -> str:
 <form method="post" action="/assessments">
 <label>Business name</label>
 <input name="business_name" required>
+<label>Business profile</label>
+<select name="business_profile_id">
+<option value="">New business profile</option>
+{''.join(
+    f'<option value="{escape(str(item.get("id")))}">{escape(str(item.get("display_name") or "Untitled"))}</option>'
+    for item in profiles or []
+    if item.get("isolation") == "customer"
+)}
+</select>
+<p class="muted">Choosing an existing profile copies identity, industry, geography, and stage. The official baseline and named pilots are not listed. This is local prototype structure and does not authenticate a user.</p>
 <label>Purpose</label>
 <select name="purpose">{''.join(options)}</select>
 <label>Starting tier</label>

@@ -46,9 +46,13 @@ from app.review import (
 from app.store import (
     BASELINE_ID,
     DEFAULT_DB,
+    ISOLATION_CUSTOMER,
     connect,
     create_assessment,
+    create_linked_assessment,
+    get_business_profile,
     label_for_new_assessment,
+    list_business_profiles,
     get_assessment,
     list_approvals,
     list_assessments,
@@ -123,7 +127,11 @@ class AppHandler(BaseHTTPRequestHandler):
                     disposition=f'attachment; filename="rugd-drafts-{_today()}.json"',
                 )
             elif path == "/assessments/new":
-                self._html(new_assessment_page())
+                self._html(
+                    new_assessment_page(
+                        list_business_profiles(connection, isolation=ISOLATION_CUSTOMER)
+                    )
+                )
             elif path == "/reviewer" or path.startswith("/reviewer/"):
                 self._reviewer_get(connection, path)
             elif path.startswith("/assessments/"):
@@ -147,13 +155,33 @@ class AppHandler(BaseHTTPRequestHandler):
             seed(connection)
             if path == "/assessments":
                 business_name = (form.get("business_name") or "Untitled").strip() or "Untitled"
-                assessment_id = create_assessment(
-                    connection,
-                    business_name=business_name,
-                    purpose=form.get("purpose") or "startup_feasibility",
-                    tier=form.get("tier") or "explore",
-                    pilot_label=label_for_new_assessment(business_name),
-                )
+                profile_id = (form.get("business_profile_id") or "").strip()
+                try:
+                    if profile_id:
+                        business = get_business_profile(connection, profile_id)
+                        if business is None or business["isolation"] != ISOLATION_CUSTOMER:
+                            raise PermissionError(
+                                "Only a customer business profile can be selected here."
+                            )
+                        business_name = str(business["display_name"] or business_name)
+                    assessment_id = create_assessment(
+                        connection,
+                        business_name=business_name,
+                        purpose=form.get("purpose") or "startup_feasibility",
+                        tier=form.get("tier") or "explore",
+                        pilot_label=label_for_new_assessment(business_name),
+                        business_profile_id=profile_id or None,
+                    )
+                except PermissionError:
+                    self._html(
+                        layout(
+                            "Not allowed",
+                            "<h1>Not allowed</h1><p>That business profile cannot be linked to this draft. "
+                            "The official baseline and named pilots stay isolated.</p>",
+                        ),
+                        status=403,
+                    )
+                    return
                 self._redirect(f"/assessments/{assessment_id}")
                 return
             if path == "/reviewer/session":
@@ -255,6 +283,25 @@ class AppHandler(BaseHTTPRequestHandler):
         record = get_assessment(connection, assessment_id)
         if record is None:
             self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
+            return
+        if action == "linked":
+            try:
+                linked_id = create_linked_assessment(
+                    connection,
+                    assessment_id,
+                    tier=form.get("tier") or record["tier"],
+                    purpose=form.get("purpose") or record["purpose"],
+                )
+            except PermissionError:
+                self._html(
+                    layout(
+                        "Not allowed",
+                        "<h1>Not allowed</h1><p>The official baseline profile cannot be linked to a draft.</p>",
+                    ),
+                    status=403,
+                )
+                return
+            self._redirect(f"/assessments/{linked_id}")
             return
         if action == "guidance":
             self._save_guidance(connection, record, form)

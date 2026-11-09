@@ -282,3 +282,11 @@ Owner input required before replacing `billing_hooks`:
 - Explore shows the introductory questions. Analyze places a prompt next to an engine flag or gap only when that pillar lists the flag. Validate and Partner show the same educational content in their demonstration views.
 - An optional note is stored in `guidance_notes`, not in the engine result and not in the intake. The note is non-authoritative. It cannot change the recommendation, flags, readiness, a score, or `human_review_approved`. The official baseline cannot store a note.
 - No pillar is scored. No DVT table, score, or code is imported. A future Durable Value connection still requires a documented, versioned interface and an owner decision.
+
+## Decision: Business profiles are local scaffolding
+
+- Date: 2026-11-09
+- Status: Accepted for the local prototype only
+- A business profile stores identity, industry, geography, and stage. An assessment stores `business_profile_id`. More than one draft may share a customer profile. A new assessment for that profile copies those four fields so a move to another tier does not require them again. Financial entries, evidence, the engine result, and `human_review_approved` stay on the assessment.
+- The official baseline profile is isolated. A draft cannot link to it. Named-pilot and demonstration profiles are isolated from the baseline and from customer profiles. A customer form cannot select them.
+- Profiles do not authenticate a user. There is no production account, password, or identity provider. Changing tier still does not change a stored recommendation.

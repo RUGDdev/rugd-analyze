@@ -17,6 +17,17 @@ SAMPLE = ROOT / "intake" / "samples" / "rugd_intelligence.json"
 BASELINE_ID = "rugd-intelligence-baseline"
 RESTAURANT_ID = "hypothetical-restaurant"
 RESTAURANT_VERIFIED_ID = "hypothetical-restaurant-verified-demand"
+BASELINE_PROFILE_ID = "business-profile-rugd-intelligence-baseline"
+RESTAURANT_PROFILE_ID = "business-profile-hypothetical-restaurant"
+RESTAURANT_VERIFIED_PROFILE_ID = "business-profile-hypothetical-restaurant-verified-demand"
+ISOLATION_BASELINE = "baseline"
+ISOLATION_PILOT = "pilot"
+ISOLATION_CUSTOMER = "customer"
+_STABLE_PROFILE_IDS = {
+    BASELINE_ID: BASELINE_PROFILE_ID,
+    RESTAURANT_ID: RESTAURANT_PROFILE_ID,
+    RESTAURANT_VERIFIED_ID: RESTAURANT_VERIFIED_PROFILE_ID,
+}
 HYPOTHETICAL_DEMO_LABEL = "Hypothetical demonstration — not a real assessment."
 VERIFIED_DEMO_LABEL = (
     "Verified-demand demonstration — not a real assessment. Not the official baseline."
@@ -154,6 +165,25 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    assessment_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(assessments)")
+    }
+    if "business_profile_id" not in assessment_columns:
+        connection.execute("ALTER TABLE assessments ADD COLUMN business_profile_id TEXT")
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS business_profiles (
+            id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            industry TEXT NOT NULL,
+            geography TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            isolation TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
     return connection
 
 
@@ -186,6 +216,7 @@ def seed(connection: sqlite3.Connection) -> None:
         )
     _ensure_restaurant_demo(connection, verified_demand=False)
     _ensure_restaurant_demo(connection, verified_demand=True)
+    ensure_business_profiles(connection)
 
 
 def restaurant_demonstration_profile(*, verified_demand: bool) -> dict[str, Any]:
@@ -377,9 +408,37 @@ def create_assessment(
     tier: str,
     pilot_label: str = "Customer draft. Not a completed assessment.",
     hypothetical: bool = False,
+    business_profile_id: str | None = None,
+    from_link: bool = False,
 ) -> str:
     profile = blank_profile(business_name=business_name, purpose=purpose, tier=tier)
     profile["hypothetical"] = hypothetical
+    if business_profile_id:
+        business = get_business_profile(connection, business_profile_id)
+        if business is None:
+            raise KeyError(business_profile_id)
+        if business["isolation"] == ISOLATION_BASELINE:
+            raise PermissionError(
+                "The official baseline profile cannot be linked to a draft."
+            )
+        if business["isolation"] == ISOLATION_PILOT and not from_link:
+            raise PermissionError(
+                "Named-pilot and demonstration profiles stay isolated."
+            )
+        profile["business_name"] = business["display_name"]
+        profile["industry"] = business["industry"]
+        profile["market"] = business["geography"]
+        profile["stage"] = business["stage"]
+        business_name = business["display_name"] or business_name
+    else:
+        business_profile_id = create_business_profile(
+            connection,
+            display_name=business_name,
+            industry="",
+            geography="",
+            stage="",
+            isolation=_isolation_for_new(business_name, pilot_label, hypothetical),
+        )
     assessment_id = uuid.uuid4().hex
     _insert(
         connection,
@@ -392,15 +451,54 @@ def create_assessment(
         pilot_label=pilot_label,
         profile=profile,
         intake=None,
+        business_profile_id=business_profile_id,
     )
     return assessment_id
+
+
+def create_linked_assessment(
+    connection: sqlite3.Connection,
+    assessment_id: str,
+    *,
+    tier: str,
+    purpose: str | None = None,
+) -> str:
+    """Open another tier for the same business. Core fields are copied. Evidence is not."""
+    source = get_assessment(connection, assessment_id)
+    if source is None:
+        raise KeyError(assessment_id)
+    if source["read_only"] or source["id"] == BASELINE_ID:
+        raise PermissionError(
+            "The official baseline profile cannot be linked to a draft."
+        )
+    if not source.get("business_profile_id"):
+        raise PermissionError("This draft has no business profile.")
+    business = get_business_profile(connection, source["business_profile_id"])
+    if business is None or business["isolation"] == ISOLATION_BASELINE:
+        raise PermissionError(
+            "The official baseline profile cannot be linked to a draft."
+        )
+    selected = tier if tier in ("explore", "analyze", "validate", "partner") else source["tier"]
+    return create_assessment(
+        connection,
+        business_name=str(business["display_name"] or source["business_name"]),
+        purpose=purpose or source["purpose"],
+        tier=selected,
+        pilot_label=source["pilot_label"],
+        hypothetical=bool(source["hypothetical"]),
+        business_profile_id=source["business_profile_id"],
+        from_link=True,
+    )
 
 
 def list_assessments(connection: sqlite3.Connection) -> list[dict[str, Any]]:
     rows = connection.execute(
         "SELECT * FROM assessments ORDER BY updated_at DESC"
     ).fetchall()
-    return [_attach_approval(connection, _public_row(row)) for row in rows]
+    return [
+        _attach_business_profile(connection, _attach_approval(connection, _public_row(row)))
+        for row in rows
+    ]
 
 
 def get_assessment(connection: sqlite3.Connection, assessment_id: str) -> dict[str, Any] | None:
@@ -409,7 +507,7 @@ def get_assessment(connection: sqlite3.Connection, assessment_id: str) -> dict[s
     ).fetchone()
     if row is None:
         return None
-    return _attach_approval(connection, _public_row(row))
+    return _attach_business_profile(connection, _attach_approval(connection, _public_row(row)))
 
 
 def save_profile(
@@ -446,6 +544,7 @@ def save_profile(
             assessment_id,
         ),
     )
+    _sync_shared_profile(connection, current, clean, now)
     connection.commit()
     saved = get_assessment(connection, assessment_id)
     assert saved is not None
@@ -567,6 +666,215 @@ def request_review(connection: sqlite3.Connection, assessment_id: str) -> dict[s
     return saved
 
 
+def create_business_profile(
+    connection: sqlite3.Connection,
+    *,
+    display_name: str,
+    industry: str,
+    geography: str,
+    stage: str,
+    isolation: str,
+    profile_id: str | None = None,
+) -> str:
+    if isolation not in (ISOLATION_BASELINE, ISOLATION_PILOT, ISOLATION_CUSTOMER):
+        raise ValueError("Unknown business profile isolation.")
+    profile_id = profile_id or uuid.uuid4().hex
+    now = _now()
+    connection.execute(
+        """
+        INSERT INTO business_profiles (
+            id, display_name, industry, geography, stage, isolation, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            profile_id,
+            str(display_name or "Untitled").strip() or "Untitled",
+            str(industry or ""),
+            str(geography or ""),
+            str(stage or ""),
+            isolation,
+            now,
+            now,
+        ),
+    )
+    connection.commit()
+    return profile_id
+
+
+def get_business_profile(
+    connection: sqlite3.Connection, profile_id: str
+) -> dict[str, Any] | None:
+    row = connection.execute(
+        "SELECT * FROM business_profiles WHERE id = ?",
+        (profile_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _profile_row(row)
+
+
+def list_business_profiles(
+    connection: sqlite3.Connection, *, isolation: str | None = None
+) -> list[dict[str, Any]]:
+    if isolation:
+        rows = connection.execute(
+            "SELECT * FROM business_profiles WHERE isolation = ? ORDER BY display_name",
+            (isolation,),
+        ).fetchall()
+    else:
+        rows = connection.execute(
+            "SELECT * FROM business_profiles ORDER BY display_name"
+        ).fetchall()
+    return [_profile_row(row) for row in rows]
+
+
+def assessments_for_profile(
+    connection: sqlite3.Connection, profile_id: str
+) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, business_name, tier, read_only
+        FROM assessments
+        WHERE business_profile_id = ?
+        ORDER BY created_at
+        """,
+        (profile_id,),
+    ).fetchall()
+    return [
+        {
+            "id": row["id"],
+            "business_name": row["business_name"],
+            "tier": row["tier"],
+            "read_only": bool(row["read_only"]),
+        }
+        for row in rows
+    ]
+
+
+def ensure_business_profiles(connection: sqlite3.Connection) -> None:
+    """Give each existing assessment its own profile. Does not rewrite intake or results."""
+    rows = connection.execute(
+        """
+        SELECT id, business_name, pilot_label, read_only, hypothetical, profile_json, business_profile_id
+        FROM assessments
+        """
+    ).fetchall()
+    for row in rows:
+        if row["business_profile_id"]:
+            continue
+        profile = json.loads(row["profile_json"])
+        isolation = _isolation_for_row(row)
+        profile_id = _STABLE_PROFILE_IDS.get(row["id"])
+        if profile_id and get_business_profile(connection, profile_id) is None:
+            create_business_profile(
+                connection,
+                display_name=row["business_name"],
+                industry=str(profile.get("industry") or ""),
+                geography=str(profile.get("market") or profile.get("geographic_market") or ""),
+                stage=str(profile.get("stage") or ""),
+                isolation=isolation,
+                profile_id=profile_id,
+            )
+        elif profile_id is None:
+            profile_id = create_business_profile(
+                connection,
+                display_name=row["business_name"],
+                industry=str(profile.get("industry") or ""),
+                geography=str(profile.get("market") or profile.get("geographic_market") or ""),
+                stage=str(profile.get("stage") or ""),
+                isolation=isolation,
+            )
+        connection.execute(
+            "UPDATE assessments SET business_profile_id = ? WHERE id = ? AND business_profile_id IS NULL",
+            (profile_id, row["id"]),
+        )
+    connection.commit()
+
+
+def _isolation_for_new(business_name: str, pilot_label: str, hypothetical: bool) -> str:
+    if business_name.strip() in NAMED_PILOT_NAMES or pilot_label == NAMED_PILOT_LABEL:
+        return ISOLATION_PILOT
+    if hypothetical or "demonstration" in pilot_label.lower():
+        return ISOLATION_PILOT
+    return ISOLATION_CUSTOMER
+
+
+def _isolation_for_row(row: sqlite3.Row) -> str:
+    if row["id"] == BASELINE_ID or row["read_only"]:
+        return ISOLATION_BASELINE
+    if row["id"] in (RESTAURANT_ID, RESTAURANT_VERIFIED_ID):
+        return ISOLATION_PILOT
+    return _isolation_for_new(
+        str(row["business_name"] or ""),
+        str(row["pilot_label"] or ""),
+        bool(row["hypothetical"]),
+    )
+
+
+def _sync_shared_profile(
+    connection: sqlite3.Connection,
+    current: dict[str, Any],
+    clean: dict[str, Any],
+    now: str,
+) -> None:
+    """Copy identity, industry, geography, and stage to the shared profile and its other drafts."""
+    profile_id = current.get("business_profile_id")
+    if not profile_id:
+        return
+    business = get_business_profile(connection, profile_id)
+    if business is None or business["isolation"] == ISOLATION_BASELINE:
+        return
+    display_name = str(clean.get("business_name") or current["business_name"])
+    industry = str(clean.get("industry") or "")
+    geography = str(clean.get("market") or clean.get("geographic_market") or "")
+    stage = str(clean.get("stage") or "")
+    connection.execute(
+        """
+        UPDATE business_profiles
+        SET display_name = ?, industry = ?, geography = ?, stage = ?, updated_at = ?
+        WHERE id = ? AND isolation != ?
+        """,
+        (display_name, industry, geography, stage, now, profile_id, ISOLATION_BASELINE),
+    )
+    others = connection.execute(
+        """
+        SELECT id, profile_json, read_only
+        FROM assessments
+        WHERE business_profile_id = ? AND id != ?
+        """,
+        (profile_id, current["id"]),
+    ).fetchall()
+    for other in others:
+        if other["read_only"] or other["id"] == BASELINE_ID:
+            continue
+        payload = json.loads(other["profile_json"])
+        payload["business_name"] = display_name
+        payload["industry"] = industry
+        payload["market"] = geography
+        payload["stage"] = stage
+        connection.execute(
+            """
+            UPDATE assessments
+            SET business_name = ?, profile_json = ?
+            WHERE id = ? AND read_only = 0
+            """,
+            (display_name, json.dumps(payload), other["id"]),
+        )
+
+
+def _profile_row(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "display_name": row["display_name"],
+        "industry": row["industry"],
+        "geography": row["geography"],
+        "stage": row["stage"],
+        "isolation": row["isolation"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
 def _insert(
     connection: sqlite3.Connection,
     *,
@@ -579,14 +887,16 @@ def _insert(
     pilot_label: str,
     profile: dict[str, Any],
     intake: dict[str, Any] | None,
+    business_profile_id: str | None = None,
 ) -> None:
     now = _now()
     connection.execute(
         """
         INSERT INTO assessments (
             id, business_name, purpose, tier, read_only, hypothetical, pilot_label,
-            profile_json, intake_json, result_json, review_requested, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?)
+            profile_json, intake_json, result_json, review_requested, created_at, updated_at,
+            business_profile_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?)
         """,
         (
             assessment_id,
@@ -600,6 +910,7 @@ def _insert(
             None if intake is None else json.dumps(intake),
             now,
             now,
+            business_profile_id,
         ),
     )
     connection.commit()
@@ -882,9 +1193,23 @@ def _public_row(row: sqlite3.Row) -> dict[str, Any]:
         "result": result,
         "review_requested": bool(row["review_requested"]),
         "human_review_approved": False,
+        "business_profile_id": row["business_profile_id"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
+
+
+def _attach_business_profile(
+    connection: sqlite3.Connection, record: dict[str, Any]
+) -> dict[str, Any]:
+    profile_id = record.get("business_profile_id")
+    record["business_profile"] = (
+        get_business_profile(connection, profile_id) if profile_id else None
+    )
+    record["linked_assessments"] = (
+        assessments_for_profile(connection, profile_id) if profile_id else []
+    )
+    return record
 
 
 def _now() -> str:
