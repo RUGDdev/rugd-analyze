@@ -26,6 +26,8 @@ Verified in the browser and over HTTP:
 
 Run Analyze submits the same intake form as Save draft, so unsaved entries reach the engine.
 
+The consolidated product architecture was reviewed on 2026-11-09 against this prototype. A file with that title was not in the repository, so the review used the governing 0.2 architecture: four tiers, shared business information, Market Intelligence, a future Market Pulse, and Durable Value kept outside this app. COMPETITIVE_MATRIX.md, ARCHITECTURE_GAP.md, and ZERO_POINT_TWO_PLAN.md record that review. No application code was changed.
+
 ## Current capabilities by tier
 
 Changing tier does not change a stored recommendation. None of these views grant investor-ready status.
