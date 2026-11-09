@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from app.analysis import analyze_record
 from app.market import export_market_observations, get_market_provider
-from app.export import export_assessment, export_drafts
+from app.export import export_assessment, export_drafts, export_research_package, research_package_markdown
 from app.analyst import explain
 from app.pages import (
     analyst_page,
@@ -27,6 +27,7 @@ from app.pages import (
     new_assessment_page,
     partner_page,
     reports_page,
+    research_brief_page,
     results_page,
     reviewer_home,
     reviewer_page,
@@ -178,6 +179,25 @@ class AppHandler(BaseHTTPRequestHandler):
         if action == "results":
             stored = record.get("result") or {"engine_ran": False, "message": "Analyze has not been run."}
             self._html(results_page(record, stored))
+        elif action == "research":
+            package = self._research_package(record)
+            form = parts[3] if len(parts) > 3 else ""
+            if form == "brief":
+                self._html(research_brief_page(package))
+            elif form == "markdown":
+                payload = research_package_markdown(package).encode("utf-8")
+                self._bytes(
+                    payload,
+                    "text/markdown; charset=utf-8",
+                    disposition=_download_disposition(record, record.get("result") or {}, "research", "md"),
+                )
+            else:
+                payload = json.dumps(package, indent=2).encode("utf-8")
+                self._bytes(
+                    payload,
+                    "application/json",
+                    disposition=_download_disposition(record, record.get("result") or {}, "research", "json"),
+                )
         elif action == "export":
             payload = json.dumps(export_assessment(record), indent=2).encode("utf-8")
             self._bytes(
@@ -262,6 +282,22 @@ class AppHandler(BaseHTTPRequestHandler):
             self._redirect(f"/assessments/{assessment_id}/validate")
             return
         self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
+
+    def _research_package(self, record: dict[str, Any]) -> dict[str, Any]:
+        result = record.get("result") if isinstance(record.get("result"), dict) else None
+        stored = result or {"engine_ran": False, "message": "Analyze has not been run."}
+        profile = record.get("profile") or {}
+        try:
+            analyst_lines = explain(record, stored)
+        except Exception:
+            analyst_lines = ["Analyst explanation is not available. The demonstration fallback applies."]
+        market = export_market_observations(
+            str(profile.get("industry") or ""),
+            str(profile.get("market") or profile.get("geographic_market") or ""),
+            provider=get_market_provider(),
+            tier="partner",
+        )
+        return export_research_package(record, stored, market=market, analyst_lines=analyst_lines)
 
     def _report_bytes(self, connection: Any, record: dict[str, Any]) -> tuple[bytes, dict[str, Any]]:
         result = self._ensure_result(connection, record)

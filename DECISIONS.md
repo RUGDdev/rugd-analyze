@@ -235,3 +235,10 @@ This audit is still prototype-grade. It is a local SQLite log, not a production 
 - Analyze results show Evidence Gaps, Key Assumptions, a Risk Summary, and Suggested Next Research Steps. Those sections restate engine flags, missing fields, intake assumptions, and the demonstration market snapshot. They do not add a score, clear a flag, or set `human_review_approved`. Explore does not show the four sections.
 - Validate shows a Review Package with current flags, market context, evidence gaps, and a reviewer-notes placeholder. The customer screen remains request-only. Approval stays on the prototype reviewer screen.
 - Partner shows an Ongoing Intelligence demonstration. Trend alerts and management actions are marked hypothetical. Monitoring stays inactive.
+
+## Decision: Research package export
+
+- Date: 2026-11-09
+- Status: Accepted for the local prototype only
+- Download Research Package writes a JSON file for one assessment. It includes the assessment summary, the stored engine result, market observations with provenance, evidence gaps and flags, the analyst explanation, and the tier and prototype disclaimers. A Markdown copy and a print-friendly Research Brief show the same content.
+- The export does not run the engine and does not change the stored assessment. It omits session tokens, passphrases, and cookies. It does not clear a recommend-against flag or set `human_review_approved`.

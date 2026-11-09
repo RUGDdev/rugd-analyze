@@ -1,14 +1,18 @@
 """Empty states stay honest, and JSON export omits session secrets."""
 
+import copy
 import hashlib
 import json
+import os
 import tempfile
 import threading
 import unittest
 import urllib.request
 from pathlib import Path
 
-from app.pages import dashboard, results_page
+from app.analysis import analyze_record
+from app.export import export_research_package, research_package_markdown
+from app.pages import dashboard, research_brief_page, results_page
 from app.review import open_reviewer_session
 from app.server import make_server
 from app.store import (
@@ -146,6 +150,131 @@ class TestEmptyStatesAndExport(unittest.TestCase):
             self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before)
             self.assertEqual(sorted(path.name for path in OUTPUT.iterdir()), output_before)
         finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=3)
+
+    def test_research_package_is_complete_and_leaves_the_baseline_unchanged(self) -> None:
+        baseline = get_assessment(self.connection, BASELINE_ID)
+        assert baseline is not None
+        result = analyze_record(baseline)
+        before = copy.deepcopy(result)
+        before_sample = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        before_report = hashlib.sha256((OUTPUT / "rugd-intelligence-draft.md").read_bytes()).hexdigest()
+        dirty = copy.deepcopy(result)
+        dirty["session_id"] = "raw-session-token"
+        dirty["reviewer_passphrase"] = "local-prototype-reviewer"
+        record = copy.deepcopy(baseline)
+        record["profile"]["token"] = "raw-session-token"
+        market = {
+            "status": "synthetic",
+            "label": "Demonstration. Not market research and not active monitoring.",
+            "observations": [],
+            "synthetic_observations": [
+                {
+                    "source": "Synthetic snapshot",
+                    "geographic_coverage": "Example county",
+                    "industry_classification": "Restaurant",
+                    "measurement_period": "not a measurement period",
+                    "retrieval_date": "not retrieved",
+                    "limitations": "Synthetic example only. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE.",
+                    "measure": "Synthetic example",
+                    "value": "Synthetic example only: a cost-pressure note",
+                    "session_id": "raw-session-token",
+                    "reviewer_passphrase": "local-prototype-reviewer",
+                }
+            ],
+        }
+        package = export_research_package(
+            record,
+            dirty,
+            market=market,
+            analyst_lines=["Demonstration Analyst. No external AI service is connected."],
+        )
+        encoded = json.dumps(package)
+        self.assertEqual(package["kind"], "rugd-research-package")
+        self.assertEqual(package["assessment_summary"]["business_name"], "RUGD Intelligence")
+        self.assertEqual(package["assessment_summary"]["recommendation"], "do-not-proceed")
+        self.assertFalse(package["assessment_summary"]["human_review_approved"])
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", package["flags"]["blocking_flags"])
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", package["evidence_gaps"][0])
+        self.assertIn("Local prototype", package["prototype_disclaimer"])
+        self.assertIn(package["tier"], package["tier_disclaimer"] and package["tier"])
+        self.assertTrue(package["tier_disclaimer"])
+        observation = package["market"]["synthetic_observations"][0]
+        for field in (
+            "source",
+            "geographic_coverage",
+            "industry_classification",
+            "measurement_period",
+            "retrieval_date",
+            "limitations",
+            "measure",
+            "value",
+        ):
+            self.assertTrue(observation[field], field)
+        self.assertNotIn("session_id", observation)
+        self.assertEqual(package["analyst_explanation"][0], "Demonstration Analyst. No external AI service is connected.")
+        self.assertNotIn("raw-session-token", encoded)
+        self.assertNotIn("local-prototype-reviewer", encoded)
+        markdown = research_package_markdown(package)
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", markdown)
+        self.assertIn("Source: Synthetic snapshot", markdown)
+        self.assertIn("Limitations:", markdown)
+        self.assertNotIn("raw-session-token", markdown)
+        brief = research_brief_page(package)
+        self.assertIn("<h1>Research Brief</h1>", brief)
+        self.assertIn("Source:", brief)
+        self.assertIn("<h2>Limitations</h2>", brief)
+        self.assertIn("Print-friendly research brief", brief)
+        self.assertNotIn("raw-session-token", brief)
+        self.assertNotIn("local-prototype-reviewer", brief)
+        shown = results_page(baseline, result)
+        self.assertIn("Download Research Package", shown)
+        self.assertEqual(result, before)
+        self.assertEqual(result["recommendation"], "do-not-proceed")
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", result["blocking_flags"])
+        self.assertEqual(result["readiness_status"], "internal")
+        self.assertFalse(result["human_review_approved"])
+        self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
+        self.assertEqual(hashlib.sha256((OUTPUT / "rugd-intelligence-draft.md").read_bytes()).hexdigest(), before_report)
+
+        server = make_server(self.db, port=0)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        host, port = server.server_address
+        base = f"http://{host}:{port}"
+        keys = (
+            "MARKET_PROVIDER",
+            "MARKET_CENSUS",
+            "MARKET_CBP",
+            "ANALYST_PROVIDER",
+            "ANALYST_MODEL",
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "XAI_API_KEY",
+        )
+        saved = {key: os.environ.pop(key, None) for key in keys}
+        try:
+            with urllib.request.urlopen(base + f"/assessments/{BASELINE_ID}/research") as response:
+                body = json.loads(response.read().decode("utf-8"))
+                disposition = response.headers.get("Content-Disposition") or ""
+                self.assertEqual(response.headers.get_content_type(), "application/json")
+            self.assertIn("attachment;", disposition)
+            self.assertIn("-research.json", disposition)
+            self.assertEqual(body["kind"], "rugd-research-package")
+            self.assertEqual(body["assessment_summary"]["business_name"], "RUGD Intelligence")
+            self.assertNotIn("raw-session-token", json.dumps(body))
+            with urllib.request.urlopen(base + f"/assessments/{BASELINE_ID}/research/brief") as response:
+                page = response.read().decode("utf-8")
+            self.assertIn("<h1>Research Brief</h1>", page)
+            self.assertIn("Limitations", page)
+            self.assertIn("local prototype", page)
+            self.assertNotIn("Investor readiness:</strong> investor-ready", page)
+        finally:
+            for key, value in saved.items():
+                if value is not None:
+                    os.environ[key] = value
             server.shutdown()
             server.server_close()
             thread.join(timeout=3)

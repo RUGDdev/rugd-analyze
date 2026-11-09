@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 101 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 102 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -14,7 +14,7 @@ Git is on `main`. Commits use a per-command author identity (`RUGD Dev <dev@rugd
 
 ## Analyze 0.2
 
-A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Analyze results add Evidence Gaps, Key Assumptions, a Risk Summary, and Suggested Next Research Steps from the engine flags, missing fields, and the demonstration market snapshot. Validate can record a review request, shows a prototype Review Package, and cannot approve. Partner stays a labeled demonstration and adds an inactive Ongoing Intelligence panel. Market Intelligence stays on the synthetic snapshot unless `MARKET_PROVIDER=bls`, `MARKET_CENSUS=acs`, or `MARKET_CBP=cbp` is set. Those settings can request a BLS QCEW annual extract, an ACS 5-year population and income extract, and a County Business Patterns extract. The market view control shows a limited snapshot on Explore, the full view and a sourced summary on Analyze, and extended metrics on Validate and Partner. A failed or uncovered part falls back to the synthetic snapshot. The figures do not clear a flag. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. Drafts live in gitignored `data/analyze.sqlite`.
+A local browser app runs at http://127.0.0.1:8765 (`python -m app`). Explore and Analyze are operational. Analyze results add Evidence Gaps, Key Assumptions, a Risk Summary, and Suggested Next Research Steps from the engine flags, missing fields, and the demonstration market snapshot. Validate can record a review request, shows a prototype Review Package, and cannot approve. Partner stays a labeled demonstration and adds an inactive Ongoing Intelligence panel. Market Intelligence stays on the synthetic snapshot unless `MARKET_PROVIDER=bls`, `MARKET_CENSUS=acs`, or `MARKET_CBP=cbp` is set. Those settings can request a BLS QCEW annual extract, an ACS 5-year population and income extract, and a County Business Patterns extract. The market view control shows a limited snapshot on Explore, the full view and a sourced summary on Analyze, and extended metrics on Validate and Partner. A failed or uncovered part falls back to the synthetic snapshot. The figures do not clear a flag. The analyst is the Demonstration Analyst unless `ANALYST_PROVIDER` and the matching API key are set. A missing key or a failed call falls back to the Demonstration Analyst. The analyst cannot change engine results. A results page can download a research package as JSON or Markdown, and open a print-friendly Research Brief. The package omits session secrets and does not change the stored assessment. Drafts live in gitignored `data/analyze.sqlite`.
 
 Verified in the browser and over HTTP:
 
@@ -226,3 +226,10 @@ Further work on production authentication, real market data, an approved scoring
 - Validate shows a prototype Review Package: current flags, market context, evidence gaps, and a reviewer-notes placeholder. The customer screen can request review and cannot approve. Approval stays on the prototype reviewer screen.
 - Partner adds an Ongoing Intelligence panel with hypothetical trend alerts and hypothetical management actions. The panel says monitoring is inactive. Recurring monitoring is not active.
 - The unittest suite is 101 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 research package and brief
+
+- Download Research Package saves a JSON file with the assessment summary, stored engine result, market observations and their provenance, evidence gaps and flags, the analyst explanation, and tier and prototype disclaimers. Download research Markdown saves the same package as Markdown.
+- Research Brief is a print-friendly HTML view of that package, with source citations and a limitations section.
+- The package does not run the engine, clear a flag, or set `human_review_approved`. Session tokens, passphrases, and cookies are omitted.
+- The unittest suite is 102 tests, all passing. The server is stopped. Authentication remains prototype-grade. The official baseline intake was not edited.

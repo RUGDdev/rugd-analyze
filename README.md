@@ -72,6 +72,12 @@ On the dashboard, **Export all drafts** downloads `rugd-drafts-YYYY-MM-DD.json`.
 
 Export does not run the engine and does not fill blank fields. It does not include reviewer session tokens, passphrases, or cookies. Drafts stay in gitignored `data/analyze.sqlite`. The export file is a copy for local backup.
 
+## Research package
+
+On a results page, **Download Research Package** saves `name-date-research.json`. The file contains the assessment summary, the stored engine result, market observations with source, coverage, period, retrieval date, and limitations, evidence gaps and flags, the analyst explanation, and the tier and prototype disclaimers. **Download research Markdown** saves the same package as Markdown. **Research Brief** opens a print-friendly HTML view with those citations and a limitations section.
+
+The package uses the stored engine result. It does not run the engine, fill blank fields, clear a flag, or set `human_review_approved`. Session tokens, passphrases, and cookies are omitted. With no market provider configured, the market section is the labeled synthetic snapshot. With no analyst provider configured, the explanation is the Demonstration Analyst.
+
 ## Demonstration only or unfinished
 
 - Validate can request review, shows a prototype Review Package, and cannot approve

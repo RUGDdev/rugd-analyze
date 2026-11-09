@@ -572,7 +572,10 @@ def _output_links(record: dict[str, Any]) -> str:
 <a class="button" href="/assessments/{assessment_id}/audit/html">HTML audit view</a>
 <a class="button" href="/assessments/{assessment_id}/audit/print">Print-friendly audit</a>
 <a class="button" href="/assessments/{assessment_id}/audit">Inspect audit</a>
-<a class="button" href="/assessments/{assessment_id}/audit/download">Download JSON audit</a></p>
+<a class="button" href="/assessments/{assessment_id}/audit/download">Download JSON audit</a>
+<a class="button" href="/assessments/{assessment_id}/research">Download Research Package</a>
+<a class="button" href="/assessments/{assessment_id}/research/markdown">Download research Markdown</a>
+<a class="button" href="/assessments/{assessment_id}/research/brief">Research Brief</a></p>
 """
 
 
@@ -1667,6 +1670,64 @@ def _market_block(snapshot: dict[str, Any]) -> str:
 <h2>Synthetic examples</h2>
 <ul>{examples}</ul>
 """
+
+
+def research_brief_page(package: dict[str, Any]) -> str:
+    summary = package.get("assessment_summary") or {}
+    engine = package.get("engine_results") or {}
+    flags = package.get("flags") or {}
+    market = package.get("market") or {}
+    blocking = "".join(f"<li class=\"flag\">{escape(str(flag))}</li>" for flag in flags.get("blocking_flags") or []) or "<li>None listed</li>"
+    gaps = "".join(f"<li>{escape(str(item))}</li>" for item in package.get("evidence_gaps") or []) or "<li>None listed</li>"
+    observations = list(market.get("observations") or []) + list(market.get("synthetic_observations") or [])
+    if observations:
+        cited = []
+        for item in observations:
+            cited.append(
+                "<li>"
+                f"<strong>{escape(str(item.get('measure') or ''))}:</strong> {escape(str(item.get('value') or ''))}. "
+                f"Source: {escape(str(item.get('source') or ''))}. "
+                f"Geographic coverage: {escape(str(item.get('geographic_coverage') or ''))}. "
+                f"Classification: {escape(str(item.get('industry_classification') or ''))}. "
+                f"Measurement period: {escape(str(item.get('measurement_period') or ''))}. "
+                f"Retrieval date: {escape(str(item.get('retrieval_date') or ''))}. "
+                f"Limitations: {escape(str(item.get('limitations') or ''))}."
+                "</li>"
+            )
+        market_list = "".join(cited)
+    else:
+        market_list = "<li>No market observation is attached. No market fact is invented.</li>"
+    analyst = "".join(f"<li>{escape(str(line))}</li>" for line in package.get("analyst_explanation") or []) or "<li>Analyst explanation is not available.</li>"
+    body = f"""
+<h1>Research Brief</h1>
+<p class="no-print">Print-friendly research brief. Use the browser print dialog. This view does not change the assessment.</p>
+{_SURFACE_NOTE}
+<div class="banner">{escape(str(package.get('prototype_disclaimer') or ''))}</div>
+<p><strong>Business:</strong> {escape(str(summary.get('business_name') or ''))}</p>
+<p><strong>Tier:</strong> {escape(str(package.get('tier') or ''))}. {escape(str(package.get('tier_disclaimer') or ''))}</p>
+<h2>Assessment summary</h2>
+<p><strong>Recommendation:</strong> {escape(str(summary.get('recommendation')))}</p>
+<p><strong>Investor readiness:</strong> {escape(str(summary.get('readiness_status')))}</p>
+<p><strong>Human review status:</strong> {escape(str(summary.get('human_review_status')))}</p>
+<p><strong>human_review_approved:</strong> {"true" if summary.get("human_review_approved") else "false"}</p>
+<p><strong>Score line:</strong> {escape(str(engine.get('score_line') or ''))}</p>
+<h2>Flags</h2>
+<ul>{blocking}</ul>
+<h2>Evidence gaps</h2>
+<ul>{gaps}</ul>
+<h2>Market observations</h2>
+<p>{escape(str(market.get('label') or 'No public market provider is attached.'))}</p>
+<ul>{market_list}</ul>
+<p>Source citations are the source, coverage, period, retrieval date, and limitations on each observation. These figures do not clear a recommend-against flag.</p>
+<h2>Analyst explanation</h2>
+<ul>{analyst}</ul>
+<section class="limitations">
+<h2>Limitations</h2>
+<p>{escape(str(package.get('prototype_disclaimer') or ''))}</p>
+<p>Customer-entered values remain user-supplied assumptions. This brief does not set human_review_approved and it does not change investor readiness.</p>
+</section>
+"""
+    return layout("Research Brief", body, printable=True)
 
 
 def reports_page(records: list[dict[str, Any]]) -> str:
