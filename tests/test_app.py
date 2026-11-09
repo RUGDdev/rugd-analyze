@@ -343,7 +343,10 @@ class TestAnalyzeApp(unittest.TestCase):
                 page = response.read().decode("utf-8")
             self.assertIn("RUGD", page)
             self.assertIn("Hypothetical Restaurant Startup", page)
-            saved_market = {key: os.environ.pop(key, None) for key in ("MARKET_PROVIDER", "MARKET_CENSUS", "MARKET_CBP")}
+            saved_market = {
+                key: os.environ.pop(key, None)
+                for key in ("MARKET_PROVIDER", "MARKET_CENSUS", "MARKET_CBP", "MARKET_BEA", "BEA_USER_ID")
+            }
             try:
                 with urllib.request.urlopen(base + "/market") as response:
                     market = response.read().decode("utf-8")

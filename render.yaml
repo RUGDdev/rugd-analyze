@@ -48,9 +48,15 @@ services:
         sync: false
       - key: MARKET_CBP
         sync: false
+      - key: MARKET_BEA
+        sync: false
+      - key: BEA_USER_ID
+        sync: false
       - key: MARKET_YEAR
         sync: false
       - key: ACS_YEAR
         sync: false
       - key: CBP_YEAR
+        sync: false
+      - key: BEA_YEAR
         sync: false

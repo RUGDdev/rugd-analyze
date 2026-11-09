@@ -11,11 +11,14 @@ import urllib.request
 from pathlib import Path
 
 from app.market import (
+    BEA_SOURCE,
     CBP_SOURCE,
     CENSUS_SOURCE,
     DEMONSTRATION_LABEL,
     FALLBACK_LABEL,
+    NOT_COVERED_LABEL,
     PUBLIC_SOURCE,
+    BeaRegionalProvider,
     BlsQcewProvider,
     CensusAcsProvider,
     CensusCbpProvider,
@@ -502,7 +505,10 @@ class TestMarketDemonstration(unittest.TestCase):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         host, port = server.server_address
-        saved = {key: os.environ.pop(key, None) for key in ("MARKET_PROVIDER", "MARKET_CENSUS", "MARKET_CBP")}
+        saved = {
+            key: os.environ.pop(key, None)
+            for key in ("MARKET_PROVIDER", "MARKET_CENSUS", "MARKET_CBP", "MARKET_BEA", "BEA_USER_ID")
+        }
         try:
             with urllib.request.urlopen(
                 f"http://{host}:{port}/market/export?industry=Restaurant&geographic_market=Example+county"
@@ -656,6 +662,224 @@ class TestMarketDemonstration(unittest.TestCase):
         before_report = hashlib.sha256((ROOT / "reports" / "output" / "rugd-intelligence-draft.md").read_bytes()).hexdigest()
         market_page([], "Construction", "Fulton County, Georgia", provider=combined, tier="partner")
         export_market_observations("Construction", "Fulton County, Georgia", combined, tier="partner")
+        self.assertEqual(result, before)
+        self.assertFalse(result["human_review_approved"])
+        self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
+        self.assertEqual(
+            hashlib.sha256((ROOT / "reports" / "output" / "rugd-intelligence-draft.md").read_bytes()).hexdigest(),
+            before_report,
+        )
+
+    def test_bea_and_naics_cbp_keep_provenance_fallback_and_baseline(self) -> None:
+        def bea_body(value: str) -> str:
+            return json.dumps(
+                {
+                    "BEAAPI": {
+                        "Results": {
+                            "Data": [
+                                {
+                                    "TimePeriod": "2023",
+                                    "DataValue": value,
+                                    "CL_UNIT": "Thousands of dollars",
+                                }
+                            ]
+                        }
+                    }
+                }
+            )
+
+        seen: list[str] = []
+
+        def transport(url: str) -> str:
+            seen.append(url)
+            if "TableName=CAGDP2" in url:
+                return bea_body("1,445,132")
+            if "TableName=CAINC1" in url:
+                return bea_body("2,200,000")
+            raise RuntimeError("down")
+
+        provider = BeaRegionalProvider(
+            year="2023",
+            user_id="bea-test-user",
+            transport=transport,
+            retrieved_on="2026-11-09",
+        )
+        rows = provider.observations("Restaurant", "Colbert County, Alabama")
+        self.assertEqual(len(rows), 2)
+        self.assertIn("TableName=CAGDP2", seen[0])
+        self.assertIn("LineCode=1", seen[0])
+        self.assertIn("GeoFips=01033", seen[0])
+        self.assertIn("UserID=bea-test-user", seen[0])
+        self.assertIn("TableName=CAINC1", seen[1])
+        self.assertEqual(rows[0]["source"], BEA_SOURCE)
+        self.assertEqual(rows[0]["measure"], "Current-dollar GDP, all industries (thousands of dollars)")
+        self.assertEqual(rows[0]["value"], "1445132")
+        self.assertEqual(rows[0]["detail"], "headline")
+        self.assertEqual(rows[1]["measure"], "Personal income (thousands of dollars)")
+        self.assertEqual(rows[1]["value"], "2200000")
+        self.assertEqual(rows[0]["industry_classification"], "All industries. Not one NAICS code.")
+        self.assertEqual(rows[0]["geographic_coverage"], "Colbert County, Alabama (BEA GeoFips 01033)")
+        self.assertEqual(rows[0]["measurement_period"], "2023 annual")
+        self.assertEqual(rows[0]["retrieval_date"], "2026-11-09")
+        for field in (
+            "source",
+            "geographic_coverage",
+            "industry_classification",
+            "measurement_period",
+            "retrieval_date",
+            "limitations",
+        ):
+            self.assertTrue(rows[0][field], field)
+            self.assertNotIn("bea-test-user", rows[0][field])
+        self.assertIn("does not clear INSUFFICIENT_DEMAND_EVIDENCE", rows[0]["limitations"])
+        self.assertIn("does not set human_review_approved", rows[0]["limitations"])
+
+        hidden = BeaRegionalProvider(
+            year="2023",
+            user_id="bea-test-user",
+            transport=lambda url: bea_body("(D)"),
+            retrieved_on="2026-11-09",
+        ).observations("Restaurant", "Alabama")
+        self.assertEqual(hidden[0]["value"], "Not disclosed")
+        self.assertNotEqual(hidden[0]["value"], "0")
+
+        called = {"count": 0}
+
+        def refuse(url: str) -> str:
+            called["count"] += 1
+            raise AssertionError(url)
+
+        missing_key = load_market(
+            "Restaurant",
+            "Alabama",
+            BeaRegionalProvider(year="2023", user_id="", transport=refuse),
+        )
+        self.assertEqual(missing_key["status"], "fallback")
+        self.assertEqual(missing_key["label"], FALLBACK_LABEL)
+        self.assertEqual(called["count"], 0)
+        uncovered = load_market("Restaurant", "Example county", provider)
+        self.assertEqual(uncovered["status"], "fallback")
+        self.assertEqual(uncovered["label"], NOT_COVERED_LABEL)
+        failed = load_market(
+            "Restaurant",
+            "Alabama",
+            BeaRegionalProvider(year="2023", user_id="bea-test-user", transport=lambda url: (_ for _ in ()).throw(RuntimeError(url))),
+        )
+        self.assertEqual(failed["status"], "fallback")
+        self.assertEqual(failed["label"], FALLBACK_LABEL)
+        selected = get_market_provider(
+            environ={"MARKET_BEA": "bea", "BEA_YEAR": "2023", "BEA_USER_ID": "bea-test-user"},
+            transport=transport,
+        )
+        self.assertEqual(selected.name, "bea-regional")
+        self.assertEqual(selected.year, "2023")
+        self.assertEqual(
+            get_market_provider(environ={"MARKET_BEA": "regional"}, transport=transport).year,
+            "2024",
+        )
+
+        sector = json.dumps(
+            {
+                "response": {
+                    "data": [
+                        ["NAICS2017", "LFO", "EMPSZES", "ESTAB", "EMP", "PAYANN"],
+                        ["23", "001", "001", "10", "20", "30"],
+                    ]
+                }
+            }
+        )
+        naics = json.dumps(
+            [
+                ["NAME", "NAICS2017", "ESTAB", "EMP", "PAYANN"],
+                ["Colbert County, Alabama", "722", "112", "1842", "34800"],
+            ]
+        )
+        cbp_seen: list[str] = []
+
+        def cbp_transport(url: str) -> str:
+            cbp_seen.append(url)
+            if "api.census.gov" in url:
+                return naics
+            if "CBP" in url:
+                return sector
+            raise RuntimeError(url)
+
+        cbp = CensusCbpProvider(year="2023", transport=cbp_transport, retrieved_on="2026-11-09")
+        restaurant = cbp.observations("Restaurant", "Colbert County, Alabama")
+        self.assertIn("NAICS2017=722", cbp_seen[-1])
+        self.assertIn("for=county:033&in=state:01", cbp_seen[-1])
+        self.assertNotIn("key=", cbp_seen[-1])
+        self.assertEqual(restaurant[0]["source"], CBP_SOURCE)
+        self.assertEqual(restaurant[0]["measure"], "Establishments")
+        self.assertEqual(restaurant[0]["value"], "112")
+        self.assertEqual(restaurant[1]["measure"], "CBP employment")
+        self.assertEqual(restaurant[1]["value"], "1842")
+        self.assertEqual(restaurant[2]["measure"], "Annual payroll (thousands of dollars)")
+        self.assertEqual(restaurant[2]["value"], "34800")
+        self.assertIn("NAICS 722", restaurant[0]["industry_classification"])
+        self.assertIn("filtered to this NAICS code", restaurant[0]["limitations"])
+        self.assertIn("do not clear INSUFFICIENT_DEMAND_EVIDENCE", restaurant[0]["limitations"])
+        empty_api = CensusCbpProvider(
+            year="2023",
+            transport=lambda url: naics if "api.census.gov" in url else sector,
+            retrieved_on="2026-11-09",
+        )
+        missed = load_market("Accommodation", "Colbert County, Alabama", empty_api)
+        self.assertEqual(missed["status"], "fallback")
+        self.assertEqual(missed["label"], FALLBACK_LABEL)
+
+        def combined_transport(url: str) -> str:
+            if "apps.bea.gov" in url:
+                return transport(url)
+            if "bls.gov" in url:
+                return _QCEW
+            if "B01003" in url:
+                return json.dumps({"response": {"data": [["B01003_001E"], ["58022"]]}})
+            if "B19013" in url:
+                return json.dumps({"response": {"data": [["B19013_001E"], ["60628"]]}})
+            if "B19001" in url:
+                raise RuntimeError("skip brackets")
+            raise RuntimeError(url)
+
+        combined = get_market_provider(
+            environ={
+                "MARKET_PROVIDER": "bls",
+                "MARKET_CENSUS": "acs",
+                "MARKET_BEA": "bea",
+                "BEA_USER_ID": "bea-test-user",
+                "BEA_YEAR": "2023",
+                "ACS_YEAR": "2024",
+            },
+            transport=combined_transport,
+        )
+        page = market_page([], "Restaurant", "Colbert County, Alabama", provider=combined, tier="analyze")
+        self.assertIn("<h2>Combined summary</h2>", page)
+        self.assertIn("Private annual average employment:", page)
+        self.assertIn("Total population:", page)
+        self.assertIn("Current-dollar GDP, all industries (thousands of dollars):", page)
+        self.assertIn("1445132", page)
+        self.assertIn("Personal income (thousands of dollars):", page)
+        self.assertIn("2200000", page)
+        self.assertIn(BEA_SOURCE, page)
+        self.assertIn(PUBLIC_SOURCE, page)
+        self.assertIn(CENSUS_SOURCE, page)
+        self.assertIn("These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE", page)
+        self.assertNotIn("bea-test-user", page)
+        self.assertIn("Monitoring active: false", page)
+        explore = market_page([], "Restaurant", "Colbert County, Alabama", provider=combined, tier="explore")
+        self.assertIn("Current-dollar GDP, all industries (thousands of dollars):", explore)
+        self.assertIn("Personal income (thousands of dollars):", explore)
+        result = {
+            "recommendation": "do-not-proceed",
+            "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+            "readiness_status": "internal",
+            "human_review_approved": False,
+        }
+        before = copy.deepcopy(result)
+        before_sample = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
+        before_report = hashlib.sha256((ROOT / "reports" / "output" / "rugd-intelligence-draft.md").read_bytes()).hexdigest()
+        export_market_observations("Restaurant", "Colbert County, Alabama", combined, tier="analyze")
+        market_page([], "Restaurant", "Colbert County, Alabama", provider=combined)
         self.assertEqual(result, before)
         self.assertFalse(result["human_review_approved"])
         self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)

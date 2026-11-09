@@ -21,7 +21,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Review a draft recommendation | Met | The recommendation stays a draft. Approval does not rewrite it. |
 | See missing evidence requirements | Met | Missing required fields and `INSUFFICIENT_DEMAND_EVIDENCE` stay visible. |
 | Open the report and audit | Met | Markdown report, JSON audit, a read-only HTML audit page, a research package JSON and Markdown export, and a print-friendly Research Brief are available. |
-| Explore market intelligence | Partially met | The default is one labeled synthetic snapshot. `MARKET_PROVIDER=bls` can show a BLS QCEW extract, `MARKET_CENSUS=acs` can show ACS population and income, and `MARKET_CBP=cbp` can show County Business Patterns. Explore shows a limited snapshot, Analyze adds the full view and a sourced summary, and Validate and Partner add extended metrics. Failure of any part falls back to the synthetic snapshot. The figures do not clear a flag. |
+| Explore market intelligence | Partially met | The default is one labeled synthetic snapshot. `MARKET_PROVIDER=bls` can show a BLS QCEW extract, `MARKET_CENSUS=acs` can show ACS population and income, `MARKET_CBP=cbp` can show County Business Patterns by NAICS, and `MARKET_BEA=bea` can show BEA Regional GDP and personal income. Explore shows a limited snapshot, Analyze adds the full view and a sourced summary, and Validate and Partner add extended metrics. Failure of any part falls back to the synthetic snapshot. The figures do not clear a flag. |
 | View Validate and Partner | Demonstration-only | Validate can request review, shows a prototype Review Package, and cannot approve. Partner states that recurring monitoring is not active and shows an inactive Ongoing Intelligence demonstration. Market Pulse is a separate hypothetical demonstration. |
 | Return to saved assessments | Met | Dashboard history offers Continue and View results. |
 | Baseline status unchanged | Met | do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, internal investor readiness, pending human review. |
@@ -65,7 +65,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 Do not start these until an owner chooses them:
 
 - Production authentication beyond the pilot's local email and password accounts, including OAuth, an external identity provider, or a production password policy
-- Real market data sources beyond the optional BLS QCEW extract, including Census, American Community Survey, BEA, or a commercial dataset
+- Real market data sources beyond the optional BLS QCEW, ACS, County Business Patterns, and BEA Regional extracts, including a commercial dataset
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing
 - Investor matchmaking, securities solicitation, brokerage, or capital movement

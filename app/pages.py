@@ -1343,6 +1343,8 @@ _YEAR_NOTE = (
     "MARKET_YEAR selects the QCEW file. ACS_YEAR selects the ACS vintage. "
     "Each defaults to 2024 when it is not set. "
     "CBP_YEAR selects the County Business Patterns release and defaults to 2023. "
+    "BEA_YEAR selects the Regional Economic Accounts year and defaults to 2024. "
+    "A BEA request also needs BEA_USER_ID. The page does not show that id. "
     "This is prototype behavior."
 )
 
@@ -1410,6 +1412,7 @@ def _active_provider(view: dict[str, Any]) -> str:
         "bls-qcew": "BLS Quarterly Census of Employment and Wages",
         "census-acs": "U.S. Census Bureau, American Community Survey 5-year estimates",
         "census-cbp": "U.S. Census Bureau, County Business Patterns",
+        "bea-regional": "U.S. Bureau of Economic Analysis, Regional Economic Accounts",
     }
     label = labels.get(name, name or "public market provider")
     return f"Active provider: {escape(label)}. Year: {escape(year or 'not set')}."
@@ -1433,7 +1436,7 @@ def _tier_note(tier: str) -> str:
     notes = {
         "explore": (
             "Explore shows a limited snapshot: headline employment, population, median household income, "
-            "and establishment count when a public source published them."
+            "establishment count, current-dollar GDP, and personal income when a public source published them."
         ),
         "analyze": (
             "Analyze shows the full current market view and the Market Research Summary. "

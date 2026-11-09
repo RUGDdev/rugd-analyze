@@ -79,7 +79,7 @@ Set these in the Render dashboard:
 
 `SECURE_COOKIES=true` is also set in `render.yaml`. Production mode already marks the session cookie Secure, HttpOnly, and SameSite=Lax. Render sets `PORT`. Do not override it.
 
-Optional variables, left unset unless that provider is wanted: `ANALYST_PROVIDER`, `ANALYST_MODEL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `MARKET_PROVIDER`, `MARKET_CENSUS`, `MARKET_CBP`, `MARKET_YEAR`, `ACS_YEAR`, `CBP_YEAR`.
+Optional variables, left unset unless that provider is wanted: `ANALYST_PROVIDER`, `ANALYST_MODEL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `MARKET_PROVIDER`, `MARKET_CENSUS`, `MARKET_CBP`, `MARKET_BEA`, `BEA_USER_ID`, `MARKET_YEAR`, `ACS_YEAR`, `CBP_YEAR`, `BEA_YEAR`.
 
 The start command is `python -m app`. Responses send `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: same-origin`. Render terminates HTTPS. Add a CNAME for `app.rugdintelligence.com` to the Render hostname. The apex domain stays on the public website.
 
@@ -118,7 +118,7 @@ The package uses the stored engine result. It does not run the engine, fill blan
 
 - Validate can request review, shows a prototype Review Package, and cannot approve
 - Partner monitoring is not active. The Ongoing Intelligence panel is an inactive demonstration
-- Market Intelligence stays on a labeled synthetic snapshot unless `MARKET_PROVIDER=bls`, `MARKET_CENSUS=acs`, or `MARKET_CBP=cbp` is set
+- Market Intelligence stays on a labeled synthetic snapshot unless `MARKET_PROVIDER=bls`, `MARKET_CENSUS=acs`, `MARKET_CBP=cbp`, or `MARKET_BEA=bea` is set
 - The Demonstration Analyst is the default. An optional external analyst can be enabled with an environment variable and an API key
 
 ## Optional external analyst
@@ -147,12 +147,15 @@ To request one public extract, set this in the terminal that starts the app. No 
 - `ACS_YEAR` — optional ACS 5-year vintage. The default is `2024`
 - `MARKET_CBP=cbp` (`census-cbp` and `patterns` are accepted)
 - `CBP_YEAR` — optional County Business Patterns release. The default is `2023`
+- `MARKET_BEA=bea` (`regional` and `bea-regional` are accepted)
+- `BEA_YEAR` — optional Regional Economic Accounts year. The default is `2024`
+- `BEA_USER_ID` — free BEA API user id. A BEA request without it falls back to the synthetic snapshot. The page does not show the id
 
 No Census API key is used. Set any of the provider variables, or all of them. They appear together on the same page. If one request fails, only that part returns to the synthetic snapshot.
 
 Open Market Intelligence and choose a geography of United States, Alabama, Colbert County, Alabama, Tennessee, Hamilton County, Tennessee, Georgia, or Fulton County, Georgia. Industries are Restaurant (NAICS 722), Professional services (54), Retail (44-45), Construction (23), Manufacturing (31-33), Accommodation (721), and Health care (62). The page requests the BLS Quarterly Census of Employment and Wages annual file and shows private employment, average weekly wage, establishments, total annual wages, average annual pay, and establishment size coverage when those cells are published. When the file includes an over-the-year percent change, that percent is an extended metric. The page names the active provider and year.
 
-The Census ACS extract is total population from table B01003 and median household income from table B19013. It is a 5-year residence estimate, not an industry and not business revenue. When the prior vintage is available, the page can also show the difference between the two overlapping 5-year population estimates, and a household-income bracket note from table B19001. Those two items are extended metrics. County Business Patterns adds establishments, employment, and annual payroll in thousands of dollars for a NAICS code published in that sector table. Restaurant (722) and Accommodation (721) are not in that sector table, so that part falls back for those industries. The page names each active provider and its year. `MARKET_YEAR`, `ACS_YEAR`, and `CBP_YEAR` are read from the environment. The page does not offer another year control. When a variable is unset, QCEW and ACS use 2024 and County Business Patterns uses 2023.
+The Census ACS extract is total population from table B01003 and median household income from table B19013. It is a 5-year residence estimate, not an industry and not business revenue. When the prior vintage is available, the page can also show the difference between the two overlapping 5-year population estimates, and a household-income bracket note from table B19001. Those two items are extended metrics. County Business Patterns adds establishments, employment, and annual payroll in thousands of dollars. A NAICS code in the sector table is read from that table. Restaurant (722) and Accommodation (721) are requested from the Census CBP API filtered to that NAICS code, with no API key. If that request fails, only that part falls back. BEA Regional Economic Accounts adds current-dollar GDP for all industries (CAGDP2 line 1) and personal income (CAINC1 line 1), both in thousands of dollars, for a mapped geography. The BEA request needs `BEA_USER_ID`. The page names each active provider and its year. `MARKET_YEAR`, `ACS_YEAR`, `CBP_YEAR`, and `BEA_YEAR` are read from the environment. The page does not offer another year control. When a variable is unset, QCEW, ACS, and BEA use 2024 and County Business Patterns uses 2023.
 
 The market view control does not change an assessment. Explore shows the headline snapshot. Analyze adds the full current view and a Market Research Summary. Validate and Partner add the extended metrics. The summary says it is derived from the cited public sources and that it is not a recommendation. Opening the page without a view selected uses Explore.
 

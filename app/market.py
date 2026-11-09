@@ -11,6 +11,7 @@ import io
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -94,6 +95,7 @@ OBSERVATION_FIELDS = (
 PUBLIC_SOURCE = "U.S. Bureau of Labor Statistics, Quarterly Census of Employment and Wages"
 CENSUS_SOURCE = "U.S. Census Bureau, American Community Survey 5-year estimates"
 CBP_SOURCE = "U.S. Census Bureau, County Business Patterns"
+BEA_SOURCE = "U.S. Bureau of Economic Analysis, Regional Economic Accounts"
 ACS_LABEL = (
     "Public source: U.S. Census Bureau, American Community Survey 5-year estimates. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
@@ -106,6 +108,11 @@ PUBLIC_LABEL = (
 )
 CBP_LABEL = (
     "Public source: U.S. Census Bureau, County Business Patterns. "
+    "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
+    "or any recommend-against flag."
+)
+BEA_LABEL = (
+    "Public source: U.S. Bureau of Economic Analysis, Regional Economic Accounts. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
     "or any recommend-against flag."
 )
@@ -424,12 +431,25 @@ class CensusCbpProvider:
         code, classification = industry_spec
         table = f"CBP{self.year}.CB{self.year[-2:]}00CBP"
         url = f"https://data.census.gov/api/access/data/table?id={table}&g={geo_code}"
-        row = _cbp_row(self._transport(url), code)
+        try:
+            row = _cbp_row(self._transport(url), code)
+            request_note = (
+                f"County Business Patterns table {table}, all legal forms and all employment sizes. "
+                "This table request is published at sector grain. "
+            )
+        except LookupError:
+            row = _cbp_api_row(
+                self._transport(_cbp_naics_url(self.year, geography_name, code)),
+                code,
+            )
+            request_note = (
+                "County Business Patterns API filtered to this NAICS code, "
+                "legal form 001 and employment size 001. No API key is sent. "
+            )
         retrieved_on = self._retrieved_on or _today()
         limitations = (
-            f"County Business Patterns table {table}, all legal forms and all employment sizes. "
-            "This release is published at sector grain, so a 6-digit NAICS code that is not in the "
-            "table is not covered. Annual payroll is published in thousands of dollars. "
+            f"{request_note}"
+            "Annual payroll is published in thousands of dollars. "
             "These are establishment counts, employment, and payroll, not revenue or demand for any "
             "one business. They do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other "
             "recommend-against flag, and they do not set human_review_approved. "
@@ -460,8 +480,92 @@ class CensusCbpProvider:
         return observations
 
 
+_BEA_GEOGRAPHIES = {
+    "United States": "00000",
+    "Alabama": "01000",
+    "Colbert County, Alabama": "01033",
+    "Tennessee": "47000",
+    "Hamilton County, Tennessee": "47065",
+    "Georgia": "13000",
+    "Fulton County, Georgia": "13121",
+}
+_BEA_LINES = (
+    ("CAGDP2", "1", "Current-dollar GDP, all industries (thousands of dollars)"),
+    ("CAINC1", "1", "Personal income (thousands of dollars)"),
+)
+_BEA_LIMITATION = (
+    "Bureau of Economic Analysis Regional Economic Accounts. "
+    "CAGDP2 line 1 is current-dollar GDP for all industries, in thousands of dollars. "
+    "CAINC1 line 1 is personal income, in thousands of dollars. "
+    "These are geography totals, not revenue or demand for any one business, and not one NAICS industry. "
+    "It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag, "
+    "and it does not set human_review_approved. It is not a live feed. Monitoring is not active. "
+    "BEA may suppress a cell or revise a release."
+)
+_CBP_API_GEO = {
+    "United States": "for=us:1",
+    "Alabama": "for=state:01",
+    "Colbert County, Alabama": "for=county:033&in=state:01",
+    "Tennessee": "for=state:47",
+    "Hamilton County, Tennessee": "for=county:065&in=state:47",
+    "Georgia": "for=state:13",
+    "Fulton County, Georgia": "for=county:121&in=state:13",
+}
+
+
+class BeaRegionalProvider:
+    """BEA Regional GDP and personal income for one mapped geography."""
+
+    name = "bea-regional"
+
+    def __init__(
+        self,
+        *,
+        year: str = "2024",
+        user_id: str = "",
+        transport: Fetch | None = None,
+        retrieved_on: str | None = None,
+    ) -> None:
+        self.year = year if len(year) == 4 and year.isdigit() else "2024"
+        self.user_id = user_id.strip()
+        self._transport = transport or _fetch_text
+        self._retrieved_on = retrieved_on
+
+    def observations(self, industry: str | None, geography: str | None) -> list[dict[str, str]]:
+        if not self.user_id:
+            raise ValueError("BEA user id is not set")
+        geography_name = str(geography or "").strip()
+        fips = _BEA_GEOGRAPHIES.get(geography_name)
+        if fips is None:
+            raise NotCovered("selection is not covered")
+        retrieved_on = self._retrieved_on or _today()
+        observations = []
+        for table, line, measure in _BEA_LINES:
+            url = (
+                "https://apps.bea.gov/api/data/"
+                f"?UserID={urllib.parse.quote(self.user_id, safe='')}"
+                "&method=GetData&datasetname=Regional"
+                f"&TableName={table}&LineCode={line}&GeoFips={fips}"
+                f"&Year={self.year}&ResultFormat=JSON"
+            )
+            observations.append(
+                {
+                    "source": BEA_SOURCE,
+                    "geographic_coverage": f"{geography_name} (BEA GeoFips {fips})",
+                    "industry_classification": "All industries. Not one NAICS code.",
+                    "measurement_period": f"{self.year} annual",
+                    "retrieval_date": retrieved_on,
+                    "limitations": _BEA_LIMITATION,
+                    "measure": measure,
+                    "value": _bea_value(self._transport(url), self.year),
+                    "detail": "headline",
+                }
+            )
+        return observations
+
+
 class CombinedMarketProvider:
-    """BLS and Census together. A failed part does not remove the other part."""
+    """Public extracts together. A failed part does not remove the other part."""
 
     name = "combined"
 
@@ -472,11 +576,12 @@ class CombinedMarketProvider:
 
 
 def get_market_provider(environ: Any | None = None, transport: Fetch | None = None) -> Any:
-    """Return the synthetic snapshot unless BLS or Census is requested."""
+    """Return the synthetic snapshot unless a public extract is requested."""
     env = os.environ if environ is None else environ
     raw = str(env.get("MARKET_PROVIDER") or "").strip().lower()
     census_raw = str(env.get("MARKET_CENSUS") or "").strip().lower()
     cbp_raw = str(env.get("MARKET_CBP") or "").strip().lower()
+    bea_raw = str(env.get("MARKET_BEA") or "").strip().lower()
     parts: list[Any] = []
     if raw in {"bls", "qcew", "bls-qcew"}:
         parts.append(BlsQcewProvider(year=_year(env, "MARKET_YEAR", "2024"), transport=transport))
@@ -490,6 +595,16 @@ def get_market_provider(environ: Any | None = None, transport: Fetch | None = No
         parts.append(CensusCbpProvider(year=_year(env, "CBP_YEAR", "2023"), transport=transport))
     elif cbp_raw not in {"", "none", "off", "synthetic", "demo", "demonstration"}:
         parts.append(UnavailableMarketProvider(cbp_raw))
+    if bea_raw in {"bea", "regional", "bea-regional"}:
+        parts.append(
+            BeaRegionalProvider(
+                year=_year(env, "BEA_YEAR", "2024"),
+                user_id=str(env.get("BEA_USER_ID") or ""),
+                transport=transport,
+            )
+        )
+    elif bea_raw not in {"", "none", "off", "synthetic", "demo", "demonstration"}:
+        parts.append(UnavailableMarketProvider(bea_raw))
     if not parts:
         return SyntheticMarketProvider()
     if len(parts) == 1 and not isinstance(parts[0], UnavailableMarketProvider):
@@ -530,7 +645,11 @@ def load_market(
         provider_name = str(getattr(selected, "name", "") or "")
         return {
             "status": "public",
-            "label": {"census-acs": ACS_LABEL, "census-cbp": CBP_LABEL}.get(provider_name, PUBLIC_LABEL),
+            "label": {
+                "census-acs": ACS_LABEL,
+                "census-cbp": CBP_LABEL,
+                "bea-regional": BEA_LABEL,
+            }.get(provider_name, PUBLIC_LABEL),
             "reason": None,
             "provider_name": provider_name,
             "year": str(getattr(selected, "year", "") or ""),
@@ -758,6 +877,8 @@ def _provider_caption(provider: Any) -> str:
         return "U.S. Census Bureau, American Community Survey 5-year estimates"
     if name == "census-cbp":
         return "U.S. Census Bureau, County Business Patterns"
+    if name == "bea-regional":
+        return "U.S. Bureau of Economic Analysis, Regional Economic Accounts"
     if name == "unavailable":
         requested = str(getattr(provider, "requested", "") or "").strip()
         return f"Requested provider {requested}" if requested else "Requested provider"
@@ -830,6 +951,48 @@ def _acs_columns(body: str, columns: tuple[str, ...]) -> tuple[int, ...] | None:
             return None
         parsed.append(int(text))
     return tuple(parsed)
+
+
+def _cbp_naics_url(year: str, geography_name: str, naics: str) -> str:
+    clause = _CBP_API_GEO[geography_name]
+    code = urllib.parse.quote(naics, safe="")
+    return (
+        f"https://api.census.gov/data/{year}/cbp"
+        f"?get=NAME,NAICS2017,ESTAB,EMP,PAYANN&{clause}&NAICS2017={code}&LFO=001&EMPSZES=001"
+    )
+
+
+def _cbp_api_row(body: str, naics: str) -> dict[str, Any]:
+    try:
+        rows = json.loads(body)
+        header = [str(item) for item in rows[0]]
+    except (IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("county business patterns response was not readable") from exc
+    for values in rows[1:]:
+        record = {header[index]: values[index] for index in range(min(len(header), len(values)))}
+        if str(record.get("NAICS2017") or "") == naics:
+            return record
+    raise LookupError("CBP does not publish this NAICS code")
+
+
+def _bea_value(body: str, year: str) -> str:
+    try:
+        payload = json.loads(body)
+        results = payload["BEAAPI"]["Results"]
+    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("BEA response was not readable") from exc
+    if not isinstance(results, dict) or results.get("Error"):
+        raise ValueError("BEA response was not readable")
+    data = results.get("Data")
+    if not isinstance(data, list):
+        raise ValueError("BEA response was not readable")
+    match = next((row for row in data if str(row.get("TimePeriod") or "") == year), None)
+    if not isinstance(match, dict):
+        raise ValueError("BEA year was not in the response")
+    raw = str(match.get("DataValue") or "").strip().replace(",", "")
+    if raw.startswith("(") or raw.startswith("-") or not raw.isdigit():
+        return "Not disclosed"
+    return raw
 
 
 def _cbp_row(body: str, naics: str) -> dict[str, Any]:

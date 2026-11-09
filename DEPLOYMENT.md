@@ -55,7 +55,7 @@ After the first reviewer can log in, clear `RUGD_BOOTSTRAP_REVIEWER_PASSWORD` in
 Optional, and already supported. Leave them unset to keep the Demonstration Analyst and the synthetic market snapshot:
 
 - `ANALYST_PROVIDER`, `ANALYST_MODEL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`
-- `MARKET_PROVIDER`, `MARKET_CENSUS`, `MARKET_CBP`, `MARKET_YEAR`, `ACS_YEAR`, `CBP_YEAR`
+- `MARKET_PROVIDER`, `MARKET_CENSUS`, `MARKET_CBP`, `MARKET_BEA`, `BEA_USER_ID`, `MARKET_YEAR`, `ACS_YEAR`, `CBP_YEAR`, `BEA_YEAR`
 
 Market extracts and the analyst still cannot clear a recommend-against flag or set `human_review_approved`.
 
