@@ -32,6 +32,20 @@ services:
         sync: false
       - key: RUGD_BOOTSTRAP_REVIEWER_PASSWORD
         sync: false
+      - key: RUGD_PUBLIC_URL
+        value: https://app.rugdintelligence.com
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_USE_TLS
+        sync: false
       - key: ANALYST_PROVIDER
         sync: false
       - key: ANALYST_MODEL

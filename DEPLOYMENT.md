@@ -1,6 +1,6 @@
 # Deploy RUGD Analyze on Render
 
-This is a pilot deployment for `app.rugdintelligence.com`. It is not a finished production service. Prototype warnings stay on. There is no rate limit, no email verification, no public self-service billing, and no customer control that sets `human_review_approved`.
+This is a pilot deployment for `app.rugdintelligence.com`. It is not a finished production service. Prototype warnings stay on. There is no rate limit and no public self-service billing. Email verification and password reset are local-account links. There is no customer control that sets `human_review_approved`.
 
 The public website stays on Webflow. Do not point `rugdintelligence.com` at this service. Longarc_Platform is not part of this deployment.
 
@@ -75,7 +75,7 @@ The session cookie is marked Secure in this environment, so the browser sends it
 
 - The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.
 - Prototype warnings stay on the screens. They still say the screen does not grant investor-ready status.
-- There is no rate limit, account lockout, or email verification.
+- There is no rate limit or account lockout. Email verification and password reset are local-account links. Leave `SMTP_HOST` unset and the server log prints the message. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, and `SMTP_USE_TLS` to send through SMTP. `RUGD_PUBLIC_URL` is `https://app.rugdintelligence.com` so the link uses that host. Neither link changes a role.
 - Password hashing is the pilot scrypt parameter. There is no OAuth provider and no external identity provider.
 - `app/future.py` stays disabled. Render settings are read from `app/config.py`. The deployment seam does not turn on billing or scoring.
 - One SQLite file is the database. An external database is a later decision. `RUGD_DATABASE` is the path seam for that file.

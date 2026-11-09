@@ -71,7 +71,7 @@ Do not start these until an owner chooses them:
 - Investor matchmaking, securities solicitation, brokerage, or capital movement
 - Recurring Partner monitoring and scheduled market jobs
 - An external AI provider for the analyst
-- Public deployment beyond the prepared Render pilot. `DEPLOYMENT.md` covers `app.rugdintelligence.com`. Rate limiting and email verification are still open
+- Public deployment beyond the prepared Render pilot. `DEPLOYMENT.md` covers `app.rugdintelligence.com`. Rate limiting is still open. Email verification and password reset are local-account links, not production authentication
 - A LongArc or DVT connection
 - A change to the Webflow site
 - A replacement frontend, including React

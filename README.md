@@ -49,6 +49,10 @@ The password is stored as a scrypt hash. It is not written into the repository. 
 
 A signed-in reviewer can open `/reviewer/accounts` and create another reviewer. A customer account and a signed-out request are refused. Creating a reviewer does not approve an assessment or set `human_review_approved`.
 
+A new account can log in before the email is verified. The pages show a banner until the verification link is opened. That link expires in 24 hours. Forgot password, on the login page, emails a reset link that expires in one hour and works once. Neither link changes a role.
+
+Leave `SMTP_HOST` unset and the running server prints the message, including the link, to its log. To send through an SMTP server later, set `SMTP_HOST`. Optional values are `SMTP_PORT` (587), `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, and `SMTP_USE_TLS` (`true` by default). Set `RUGD_PUBLIC_URL` to the public base of the link, such as `https://app.rugdintelligence.com` on Render. The message does not include the password.
+
 To walk through the hypothetical restaurant drafts, follow `DEMO.md`.
 
 ## How to stop the server
@@ -79,11 +83,11 @@ Set these in the Render dashboard:
 
 `SECURE_COOKIES=true` is also set in `render.yaml`. Production mode already marks the session cookie Secure, HttpOnly, and SameSite=Lax. Render sets `PORT`. Do not override it.
 
-Optional variables, left unset unless that provider is wanted: `ANALYST_PROVIDER`, `ANALYST_MODEL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `MARKET_PROVIDER`, `MARKET_CENSUS`, `MARKET_CBP`, `MARKET_BEA`, `BEA_USER_ID`, `MARKET_LAUS`, `MARKET_YEAR`, `ACS_YEAR`, `CBP_YEAR`, `BEA_YEAR`, `LAUS_YEAR`.
+Optional variables, left unset unless that provider is wanted: `ANALYST_PROVIDER`, `ANALYST_MODEL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`, `MARKET_PROVIDER`, `MARKET_CENSUS`, `MARKET_CBP`, `MARKET_BEA`, `BEA_USER_ID`, `MARKET_LAUS`, `MARKET_YEAR`, `ACS_YEAR`, `CBP_YEAR`, `BEA_YEAR`, `LAUS_YEAR`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, `SMTP_USE_TLS`, `RUGD_PUBLIC_URL`.
 
 The start command is `python -m app`. Responses send `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: same-origin`. Render terminates HTTPS. Add a CNAME for `app.rugdintelligence.com` to the Render hostname. The apex domain stays on the public website.
 
-This build stays pilot-grade. Prototype warnings stay. There is no rate limit, no email verification, and no public self-service billing. Clear the bootstrap password in the dashboard after the first reviewer can log in.
+This build stays pilot-grade. Prototype warnings stay. There is no rate limit and no public self-service billing. Email verification and password reset use the local account. Without `SMTP_HOST`, the message is written to the server log. Clear the bootstrap password in the dashboard after the first reviewer can log in.
 
 ## Official baseline
 

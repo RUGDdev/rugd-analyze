@@ -19,6 +19,7 @@ from app.config import (
     bind_port,
     database_path,
     production_secret_error,
+    public_base_url,
     session_cookie,
 )
 from app.market import export_market_observations, get_market_provider
@@ -36,9 +37,13 @@ from app.pages import (
     market_pulse_page,
     new_assessment_page,
     partner_page,
+    forgot_password_page,
     login_page,
     logout_page,
     register_page,
+    reset_password_page,
+    verification_banner,
+    verify_email_page,
     reports_page,
     research_brief_page,
     results_page,
@@ -48,7 +53,17 @@ from app.pages import (
     settings_page,
     validate_page,
 )
-from app.accounts import AccountError, create_reviewer_account, register_account
+from app.accounts import (
+    RESET_NOTICE,
+    AccountError,
+    confirm_email,
+    create_reviewer_account,
+    register_account,
+    request_password_reset,
+    reset_password,
+    send_verification,
+)
+import app.mail as account_mail
 from app.review import (
     SESSION_COOKIE,
     SESSION_LIFETIME_SECONDS,
@@ -61,6 +76,7 @@ from app.review import (
 )
 from app.store import (
     BASELINE_ID,
+    get_user_by_id,
     DEFAULT_DB,
     ISOLATION_CUSTOMER,
     connect,
@@ -93,79 +109,92 @@ class AppHandler(BaseHTTPRequestHandler):
             self._bytes(logo.read_bytes(), "image/png")
             return
         with self._db() as connection:
-            seed(connection)
-            if path == "/":
-                self._html(dashboard(list_assessments(connection)))
-            elif path == "/explore":
-                self._html(explore_page(list_assessments(connection)))
-            elif path == "/analyze":
-                self._html(analyze_index(list_assessments(connection)))
-            elif path == "/validate":
-                self._html(validate_page(None))
-            elif path == "/partner":
-                self._html(partner_page())
-            elif path == "/market-pulse":
-                self._html(market_pulse_page())
-            elif path == "/market/export":
-                query = parse_qs(urlparse(self.path).query)
-                industry = (query.get("industry") or [""])[-1]
-                geographic_market = (query.get("geographic_market") or [""])[-1]
-                tier = (query.get("tier") or ["explore"])[-1]
-                payload = json.dumps(
-                    export_market_observations(
-                        industry,
-                        geographic_market,
-                        provider=get_market_provider(),
-                        tier=tier,
-                    ),
-                    indent=2,
-                ).encode("utf-8")
-                self._bytes(payload, "application/json", disposition=_market_disposition(industry, geographic_market))
-            elif path == "/market":
-                query = parse_qs(urlparse(self.path).query)
-                industry = (query.get("industry") or [""])[-1]
-                geographic_market = (query.get("geographic_market") or [""])[-1]
-                tier = (query.get("tier") or ["explore"])[-1]
-                self._html(
-                    market_page(
-                        list_assessments(connection),
-                        industry,
-                        geographic_market,
-                        provider=get_market_provider(),
-                        tier=tier,
-                    )
+            self._request_connection = connection
+            try:
+                self._get_routes(connection, path)
+            finally:
+                self._request_connection = None
+
+    def _get_routes(self, connection: Any, path: str) -> None:
+        seed(connection)
+        if path == "/":
+            self._html(dashboard(list_assessments(connection)))
+        elif path == "/explore":
+            self._html(explore_page(list_assessments(connection)))
+        elif path == "/analyze":
+            self._html(analyze_index(list_assessments(connection)))
+        elif path == "/validate":
+            self._html(validate_page(None))
+        elif path == "/partner":
+            self._html(partner_page())
+        elif path == "/market-pulse":
+            self._html(market_pulse_page())
+        elif path == "/market/export":
+            query = parse_qs(urlparse(self.path).query)
+            industry = (query.get("industry") or [""])[-1]
+            geographic_market = (query.get("geographic_market") or [""])[-1]
+            tier = (query.get("tier") or ["explore"])[-1]
+            payload = json.dumps(
+                export_market_observations(
+                    industry,
+                    geographic_market,
+                    provider=get_market_provider(),
+                    tier=tier,
+                ),
+                indent=2,
+            ).encode("utf-8")
+            self._bytes(payload, "application/json", disposition=_market_disposition(industry, geographic_market))
+        elif path == "/market":
+            query = parse_qs(urlparse(self.path).query)
+            industry = (query.get("industry") or [""])[-1]
+            geographic_market = (query.get("geographic_market") or [""])[-1]
+            tier = (query.get("tier") or ["explore"])[-1]
+            self._html(
+                market_page(
+                    list_assessments(connection),
+                    industry,
+                    geographic_market,
+                    provider=get_market_provider(),
+                    tier=tier,
                 )
-            elif path == "/reports":
-                self._html(reports_page(list_assessments(connection)))
-            elif path == "/settings":
-                self._html(settings_page())
-            elif path == "/login":
-                self._html(login_page(self._safe_next(self._query_value("next"), "/")))
-            elif path == "/register":
-                self._html(register_page())
-            elif path == "/logout":
-                self._html(logout_page(self._account_state(connection)))
-            elif path == "/assessments":
-                self._html(dashboard(list_assessments(connection)))
-            elif path == "/assessments/export":
-                payload = json.dumps(export_drafts(list_assessments(connection)), indent=2).encode("utf-8")
-                self._bytes(
-                    payload,
-                    "application/json",
-                    disposition=f'attachment; filename="rugd-drafts-{_today()}.json"',
+            )
+        elif path == "/reports":
+            self._html(reports_page(list_assessments(connection)))
+        elif path == "/settings":
+            self._html(settings_page())
+        elif path == "/login":
+            self._html(login_page(self._safe_next(self._query_value("next"), "/")))
+        elif path == "/register":
+            self._html(register_page())
+        elif path == "/forgot-password":
+            self._html(forgot_password_page())
+        elif path == "/account/verify":
+            self._verify_email(connection)
+        elif path == "/account/reset":
+            self._html(reset_password_page(self._query_value("token")))
+        elif path == "/logout":
+            self._html(logout_page(self._account_state(connection)))
+        elif path == "/assessments":
+            self._html(dashboard(list_assessments(connection)))
+        elif path == "/assessments/export":
+            payload = json.dumps(export_drafts(list_assessments(connection)), indent=2).encode("utf-8")
+            self._bytes(
+                payload,
+                "application/json",
+                disposition=f'attachment; filename="rugd-drafts-{_today()}.json"',
+            )
+        elif path == "/assessments/new":
+            self._html(
+                new_assessment_page(
+                    list_business_profiles(connection, isolation=ISOLATION_CUSTOMER)
                 )
-            elif path == "/assessments/new":
-                self._html(
-                    new_assessment_page(
-                        list_business_profiles(connection, isolation=ISOLATION_CUSTOMER)
-                    )
-                )
-            elif path == "/reviewer" or path.startswith("/reviewer/"):
-                self._reviewer_get(connection, path)
-            elif path.startswith("/assessments/"):
-                self._assessment_get(connection, path)
-            else:
-                self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
+            )
+        elif path == "/reviewer" or path.startswith("/reviewer/"):
+            self._reviewer_get(connection, path)
+        elif path.startswith("/assessments/"):
+            self._assessment_get(connection, path)
+        else:
+            self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
@@ -180,57 +209,78 @@ class AppHandler(BaseHTTPRequestHandler):
             )
             return
         with self._db() as connection:
-            seed(connection)
-            if path == "/assessments":
-                business_name = (form.get("business_name") or "Untitled").strip() or "Untitled"
-                profile_id = (form.get("business_profile_id") or "").strip()
-                try:
-                    if profile_id:
-                        business = get_business_profile(connection, profile_id)
-                        if business is None or business["isolation"] != ISOLATION_CUSTOMER:
-                            raise PermissionError(
-                                "Only a customer business profile can be selected here."
-                            )
-                        business_name = str(business["display_name"] or business_name)
-                    assessment_id = create_assessment(
-                        connection,
-                        business_name=business_name,
-                        purpose=form.get("purpose") or "startup_feasibility",
-                        tier=form.get("tier") or "explore",
-                        pilot_label=label_for_new_assessment(business_name),
-                        business_profile_id=profile_id or None,
-                    )
-                except PermissionError:
-                    self._html(
-                        layout(
-                            "Not allowed",
-                            "<h1>Not allowed</h1><p>That business profile cannot be linked to this draft. "
-                            "The official baseline and named pilots stay isolated.</p>",
-                        ),
-                        status=403,
-                    )
-                    return
-                self._redirect(f"/assessments/{assessment_id}")
+            self._request_connection = connection
+            try:
+                self._post_routes(connection, path, form)
+            finally:
+                self._request_connection = None
+
+    def _post_routes(self, connection: Any, path: str, form: dict[str, str]) -> None:
+        seed(connection)
+        if path == "/assessments":
+            business_name = (form.get("business_name") or "Untitled").strip() or "Untitled"
+            profile_id = (form.get("business_profile_id") or "").strip()
+            try:
+                if profile_id:
+                    business = get_business_profile(connection, profile_id)
+                    if business is None or business["isolation"] != ISOLATION_CUSTOMER:
+                        raise PermissionError(
+                            "Only a customer business profile can be selected here."
+                        )
+                    business_name = str(business["display_name"] or business_name)
+                assessment_id = create_assessment(
+                    connection,
+                    business_name=business_name,
+                    purpose=form.get("purpose") or "startup_feasibility",
+                    tier=form.get("tier") or "explore",
+                    pilot_label=label_for_new_assessment(business_name),
+                    business_profile_id=profile_id or None,
+                )
+            except PermissionError:
+                self._html(
+                    layout(
+                        "Not allowed",
+                        "<h1>Not allowed</h1><p>That business profile cannot be linked to this draft. "
+                        "The official baseline and named pilots stay isolated.</p>",
+                    ),
+                    status=403,
+                )
                 return
-            if path in {"/login", "/reviewer/session"}:
-                self._account_sign_in(connection, form)
-                return
-            if path == "/register":
-                self._account_register(connection, form)
-                return
-            if path == "/reviewer/accounts":
-                self._create_reviewer_account(connection, form)
-                return
-            if path in {"/logout", "/reviewer/session/sign-out"}:
-                self._account_sign_out(connection, form)
-                return
-            parts = [part for part in path.split("/") if part]
-            if len(parts) >= 3 and parts[0] == "reviewer":
-                self._reviewer_post(connection, parts, form)
-                return
-            if len(parts) >= 3 and parts[0] == "assessments":
-                self._assessment_post(connection, parts, form)
-                return
+            self._redirect(f"/assessments/{assessment_id}")
+            return
+        if path in {"/login", "/reviewer/session"}:
+            self._account_sign_in(connection, form)
+            return
+        if path == "/register":
+            self._account_register(connection, form)
+            return
+        if path == "/forgot-password":
+            request_password_reset(
+                connection,
+                form.get("email") or "",
+                base_url=self._public_base(),
+            )
+            self._html(forgot_password_page(RESET_NOTICE))
+            return
+        if path == "/account/reset":
+            self._reset_password(connection, form)
+            return
+        if path == "/account/verification":
+            self._resend_verification(connection)
+            return
+        if path == "/reviewer/accounts":
+            self._create_reviewer_account(connection, form)
+            return
+        if path in {"/logout", "/reviewer/session/sign-out"}:
+            self._account_sign_out(connection, form)
+            return
+        parts = [part for part in path.split("/") if part]
+        if len(parts) >= 3 and parts[0] == "reviewer":
+            self._reviewer_post(connection, parts, form)
+            return
+        if len(parts) >= 3 and parts[0] == "assessments":
+            self._assessment_post(connection, parts, form)
+            return
         self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
 
     def _assessment_get(self, connection: Any, path: str) -> None:
@@ -540,6 +590,55 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         self._redirect(f"/reviewer/assessments/{assessment_id}")
 
+    def _verify_email(self, connection: Any) -> None:
+        try:
+            confirm_email(connection, self._query_value("token"))
+        except AccountError as exc:
+            self._html(verify_email_page(str(exc)), status=400)
+            return
+        self._html(
+            verify_email_page(
+                "Email verified. Your role is unchanged. "
+                "This does not approve an assessment or grant investor-ready status."
+            )
+        )
+
+    def _reset_password(self, connection: Any, form: dict[str, str]) -> None:
+        token = form.get("token") or ""
+        password = form.get("password") or ""
+        if password != (form.get("password_confirm") or ""):
+            self._html(reset_password_page(token, "Passwords do not match."), status=400)
+            return
+        try:
+            reset_password(connection, token, password)
+        except AccountError as exc:
+            self._html(reset_password_page(token, str(exc)), status=400)
+            return
+        self._html(
+            login_page(
+                "/",
+                "Password updated. Your role is unchanged. "
+                "This does not approve an assessment or grant investor-ready status.",
+            )
+        )
+
+    def _resend_verification(self, connection: Any) -> None:
+        state = self._account_state(connection)
+        user_id = str(state.get("user_id") or "")
+        user = get_user_by_id(connection, user_id) if state.get("active") and user_id else None
+        if user is None:
+            self._html(
+                layout("Not allowed", "<h1>Not allowed</h1><p>Log in to send a verification email.</p>"),
+                status=403,
+            )
+            return
+        if not user["email_verified"]:
+            send_verification(connection, user, base_url=self._public_base())
+        self._redirect("/")
+
+    def _public_base(self) -> str:
+        return public_base_url(self.headers.get("Host") or "")
+
     def _account_register(self, connection: Any, form: dict[str, str]) -> None:
         password = form.get("password") or ""
         if password != (form.get("password_confirm") or ""):
@@ -560,6 +659,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 connection,
                 email=form.get("email") or "",
                 password=password,
+                base_url=self._public_base(),
             )
             session = open_account_session(
                 connection,
@@ -688,7 +788,22 @@ class AppHandler(BaseHTTPRequestHandler):
         return {key: values[-1] for key, values in parsed.items()}
 
     def _html(self, page: str, status: int = 200) -> None:
-        self._bytes(page.encode("utf-8"), "text/html; charset=utf-8", status=status)
+        self._bytes(self._with_verification_banner(page).encode("utf-8"), "text/html; charset=utf-8", status=status)
+
+    def _with_verification_banner(self, page: str) -> str:
+        if 'id="email-unverified"' in page or "<main>" not in page:
+            return page
+        connection = getattr(self, "_request_connection", None)
+        if connection is None:
+            return page
+        state = self._account_state(connection)
+        user_id = str(state.get("user_id") or "")
+        if not state.get("active") or not user_id:
+            return page
+        user = get_user_by_id(connection, user_id)
+        if user is None or user["email_verified"]:
+            return page
+        return page.replace("<main>", "<main>\n" + verification_banner(), 1)
 
     def _bytes(
         self,
@@ -767,6 +882,7 @@ def make_server(db_path, port: int = 8765, host: str = "127.0.0.1") -> Threading
 
 
 def main() -> None:
+    account_mail.echo = True
     secret_error = production_secret_error()
     if secret_error:
         raise SystemExit(secret_error)

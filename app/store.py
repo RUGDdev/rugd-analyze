@@ -130,6 +130,24 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    user_columns = {row[1] for row in connection.execute("PRAGMA table_info(users)")}
+    if "email_verified" not in user_columns:
+        connection.execute(
+            "ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0"
+        )
+        connection.execute("UPDATE users SET email_verified = 1")
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS account_tokens (
+            token_hash TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            purpose TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            used_at TEXT
+        )
+        """
+    )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS reviewer_sessions (
@@ -1015,15 +1033,16 @@ def create_user(
     email: str,
     password_hash: str,
     role: str,
+    email_verified: int = 0,
 ) -> dict[str, Any]:
     created_at = _now()
     try:
         connection.execute(
             """
-            INSERT INTO users (id, email, password_hash, role, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO users (id, email, password_hash, role, created_at, email_verified)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (user_id, email, password_hash, role, created_at),
+            (user_id, email, password_hash, role, created_at, email_verified),
         )
         connection.commit()
     except sqlite3.IntegrityError as exc:
@@ -1045,7 +1064,7 @@ def count_users_with_role(connection: sqlite3.Connection, role: str) -> int:
 def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
-        SELECT id, email, password_hash, role, created_at
+        SELECT id, email, password_hash, role, created_at, email_verified
         FROM users
         WHERE email = ?
         """,
@@ -1053,12 +1072,111 @@ def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, A
     ).fetchone()
     if row is None:
         return None
+    return _user_from_row(row)
+
+
+def get_user_by_id(connection: sqlite3.Connection, user_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, email, password_hash, role, created_at, email_verified
+        FROM users
+        WHERE id = ?
+        """,
+        (user_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _user_from_row(row)
+
+
+def set_email_verified(connection: sqlite3.Connection, user_id: str) -> None:
+    """Mark the email verified. This does not change the role."""
+    connection.execute(
+        "UPDATE users SET email_verified = 1 WHERE id = ?",
+        (user_id,),
+    )
+    connection.commit()
+
+
+def update_password_hash(connection: sqlite3.Connection, user_id: str, password_hash: str) -> None:
+    """Replace the password hash. This does not change the role."""
+    connection.execute(
+        "UPDATE users SET password_hash = ? WHERE id = ?",
+        (password_hash, user_id),
+    )
+    connection.commit()
+
+
+def issue_account_token(
+    connection: sqlite3.Connection,
+    *,
+    token_hash: str,
+    user_id: str,
+    purpose: str,
+    created_at: str,
+    expires_at: str,
+) -> None:
+    """Store a hashed one-time token and retire older unused tokens for that purpose."""
+    connection.execute(
+        """
+        UPDATE account_tokens
+        SET used_at = ?
+        WHERE user_id = ? AND purpose = ? AND used_at IS NULL
+        """,
+        (created_at, user_id, purpose),
+    )
+    connection.execute(
+        """
+        INSERT INTO account_tokens (token_hash, user_id, purpose, created_at, expires_at, used_at)
+        VALUES (?, ?, ?, ?, ?, NULL)
+        """,
+        (token_hash, user_id, purpose, created_at, expires_at),
+    )
+    connection.commit()
+
+
+def get_account_token(connection: sqlite3.Connection, token_hash: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT token_hash, user_id, purpose, created_at, expires_at, used_at
+        FROM account_tokens
+        WHERE token_hash = ?
+        """,
+        (token_hash,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "token_hash": row["token_hash"],
+        "user_id": row["user_id"],
+        "purpose": row["purpose"],
+        "created_at": row["created_at"],
+        "expires_at": row["expires_at"],
+        "used_at": row["used_at"],
+    }
+
+
+def mark_account_token_used(connection: sqlite3.Connection, token_hash: str, used_at: str) -> bool:
+    cursor = connection.execute(
+        """
+        UPDATE account_tokens
+        SET used_at = ?
+        WHERE token_hash = ? AND used_at IS NULL
+        """,
+        (used_at, token_hash),
+    )
+    connection.commit()
+    return cursor.rowcount == 1
+
+
+def _user_from_row(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "id": row["id"],
         "email": row["email"],
         "password_hash": row["password_hash"],
         "role": row["role"],
         "created_at": row["created_at"],
+        "email_verified": bool(row["email_verified"]),
     }
 
 

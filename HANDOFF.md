@@ -12,7 +12,7 @@ A customer post whose body contains `human_review_approved` returns 403. Durable
 
 Local accounts exist for pilot use. Self-registration creates a customer account only. The first reviewer is created from `RUGD_BOOTSTRAP_REVIEWER_EMAIL` and `RUGD_BOOTSTRAP_REVIEWER_PASSWORD` when no reviewer exists. A signed-in reviewer can create another reviewer. A customer cannot change role or approve. The cookie is HttpOnly and SameSite=Lax. It is marked Secure when `RUGD_ENV=production` or `SECURE_COOKIES=true`. On local HTTP it is not marked Secure. This is not production authentication. The shared prototype passphrase is no longer accepted.
 
-The local app is `python -m app` with the Python 3.12 path in `README.md`. With `RUGD_ENV` unset it binds to 127.0.0.1:8765. `DEPLOYMENT.md` and `render.yaml` prepare the same command for Render at `app.rugdintelligence.com`. The service stays pilot-grade: one SQLite instance, prototype warnings, no rate limit, and no email verification. Tests are `python -m unittest discover -s tests` from this directory. The current suite is 123 tests. An indicative score is documented in `SCORING.md`. It does not replace the feasibility line below.
+The local app is `python -m app` with the Python 3.12 path in `README.md`. With `RUGD_ENV` unset it binds to 127.0.0.1:8765. `DEPLOYMENT.md` and `render.yaml` prepare the same command for Render at `app.rugdintelligence.com`. The service stays pilot-grade: one SQLite instance, prototype warnings, and no rate limit. Email verification and password reset are local-account links. With `SMTP_HOST` unset, the server log prints the message. Tests are `python -m unittest discover -s tests` from this directory. The current suite is 125 tests. An indicative score is documented in `SCORING.md`. It does not replace the feasibility line below.
 
 ## Owner decisions required before 0.3 work
 
@@ -25,7 +25,7 @@ Do not start 0.3 work on any item below until an owner chooses that item. The sa
 - Investor matchmaking, securities solicitation, brokerage, or capital movement
 - Recurring Partner monitoring and scheduled market jobs
 - An external AI provider for the analyst
-- Public deployment beyond the prepared Render pilot. `DEPLOYMENT.md` covers `app.rugdintelligence.com`. Rate limiting and email verification are still open
+- Public deployment beyond the prepared Render pilot. `DEPLOYMENT.md` covers `app.rugdintelligence.com`. Rate limiting is still open. Email verification and password reset are local-account links, not production authentication
 - A LongArc or DVT connection
 - A change to the Webflow site
 - A replacement frontend, including React

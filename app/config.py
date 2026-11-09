@@ -58,6 +58,17 @@ def bind_host() -> str:
     return "127.0.0.1"
 
 
+def public_base_url(request_host: str = "") -> str:
+    """Base used in account links. RUGD_PUBLIC_URL wins. Otherwise use the request host."""
+    raw = os.environ.get("RUGD_PUBLIC_URL", "").strip().rstrip("/")
+    if raw:
+        return raw
+    host = request_host.strip()
+    if host and " " not in host and "\n" not in host and "\r" not in host:
+        return f"http://{host}"
+    return "http://127.0.0.1:8765"
+
+
 def bind_port(default: int = 8765) -> int:
     if not is_production():
         return default

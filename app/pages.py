@@ -65,6 +65,9 @@ _TITLE_ACTIVE = {
     "Audit view": "/reports",
     "Settings": "/settings",
     "Login": "/login",
+    "Forgot password": "/login",
+    "Reset password": "/login",
+    "Verify email": "/login",
     "Register": "/register",
     "Log out": "/logout",
     "New assessment": "/assessments",
@@ -1909,6 +1912,7 @@ def _reviewer_sign_in_form(next_path: str) -> str:
 <button type="submit">Log in</button>
 </form>
 <p class="muted"><a href="/register">Register</a>. Self-registration creates a customer account. It does not create a reviewer. Not production authentication.</p>
+<p class="muted"><a href="/forgot-password">Forgot password</a></p>
 """
 
 
@@ -1928,8 +1932,69 @@ def login_page(next_path: str = "/", message: str = "") -> str:
 <button type="submit">Log in</button>
 </form>
 <p class="muted"><a href="/register">Register a customer account</a>. Self-registration cannot create a reviewer.</p>
+<p class="muted"><a href="/forgot-password">Forgot password</a></p>
 """
     return layout("Login", body)
+
+
+def verification_banner() -> str:
+    return """
+<div class="banner" id="email-unverified">Your email is not verified. You can keep using this account.
+Verification does not change your role and does not grant investor-ready status.
+<form method="post" action="/account/verification">
+<button type="submit">Send verification email again</button>
+</form>
+</div>
+"""
+
+
+def forgot_password_page(message: str = "") -> str:
+    notice = f"<p>{escape(message)}</p>" if message else ""
+    body = f"""
+<h1>Forgot password</h1>
+{_SURFACE_NOTE}
+<div class="banner">Local pilot account. Not production authentication. This screen does not grant investor-ready status.</div>
+<p>Enter the email on the account. If it is registered, a reset link is sent. The link expires in one hour. It does not change your role.</p>
+{notice}
+<form method="post" action="/forgot-password">
+<label>Email</label>
+<input name="email" type="email" autocomplete="username" required>
+<button type="submit">Send reset link</button>
+</form>
+<p class="muted"><a href="/login">Log in</a></p>
+"""
+    return layout("Forgot password", body)
+
+
+def reset_password_page(token: str, message: str = "") -> str:
+    notice = f"<p class=\"flag\">{escape(message)}</p>" if message else ""
+    body = f"""
+<h1>Reset password</h1>
+{_SURFACE_NOTE}
+<div class="banner">Local pilot account. Not production authentication. This screen does not grant investor-ready status.</div>
+<p>Choose a new password. This does not change your role, approve an assessment, or grant investor-ready status.</p>
+{notice}
+<form method="post" action="/account/reset">
+<input type="hidden" name="token" value="{escape(token)}">
+<label>New password</label>
+<input name="password" type="password" autocomplete="new-password" required>
+<label>Confirm password</label>
+<input name="password_confirm" type="password" autocomplete="new-password" required>
+<button type="submit">Update password</button>
+</form>
+"""
+    return layout("Reset password", body)
+
+
+def verify_email_page(message: str) -> str:
+    body = f"""
+<h1>Verify email</h1>
+{_SURFACE_NOTE}
+<div class="banner">Local pilot account. Not production authentication. This screen does not grant investor-ready status.</div>
+<p>{escape(message)}</p>
+<p class="muted"><a href="/login">Log in</a></p>
+"""
+    return layout("Verify email", body)
 
 
 def register_page(message: str = "") -> str:
@@ -2192,7 +2257,7 @@ def settings_page() -> str:
 <h1>Settings</h1>
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
-<p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>
+<p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, those messages are written to the server log. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>
 <h2>Owner decisions not activated</h2>
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>
