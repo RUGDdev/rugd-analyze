@@ -391,3 +391,11 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
 - Advisor Summary reads the stored result. It shows gate status, band, the three component scores, key flags, the labeled market snapshot, and educational Durable Value notes. Download Advisor Package is JSON. The printable HTML includes the same content and the provenance lines.
 - A read-only share can open that summary and those downloads. A POST to the share address stays refused. The package does not run the engine, does not clear a recommend-against flag, and does not set `human_review_approved`. A hard gate still forces band Blocked and the gate recommendation do-not-proceed. The stored engine recommendation is not rewritten. The feasibility line stays “Not calculated — methodology pending approval.”
+
+## Decision: Evidence checklist and progress guidance
+
+- Date: 2026-11-09
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- The Explore page, the open draft, and the results page show an evidence checklist. The items name verified demand evidence, missing monthly financial inputs, missing startup inputs on the startup path, key educational Durable Value notes, and any other active hard gate.
+- Checking an item stores that it was noted. A saved intake value or an educational note shows the matching item as recorded. The state is checklist JSON on the assessment. It is not an engine input.
+- Checking or completing an item does not clear a recommend-against flag, change the stored recommendation, or set `human_review_approved`. The official baseline intake stays unchanged.

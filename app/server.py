@@ -103,6 +103,7 @@ from app.store import (
     list_guidance_notes,
     request_review,
     save_guidance_note,
+    save_checklist,
     save_profile,
     save_result,
     seed,
@@ -140,7 +141,11 @@ class AppHandler(BaseHTTPRequestHandler):
         if path == "/":
             self._html(dashboard(list_assessments(connection)))
         elif path == "/explore":
-            self._html(explore_page(list_assessments(connection)))
+            records = list_assessments(connection)
+            notes = {
+                item["id"]: list_guidance_notes(connection, item["id"]) for item in records
+            }
+            self._html(explore_page(records, notes))
         elif path == "/analyze":
             self._html(analyze_index(list_assessments(connection)))
         elif path == "/validate":
@@ -472,6 +477,9 @@ class AppHandler(BaseHTTPRequestHandler):
         if action == "guidance":
             self._save_guidance(connection, record, form)
             return
+        if action == "checklist":
+            self._save_checklist(connection, record, form)
+            return
         if action == "save":
             if record["read_only"]:
                 self._html(assessment_form(record, "This baseline cannot be edited."), status=403)
@@ -599,6 +607,21 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(layout("Not allowed", f"<h1>Not allowed</h1><p>{escape(str(exc))}</p>"), status=403)
             return
         self._redirect(f"/assessments/{record['id']}?share={issued['token']}")
+
+    def _save_checklist(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
+        from app.checklist import apply_posted, posted_checks
+
+        notes = list_guidance_notes(connection, record["id"])
+        state = apply_posted(record, posted_checks(form), record.get("result"), notes)
+        save_checklist(connection, record["id"], state)
+        destination = form.get("return_to") or "draft"
+        if destination == "explore":
+            self._redirect("/explore")
+            return
+        if destination == "results":
+            self._redirect(f"/assessments/{record['id']}/results")
+            return
+        self._redirect(f"/assessments/{record['id']}")
 
     def _save_guidance(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
         if record["read_only"] or record["id"] == BASELINE_ID:

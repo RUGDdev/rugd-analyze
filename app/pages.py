@@ -607,6 +607,7 @@ def assessment_form(
 <p><strong>Next recommended step:</strong> {escape(_next_step_for(record))}</p>
 <p class="muted">This note does not clear a flag, change the recommendation, or mark the assessment investor-ready.</p>
 </div>
+{_evidence_checklist(record, record.get("result"), notes, return_to="draft")}
 {_intake_status(record)}
 {_business_profile_card(record)}
 <p class="muted">Tier {escape(record['tier'])}. Changing tier does not change a recommendation. Entered answers stay user-supplied assumptions.</p>
@@ -933,6 +934,7 @@ def results_page(
 {_view_summary_block(result)}
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
 </div>
+{_evidence_checklist(record, result, notes, return_to="results")}
 {_indicative_block(result, notes)}
 {_analyst_panel(record, result)}
 {_LIMITATIONS}
@@ -1018,6 +1020,7 @@ def _results_not_run(
 <div class="banner">{escape(message)} This page did not run the engine and did not fill any blank fields.</div>
 {details}
 {baseline}
+{_evidence_checklist(record, result, notes, return_to="results")}
 <p><a class="button" href="/assessments/{escape(record['id'])}">Return to the draft</a>
 <a class="button" href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
 {_guidance_section("explore", notes=notes, record=record)}
@@ -2615,7 +2618,66 @@ def new_assessment_page(
     return layout("New assessment", body)
 
 
-def explore_page(records: list[dict[str, Any]]) -> str:
+def _evidence_checklist(
+    record: dict[str, Any],
+    result: dict[str, Any] | None,
+    notes: list[dict[str, Any]] | None,
+    *,
+    return_to: str,
+) -> str:
+    from app.checklist import build_checklist
+
+    view = build_checklist(record, result, notes)
+    rows = []
+    for item in view["items"]:
+        item_id = str(item["id"])
+        checked = " checked" if item["status"] in {"noted", "recorded"} else ""
+        rows.append(
+            "<li>"
+            f'<input type="hidden" name="known_{escape(item_id)}" value="1">'
+            f'<label><input type="checkbox" name="check_{escape(item_id)}" value="1"{checked}> '
+            f"{escape(str(item['title']))}</label>"
+            f"<p><strong>Checklist status:</strong> {escape(str(item['status']).title())}</p>"
+            f"<p class=\"muted\">{escape(str(item['guidance']))}</p>"
+            "</li>"
+        )
+    assessment_id = escape(str(record.get("id") or ""))
+    destination = return_to if return_to in {"explore", "results", "draft"} else "draft"
+    return f"""
+<section class="card" id="evidence-checklist-{assessment_id}">
+<h2>Evidence checklist</h2>
+<p>{escape(str(view["disclaimer"]))}</p>
+<p><strong>Guidance progress:</strong> {view["noted_or_recorded"]} of {view["total"]} items noted or recorded. This progress does not clear a recommend-against flag.</p>
+<form method="post" action="/assessments/{assessment_id}/checklist">
+<input type="hidden" name="return_to" value="{escape(destination)}">
+<ul>{''.join(rows)}</ul>
+<button type="submit">Update checklist</button>
+</form>
+</section>
+"""
+
+
+def explore_page(
+    records: list[dict[str, Any]],
+    notes_by_id: dict[str, list[dict[str, Any]]] | None = None,
+) -> str:
+    notes_by_id = notes_by_id or {}
+    links = "".join(
+        f"<li><a href=\"/assessments/{escape(item['id'])}\">{escape(item['business_name'])}</a></li>"
+        for item in records
+    )
+    checklists = "".join(
+        "<h2>"
+        + escape(str(item.get("business_name") or "Assessment"))
+        + "</h2>"
+        + _evidence_checklist(
+            item,
+            item.get("result") if isinstance(item.get("result"), dict) else None,
+            notes_by_id.get(str(item.get("id") or "")),
+            return_to="explore",
+        )
+        for item in records
+    )
     return layout(
         "Explore",
         """
@@ -2629,12 +2691,8 @@ def explore_page(records: list[dict[str, Any]]) -> str:
 <p><a class="button" href="/assessments/new">Start an Explore draft</a></p>
 """
         + _guidance_section("explore")
-        + "<ul>"
-        + "".join(
-            f"<li><a href=\"/assessments/{escape(item['id'])}\">{escape(item['business_name'])}</a></li>"
-            for item in records
-        )
-        + "</ul>",
+        + f"<ul>{links}</ul>"
+        + checklists,
     )
 
 

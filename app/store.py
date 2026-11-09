@@ -203,6 +203,10 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         connection.execute("ALTER TABLE assessments ADD COLUMN business_profile_id TEXT")
     if "owner_user_id" not in assessment_columns:
         connection.execute("ALTER TABLE assessments ADD COLUMN owner_user_id TEXT")
+    if "checklist_json" not in assessment_columns:
+        connection.execute(
+            "ALTER TABLE assessments ADD COLUMN checklist_json TEXT NOT NULL DEFAULT '{}'"
+        )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS share_links (
@@ -609,6 +613,34 @@ def save_profile(
         ),
     )
     _sync_shared_profile(connection, current, clean, now)
+    connection.commit()
+    saved = get_assessment(connection, assessment_id)
+    assert saved is not None
+    return saved
+
+
+def save_checklist(
+    connection: sqlite3.Connection, assessment_id: str, state: dict[str, bool]
+) -> dict[str, Any]:
+    """Store checklist marks. This does not write the profile, the intake, or the engine result."""
+    from app.checklist import ITEM_ID
+
+    current = get_assessment(connection, assessment_id)
+    if current is None:
+        raise KeyError(assessment_id)
+    clean = {
+        key: True
+        for key, value in state.items()
+        if isinstance(key, str) and ITEM_ID.fullmatch(key) and value is True
+    }
+    connection.execute(
+        """
+        UPDATE assessments
+        SET checklist_json = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (json.dumps(clean), _now(), assessment_id),
+    )
     connection.commit()
     saved = get_assessment(connection, assessment_id)
     assert saved is not None
@@ -1536,6 +1568,7 @@ def _public_row(row: sqlite3.Row) -> dict[str, Any]:
         "human_review_approved": False,
         "business_profile_id": row["business_profile_id"],
         "owner_user_id": row["owner_user_id"],
+        "checklist": _load_checklist(row["checklist_json"]),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -1552,6 +1585,18 @@ def _attach_business_profile(
         assessments_for_profile(connection, profile_id) if profile_id else []
     )
     return record
+
+
+def _load_checklist(raw: str | None) -> dict[str, bool]:
+    if not raw:
+        return {}
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    return {str(key): value is True for key, value in loaded.items()}
 
 
 def _now() -> str:
