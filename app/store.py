@@ -122,13 +122,25 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
     connection.execute(
         """
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE IF NOT EXISTS reviewer_sessions (
             token TEXT PRIMARY KEY,
             reviewer_identity TEXT NOT NULL,
             role TEXT NOT NULL,
             authentication_method TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            expires_at TEXT NOT NULL
+            expires_at TEXT NOT NULL,
+            user_id TEXT
         )
         """
     )
@@ -140,6 +152,8 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         connection.execute(
             "UPDATE reviewer_sessions SET expires_at = created_at WHERE expires_at IS NULL"
         )
+    if "user_id" not in session_columns:
+        connection.execute("ALTER TABLE reviewer_sessions ADD COLUMN user_id TEXT")
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS reviewer_events (
@@ -980,9 +994,60 @@ def list_approvals(connection: sqlite3.Connection, assessment_id: str) -> list[d
     return [_approval_from_row(row) for row in rows]
 
 
+def session_storage_key(token: str) -> str:
+    """Hash stored for a session cookie. The raw token is not written to SQLite."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 def session_public_id(token: str) -> str:
     """Short hash for audit display. The raw session token stays out of the trail."""
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+    return session_storage_key(token)[:12]
+
+
+def create_user(
+    connection: sqlite3.Connection,
+    *,
+    user_id: str,
+    email: str,
+    password_hash: str,
+    role: str,
+) -> dict[str, Any]:
+    created_at = _now()
+    try:
+        connection.execute(
+            """
+            INSERT INTO users (id, email, password_hash, role, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, email, password_hash, role, created_at),
+        )
+        connection.commit()
+    except sqlite3.IntegrityError as exc:
+        connection.rollback()
+        raise ValueError("An account with that email is already registered.") from exc
+    user = get_user_by_email(connection, email)
+    assert user is not None
+    return user
+
+
+def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, email, password_hash, role, created_at
+        FROM users
+        WHERE email = ?
+        """,
+        (email,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "password_hash": row["password_hash"],
+        "role": row["role"],
+        "created_at": row["created_at"],
+    }
 
 
 def record_reviewer_event(
@@ -1096,19 +1161,29 @@ def start_reviewer_session(
     reviewer_identity: str,
     authentication_method: str,
     expires_at: str,
+    user_id: str = "",
+    role: str = "reviewer",
 ) -> dict[str, Any]:
     created_at = _now()
     connection.execute(
         """
         INSERT INTO reviewer_sessions (
-            token, reviewer_identity, role, authentication_method, created_at, expires_at
+            token, reviewer_identity, role, authentication_method, created_at, expires_at, user_id
         )
-        VALUES (?, ?, 'reviewer', ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-        (token, reviewer_identity, authentication_method, created_at, expires_at),
+        (
+            session_storage_key(token),
+            reviewer_identity,
+            role,
+            authentication_method,
+            created_at,
+            expires_at,
+            user_id,
+        ),
     )
     connection.commit()
-    session = get_reviewer_session(connection, token)
+    session = get_account_session(connection, token)
     assert session is not None
     return session
 
@@ -1118,27 +1193,29 @@ def load_reviewer_session(connection: sqlite3.Connection, token: str) -> dict[st
         return None
     row = connection.execute(
         """
-        SELECT token, reviewer_identity, role, authentication_method, created_at, expires_at
+        SELECT reviewer_identity, role, authentication_method, created_at, expires_at, user_id
         FROM reviewer_sessions
         WHERE token = ?
         """,
-        (token,),
+        (session_storage_key(token),),
     ).fetchone()
     if row is None:
         return None
     return {
-        "token": row["token"],
+        "token": token,
         "reviewer_identity": row["reviewer_identity"],
         "role": row["role"],
         "authentication_method": row["authentication_method"],
         "created_at": row["created_at"],
         "expires_at": row["expires_at"],
+        "user_id": row["user_id"] or "",
     }
 
 
-def get_reviewer_session(connection: sqlite3.Connection, token: str) -> dict[str, Any] | None:
+def get_account_session(connection: sqlite3.Connection, token: str) -> dict[str, Any] | None:
+    """Return an unexpired session for any local role. The raw token stays in memory only."""
     loaded = load_reviewer_session(connection, token)
-    if loaded is None or loaded["role"] != "reviewer":
+    if loaded is None:
         return None
     remaining = _remaining_seconds(loaded.get("expires_at"))
     if remaining is None or remaining <= 0:
@@ -1149,10 +1226,20 @@ def get_reviewer_session(connection: sqlite3.Connection, token: str) -> dict[str
     return loaded
 
 
+def get_reviewer_session(connection: sqlite3.Connection, token: str) -> dict[str, Any] | None:
+    loaded = get_account_session(connection, token)
+    if loaded is None or loaded["role"] != "reviewer":
+        return None
+    return loaded
+
+
 def end_reviewer_session(connection: sqlite3.Connection, token: str) -> None:
     if not token:
         return
-    connection.execute("DELETE FROM reviewer_sessions WHERE token = ?", (token,))
+    connection.execute(
+        "DELETE FROM reviewer_sessions WHERE token = ?",
+        (session_storage_key(token),),
+    )
     connection.commit()
 
 

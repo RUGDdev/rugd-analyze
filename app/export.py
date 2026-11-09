@@ -265,6 +265,6 @@ def _without_secrets(value: Any) -> Any:
 
 def _secret_key(key: str) -> bool:
     lowered = key.lower().replace("-", "_")
-    if lowered in {"session_id", "rugd_reviewer"}:
+    if lowered in {"session_id", "rugd_reviewer", "rugd_session"}:
         return True
     return any(part in lowered for part in _SECRET_PARTS)

@@ -299,3 +299,12 @@ Owner input required before replacing `billing_hooks`:
 - The eight actionable recommendation questions are a static template. The repository did not contain a prior list, so the template asks what changed, whether the example is internal or external, which assumption it would touch, whether an existing flag stays active, what evidence is missing, what a manager would check, who must review a change, and what would have to be connected before the card could leave the demonstration. The questions are not answers and are not a recommendation.
 - Durable Value pillar names on a card are educational labels. They are not a DVT evaluation and they are not a score.
 - A query string cannot turn monitoring on. The dashboard does not call a market provider. It does not clear a recommend-against flag or set `human_review_approved`. A scheduled Market Pulse job still requires an owner decision.
+
+## Decision: Local email and password accounts for the pilot
+
+- Date: 2026-11-09
+- Status: Accepted for the local pilot only. This does not enable the production authentication seam in `app/future.py`.
+- The owner asked for local email and password accounts on this machine. Account records live in the local SQLite `users` table. The password is stored as a scrypt hash. The password is not stored. Roles are `customer` and `reviewer`.
+- Registration and login are local screens. A session cookie named `rugd_session` is HttpOnly, Path=/, and SameSite=Lax. The raw token is not written to SQLite. The cookie is not marked Secure because the server is HTTP on 127.0.0.1. A session lasts 4 hours. Logout deletes the stored session.
+- A customer account cannot set `human_review_approved`. Approval requires an authenticated reviewer-role session. Approval still cannot clear a recommend-against flag, change the recommendation, mark a result final, or grant investor-ready by itself. The official baseline cannot be approved. The audit records the account email.
+- The previous shared passphrase is no longer accepted. Anyone who can open this local server can register a reviewer account. That is a pilot limitation, not production role administration. OAuth, an external identity provider, production password policy, and TLS cookies remain an owner decision.

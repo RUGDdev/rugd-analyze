@@ -1,15 +1,16 @@
-"""Prototype reviewer session and approval. This is not production authentication."""
+"""Local account sessions and reviewer approval. This is not production authentication."""
 
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.accounts import AccountError, authenticate_user, session_expiry
 from app.analysis import analyze_intake, analyze_record
 from app.store import (
     BASELINE_ID,
     end_reviewer_session,
+    get_account_session,
     get_assessment,
     get_reviewer_session,
     latest_approval,
@@ -20,14 +21,12 @@ from app.store import (
     start_reviewer_session,
 )
 
-PROTOTYPE_REVIEWER_IDENTITY = "Local prototype reviewer"
-PROTOTYPE_REVIEWER_PASSPHRASE = "local-prototype-reviewer"
-LOCAL_REVIEWER_GATE = PROTOTYPE_REVIEWER_PASSPHRASE
-AUTHENTICATION_METHOD = "local-session"
+AUTHENTICATION_METHOD = "local-account"
 SESSION_LIFETIME_HOURS = 4
 SESSION_LIFETIME_SECONDS = SESSION_LIFETIME_HOURS * 60 * 60
+SESSION_COOKIE = "rugd_session"
 APPROVAL_NOTE = (
-    "Reviewer approval recorded by a local-session reviewer. "
+    "Reviewer approval recorded for a local account. "
     "It does not clear recommend-against flags, "
     "does not change the draft recommendation, and does not grant investor-ready."
 )
@@ -37,32 +36,33 @@ class ReviewError(PermissionError):
     """The reviewer gate refused the action."""
 
 
-def open_reviewer_session(
+def open_account_session(
     connection: Any,
     *,
-    reviewer_identity: str,
-    reviewer_passphrase: str,
+    email: str,
+    password: str,
 ) -> dict[str, Any]:
-    """Open a local reviewer session. The passphrase is a prototype constant, not a user password store."""
-    identity = reviewer_identity.strip()
-    if identity != PROTOTYPE_REVIEWER_IDENTITY or reviewer_passphrase != PROTOTYPE_REVIEWER_PASSPHRASE:
-        raise ReviewError("Reviewer sign-in refused. This is not a customer approval control.")
-    created = datetime.now(timezone.utc).replace(microsecond=0)
-    expires = created + timedelta(hours=SESSION_LIFETIME_HOURS)
+    """Open a session for a local account. A customer session cannot approve."""
+    try:
+        user = authenticate_user(connection, email=email, password=password)
+    except AccountError as exc:
+        raise ReviewError(str(exc)) from exc
     session = start_reviewer_session(
         connection,
         token=secrets.token_urlsafe(32),
-        reviewer_identity=identity,
+        reviewer_identity=str(user["email"]),
         authentication_method=AUTHENTICATION_METHOD,
-        expires_at=expires.isoformat(),
+        expires_at=session_expiry(),
+        user_id=str(user["id"]),
+        role=str(user["role"]),
     )
     record_reviewer_event(
         connection,
         action="sign-in",
-        reviewer_identity=identity,
+        reviewer_identity=str(user["email"]),
         session_token=session["token"],
         authentication_method=AUTHENTICATION_METHOD,
-        note="Prototype reviewer sign-in. This does not change an assessment.",
+        note="Local account sign-in. This does not change an assessment.",
     )
     return session
 
@@ -73,17 +73,18 @@ def session_from_token(connection: Any, token: str) -> dict[str, Any] | None:
 
 
 def reviewer_session_state(connection: Any, token: str) -> dict[str, Any]:
-    """Describe the cookie for the reviewer screen. An expired or missing token is not active."""
+    """Describe the cookie. A customer session stays visible and cannot approve."""
     if not token:
-        return {"state": "signed-out", "active": False}
+        return {"state": "signed-out", "active": False, "role": ""}
     loaded = load_reviewer_session(connection, token)
-    if loaded is None or loaded.get("role") != "reviewer":
-        return {"state": "signed-out", "active": False}
-    active = get_reviewer_session(connection, token)
+    if loaded is None:
+        return {"state": "signed-out", "active": False, "role": ""}
+    active = get_account_session(connection, token)
     if active is None:
         return {
             "state": "expired",
             "active": False,
+            "role": loaded.get("role") or "",
             "reviewer_identity": loaded.get("reviewer_identity"),
             "authentication_method": loaded.get("authentication_method"),
         }
@@ -100,7 +101,7 @@ def close_reviewer_session(connection: Any, token: str) -> None:
             reviewer_identity=str(loaded.get("reviewer_identity") or ""),
             session_token=token,
             authentication_method=str(loaded.get("authentication_method") or ""),
-            note="Prototype reviewer sign-out. This does not change an assessment.",
+            note="Local account sign-out. This does not change an assessment.",
         )
     end_reviewer_session(connection, token)
 
@@ -112,16 +113,13 @@ def approve_assessment(
     session: dict[str, Any],
 ) -> dict[str, Any]:
     """Record approval after re-checking the stored session. Customer forms cannot call this."""
-    current = get_reviewer_session(connection, str(session.get("token") or ""))
-    if (
-        current is None
-        or current.get("role") != "reviewer"
-        or current.get("authentication_method") != AUTHENTICATION_METHOD
-        or current.get("reviewer_identity") != PROTOTYPE_REVIEWER_IDENTITY
-    ):
+    current = get_account_session(connection, str(session.get("token") or ""))
+    if current is None or current.get("authentication_method") != AUTHENTICATION_METHOD:
         raise ReviewError(
             "Reviewer session is missing, expired, or signed out. This is not a customer approval control."
         )
+    if current.get("role") != "reviewer":
+        raise ReviewError("This account cannot approve. A customer role is not a reviewer.")
     identity = str(current["reviewer_identity"])
     record = get_assessment(connection, assessment_id)
     if record is None:

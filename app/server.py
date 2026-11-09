@@ -28,6 +28,9 @@ from app.pages import (
     market_pulse_page,
     new_assessment_page,
     partner_page,
+    login_page,
+    logout_page,
+    register_page,
     reports_page,
     research_brief_page,
     results_page,
@@ -36,12 +39,14 @@ from app.pages import (
     settings_page,
     validate_page,
 )
+from app.accounts import AccountError, register_account
 from app.review import (
+    SESSION_COOKIE,
     SESSION_LIFETIME_SECONDS,
     ReviewError,
     approve_assessment,
     close_reviewer_session,
-    open_reviewer_session,
+    open_account_session,
     result_with_stored_approval,
     reviewer_session_state,
 )
@@ -125,6 +130,12 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._html(reports_page(list_assessments(connection)))
             elif path == "/settings":
                 self._html(settings_page())
+            elif path == "/login":
+                self._html(login_page(self._safe_next(self._query_value("next"), "/")))
+            elif path == "/register":
+                self._html(register_page())
+            elif path == "/logout":
+                self._html(logout_page(self._account_state(connection)))
             elif path == "/assessments":
                 self._html(dashboard(list_assessments(connection)))
             elif path == "/assessments/export":
@@ -192,11 +203,14 @@ class AppHandler(BaseHTTPRequestHandler):
                     return
                 self._redirect(f"/assessments/{assessment_id}")
                 return
-            if path == "/reviewer/session":
-                self._reviewer_sign_in(connection, form)
+            if path in {"/login", "/reviewer/session"}:
+                self._account_sign_in(connection, form)
                 return
-            if path == "/reviewer/session/sign-out":
-                self._reviewer_sign_out(connection, form)
+            if path == "/register":
+                self._account_register(connection, form)
+                return
+            if path in {"/logout", "/reviewer/session/sign-out"}:
+                self._account_sign_out(connection, form)
                 return
             parts = [part for part in path.split("/") if part]
             if len(parts) >= 3 and parts[0] == "reviewer":
@@ -458,8 +472,13 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         assessment_id = parts[2]
         state = self._reviewer_session_state(connection)
-        if not state.get("active"):
-            reason = "expired" if state.get("state") == "expired" else "missing or signed out"
+        if not state.get("active") or state.get("role") != "reviewer":
+            if state.get("active") and state.get("role") == "customer":
+                reason = "a customer account"
+            elif state.get("state") == "expired":
+                reason = "expired"
+            else:
+                reason = "missing or signed out"
             self._html(
                 layout(
                     "Not allowed",
@@ -483,30 +502,69 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         self._redirect(f"/reviewer/assessments/{assessment_id}")
 
-    def _reviewer_sign_in(self, connection: Any, form: dict[str, str]) -> None:
+    def _account_register(self, connection: Any, form: dict[str, str]) -> None:
+        password = form.get("password") or ""
+        if password != (form.get("password_confirm") or ""):
+            self._html(
+                register_page("Passwords do not match."),
+                status=403,
+            )
+            return
+        role = form.get("role") or "customer"
         try:
-            session = open_reviewer_session(
+            register_account(
                 connection,
-                reviewer_identity=form.get("reviewer_identity") or "",
-                reviewer_passphrase=form.get("reviewer_passphrase") or "",
+                email=form.get("email") or "",
+                password=password,
+                role=role,
+            )
+            session = open_account_session(
+                connection,
+                email=form.get("email") or "",
+                password=password,
+            )
+        except (AccountError, ReviewError) as exc:
+            self._html(register_page(str(exc)), status=403)
+            return
+        default = "/reviewer" if session.get("role") == "reviewer" else "/"
+        self._redirect(self._safe_next(form.get("next") or "", default), session["token"])
+
+    def _account_sign_in(self, connection: Any, form: dict[str, str]) -> None:
+        try:
+            session = open_account_session(
+                connection,
+                email=form.get("email") or "",
+                password=form.get("password") or "",
             )
         except ReviewError as exc:
-            self._html(layout("Not allowed", f"<h1>Not allowed</h1><p>{escape(str(exc))}</p>"), status=403)
+            self._html(login_page(self._safe_next(form.get("next") or "", "/"), str(exc)), status=403)
             return
-        target = form.get("next") or "/reviewer"
-        if not target.startswith("/reviewer/") or "\\" in target:
-            target = "/reviewer"
-        self._redirect(target, session["token"])
+        default = "/reviewer" if session.get("role") == "reviewer" else "/"
+        self._redirect(self._safe_next(form.get("next") or "", default), session["token"])
 
-    def _reviewer_sign_out(self, connection: Any, form: dict[str, str]) -> None:
-        close_reviewer_session(connection, self._cookies().get("rugd_reviewer", ""))
-        target = form.get("next") or "/reviewer"
-        if not target.startswith("/reviewer/") or "\\" in target:
-            target = "/reviewer"
-        self._redirect(target, clear_session=True)
+    def _account_sign_out(self, connection: Any, form: dict[str, str]) -> None:
+        close_reviewer_session(connection, self._cookies().get(SESSION_COOKIE, ""))
+        self._redirect(self._safe_next(form.get("next") or "", "/"), clear_session=True)
 
     def _reviewer_session_state(self, connection: Any) -> dict[str, Any]:
-        return reviewer_session_state(connection, self._cookies().get("rugd_reviewer", ""))
+        return reviewer_session_state(connection, self._cookies().get(SESSION_COOKIE, ""))
+
+    def _account_state(self, connection: Any) -> dict[str, Any]:
+        return self._reviewer_session_state(connection)
+
+    def _query_value(self, name: str) -> str:
+        query = parse_qs(urlparse(self.path).query)
+        return (query.get(name) or [""])[-1]
+
+    def _safe_next(self, target: str, default: str) -> str:
+        if (
+            not target.startswith("/")
+            or target.startswith("//")
+            or "\\" in target
+            or ":" in target
+        ):
+            return default
+        return target
 
     def _cookies(self) -> dict[str, str]:
         jar: dict[str, str] = {}
@@ -579,12 +637,12 @@ class AppHandler(BaseHTTPRequestHandler):
         if session_token:
             self.send_header(
                 "Set-Cookie",
-                f"rugd_reviewer={session_token}; HttpOnly; Path=/; SameSite=Lax; Max-Age={SESSION_LIFETIME_SECONDS}",
+                f"{SESSION_COOKIE}={session_token}; HttpOnly; Path=/; SameSite=Lax; Max-Age={SESSION_LIFETIME_SECONDS}",
             )
         elif clear_session:
             self.send_header(
                 "Set-Cookie",
-                "rugd_reviewer=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0",
+                f"{SESSION_COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0",
             )
         self.end_headers()
 

@@ -13,7 +13,8 @@ from pathlib import Path
 from app.analysis import analyze_record
 from app.export import export_research_package, research_package_markdown
 from app.pages import dashboard, research_brief_page, results_page
-from app.review import open_reviewer_session
+from app.accounts import register_account
+from app.review import open_account_session
 from app.server import make_server
 from app.store import (
     BASELINE_ID,
@@ -26,8 +27,6 @@ from app.store import (
     seed,
     start_reviewer_session,
 )
-from app.review import PROTOTYPE_REVIEWER_IDENTITY, PROTOTYPE_REVIEWER_PASSPHRASE
-
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "reports" / "output"
 
@@ -91,16 +90,22 @@ class TestEmptyStatesAndExport(unittest.TestCase):
                 "reviewer_passphrase": "local-prototype-reviewer",
             },
         )
-        session = open_reviewer_session(
+        register_account(
             self.connection,
-            reviewer_identity=PROTOTYPE_REVIEWER_IDENTITY,
-            reviewer_passphrase=PROTOTYPE_REVIEWER_PASSPHRASE,
+            email="reviewer@pilot.example",
+            password="reviewer-pass-1",
+            role="reviewer",
+        )
+        session = open_account_session(
+            self.connection,
+            email="reviewer@pilot.example",
+            password="reviewer-pass-1",
         )
         start_reviewer_session(
             self.connection,
             token="second-raw-token",
-            reviewer_identity=PROTOTYPE_REVIEWER_IDENTITY,
-            authentication_method="local-session",
+            reviewer_identity="reviewer@pilot.example",
+            authentication_method="local-account",
             expires_at="2027-01-01T00:00:00+00:00",
         )
         stamp = get_assessment(self.connection, draft_id)["updated_at"]

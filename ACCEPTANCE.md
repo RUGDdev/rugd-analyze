@@ -35,7 +35,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Startup intake with evidence labels | Met | User-supplied assumptions, verified data, and unmeasured placeholders stay distinct. |
 | Acquisition and investor-commissioned purposes | Partially met | The purposes can be selected and are marked unsupported. They do not score. |
 | Demonstration Analyst | Demonstration-only | It explains the current engine result and cannot change figures, flags, approval, or readiness. An optional external provider uses the same limit and falls back to this analyst. |
-| Reviewer approval | Partially met | A local prototype session can record approval. It is not production authentication, and it cannot clear flags or grant investor-ready by itself. |
+| Reviewer approval | Partially met | A local email and password account with the reviewer role can record approval. A customer role cannot. It is not production authentication, and it cannot clear flags or grant investor-ready by itself. |
 | Customer approval control | Met | An ordinary customer post that includes `human_review_approved` returns 403. |
 | Reports identify draft status and limitations | Met | Results and the HTML audit include a limitations note. Reports do not overwrite the official 0.1 files. |
 | Named pilots | Met | Bunny Hive and Small Town Pub are empty drafts. Only RUGD Intelligence is the official baseline. |
@@ -64,7 +64,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 
 Do not start these until an owner chooses them:
 
-- Production authentication, including accounts, password hashing, OAuth, or an external identity provider
+- Production authentication beyond the pilot's local email and password accounts, including OAuth, an external identity provider, or production password policy and TLS cookies
 - Real market data sources beyond the optional BLS QCEW extract, including Census, American Community Survey, BEA, or a commercial dataset
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing

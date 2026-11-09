@@ -11,12 +11,8 @@ import urllib.request
 from pathlib import Path
 
 from app.pages import audit_html_page
-from app.review import (
-    PROTOTYPE_REVIEWER_IDENTITY,
-    PROTOTYPE_REVIEWER_PASSPHRASE,
-    approve_assessment,
-    open_reviewer_session,
-)
+from app.accounts import register_account
+from app.review import approve_assessment, open_account_session
 from app.server import make_server
 from app.store import (
     BASELINE_ID,
@@ -59,10 +55,16 @@ class TestHtmlAuditPage(unittest.TestCase):
             assessment_id,
             {**current["profile"], "operator_capacity_adequate": "no"},
         )
-        session = open_reviewer_session(
+        register_account(
             self.connection,
-            reviewer_identity=PROTOTYPE_REVIEWER_IDENTITY,
-            reviewer_passphrase=PROTOTYPE_REVIEWER_PASSPHRASE,
+            email="reviewer@pilot.example",
+            password="reviewer-pass-1",
+            role="reviewer",
+        )
+        session = open_account_session(
+            self.connection,
+            email="reviewer@pilot.example",
+            password="reviewer-pass-1",
         )
         result = approve_assessment(self.connection, assessment_id, session=session)
         stored = get_assessment(self.connection, assessment_id)

@@ -500,8 +500,9 @@ class TestPresentation(unittest.TestCase):
         session = {
             "active": True,
             "state": "active",
-            "reviewer_identity": "Local prototype reviewer",
-            "authentication_method": "local-session",
+            "reviewer_identity": "reviewer@pilot.example",
+            "authentication_method": "local-account",
+            "role": "reviewer",
             "remaining_seconds": 60,
         }
         reviewer = reviewer_page(customer, result, session)

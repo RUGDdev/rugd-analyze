@@ -17,7 +17,10 @@ _DECISIONS = (
         "id": "production_authentication",
         "title": "Production authentication provider",
         "status": "disabled",
-        "message": "No production identity provider is connected. Reviewer sign-in stays prototype-grade.",
+        "message": (
+            "No production identity provider is connected. Local email and password accounts "
+            "exist for this pilot and are not production authentication."
+        ),
         "owner_input": (
             "Name the provider, whether it is local accounts, OAuth, or an external identity provider, "
             "and where account records will live. Confirm a customer account cannot set human_review_approved, "

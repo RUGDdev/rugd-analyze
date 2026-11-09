@@ -10,13 +10,15 @@ The official baseline in `intake/samples/rugd_intelligence.json` remains draft d
 
 A customer post whose body contains `human_review_approved` returns 403. Durable Value guidance is educational and is not a DVT evaluation. Market Pulse is a hypothetical demonstration. Monitoring is not active. Business profiles are local prototype records and do not authenticate a user.
 
-The local app is `python -m app` with the Python 3.12 path in `README.md`. It binds to 127.0.0.1:8765. Tests are `python -m unittest discover -s tests` from this directory. The current suite is 110 tests.
+Local accounts now exist for pilot use. Registration and login use an email and a scrypt password hash. Roles are `customer` and `reviewer`. Approval requires a reviewer-role session. A customer-role session cannot approve. The cookie is HttpOnly and is not marked Secure, because the server is HTTP on 127.0.0.1. This is not production authentication. The shared prototype passphrase is no longer accepted.
+
+The local app is `python -m app` with the Python 3.12 path in `README.md`. It binds to 127.0.0.1:8765. Tests are `python -m unittest discover -s tests` from this directory. The current suite is 114 tests.
 
 ## Owner decisions required before 0.3 work
 
 Do not start 0.3 work on any item below until an owner chooses that item. The same list is in `ACCEPTANCE.md`.
 
-- Production authentication, including accounts, password hashing, OAuth, or an external identity provider
+- Production authentication beyond the pilot's local email and password accounts, including OAuth, an external identity provider, or production password policy and TLS cookies
 - Real market data sources beyond the optional BLS QCEW extract, including Census, American Community Survey, BEA, or a commercial dataset
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing

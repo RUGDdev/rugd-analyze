@@ -43,6 +43,9 @@ NAV = (
     ("/market", "Market Intelligence (demonstration)"),
     ("/market-pulse", "Market Pulse (demonstration)"),
     ("/reports", "Reports"),
+    ("/login", "Login"),
+    ("/register", "Register"),
+    ("/logout", "Log out"),
     ("/settings", "Settings"),
 )
 
@@ -61,7 +64,12 @@ _TITLE_ACTIVE = {
     "Research Brief": "/reports",
     "Audit view": "/reports",
     "Settings": "/settings",
+    "Login": "/login",
+    "Register": "/register",
+    "Log out": "/logout",
     "New assessment": "/assessments",
+    "Reviewer": "",
+    "Reviewer control": "",
 }
 
 
@@ -157,7 +165,7 @@ def dashboard(records: list[dict[str, Any]]) -> str:
     body = f"""
 <h1>Customer dashboard</h1>
 {_SURFACE_NOTE}
-<p class="muted">Local test profile. This prototype has no accounts and no production security.</p>
+<p class="muted">Local test profile. Local accounts are not production security.</p>
 <div class="card">
 <p>Working now: Explore intake, Analyze through the 0.1 engine, reports, and the audit.</p>
 <p>Demonstration only: Market Intelligence, Market Pulse, Validate review requests, and the Partner dashboard. Partner monitoring is not running. Market Pulse monitoring is not active.</p>
@@ -1715,7 +1723,7 @@ def reviewer_page(
     next_path = f"/reviewer/assessments/{record['id']}"
     if record.get("read_only"):
         control = "<p>The official baseline cannot be approved from this prototype.</p>"
-        if signed_in or expired:
+        if signed_in or expired or _has_account(session):
             control += _reviewer_sign_out_form(next_path)
     elif signed_in:
         control = f"""
@@ -1724,13 +1732,19 @@ def reviewer_page(
 </form>
 {_reviewer_sign_out_form(next_path)}
 """
+    elif _has_account(session):
+        control = (
+            "<p>This account cannot record approval. Customer role is not a reviewer.</p>"
+            + _reviewer_sign_out_form(next_path)
+        )
     else:
         control = _reviewer_sign_in_form(next_path)
         if expired:
             control += _reviewer_sign_out_form(next_path)
     body = f"""
 <h1>Reviewer control</h1>
-<div class="banner">Reviewer control. Not a customer feature. Prototype-grade local session. This is not production authentication.</div>
+<div class="banner">Reviewer control. Not a customer feature. Prototype-grade local session. Local account required. This is not production authentication.</div>
+{_SURFACE_NOTE}
 <p><strong>Authentication state:</strong> {escape(auth_state)}</p>
 {_session_activity_block(activity, status_word)}
 <p>Assessment: {escape(record['business_name'])} ({escape(record['id'])})</p>
@@ -1750,14 +1764,23 @@ def reviewer_home(
     activity: dict[str, Any] | None = None,
 ) -> str:
     state, signed_in, expired, status_word = _session_status(session)
-    form = "" if signed_in else _reviewer_sign_in_form("/reviewer")
-    if signed_in or expired:
-        form += _reviewer_sign_out_form("/reviewer")
+    if signed_in:
+        form = _reviewer_sign_out_form("/reviewer")
+    elif _has_account(session):
+        form = (
+            "<p>This account cannot record approval. Customer role is not a reviewer.</p>"
+            + _reviewer_sign_out_form("/reviewer")
+        )
+    else:
+        form = _reviewer_sign_in_form("/reviewer")
+        if expired:
+            form += _reviewer_sign_out_form("/reviewer")
     return layout(
         "Reviewer",
         f"""
 <h1>Reviewer</h1>
-<div class="banner">Prototype-grade local session. Not a customer feature. Not production authentication.</div>
+<div class="banner">Local account required. Not a customer feature. Not production authentication.</div>
+{_SURFACE_NOTE}
 <p><strong>Authentication state:</strong> {escape(state)}</p>
 {_session_activity_block(activity, status_word)}
 {form}
@@ -1778,18 +1801,31 @@ def _session_activity_block(activity: dict[str, Any] | None, status_word: str) -
 """
 
 
+def _has_account(session: dict[str, Any] | None) -> bool:
+    session = session or {}
+    return bool(session.get("active")) and str(session.get("role") or "") == "customer"
+
+
 def _session_status(session: dict[str, Any] | None) -> tuple[str, bool, bool, str]:
     session = session or {}
     state_name = str(session.get("state") or "")
-    signed_in = bool(session.get("active")) and state_name != "expired"
+    role = str(session.get("role") or "")
+    active = bool(session.get("active")) and state_name != "expired"
     expired = state_name == "expired"
-    if signed_in:
+    if active and role == "reviewer":
         label = (
             f"signed in as {session.get('reviewer_identity')} "
-            f"({session.get('authentication_method')}). "
+            f"({session.get('authentication_method')}, role reviewer). "
             f"Remaining lifetime: {_format_remaining(session.get('remaining_seconds'))}."
         )
         return label, True, False, "signed in"
+    if active and role == "customer":
+        label = (
+            f"signed in as {session.get('reviewer_identity')} "
+            f"({session.get('authentication_method')}, role customer). "
+            "This account cannot approve."
+        )
+        return label, False, False, "signed in"
     if expired:
         return "expired", False, True, "expired"
     return "signed out", False, False, "signed out"
@@ -1811,26 +1847,89 @@ def _format_remaining(seconds: Any) -> str:
 
 def _reviewer_sign_out_form(next_path: str) -> str:
     return f"""
-<form method="post" action="/reviewer/session/sign-out">
+<form method="post" action="/logout">
 <input type="hidden" name="next" value="{escape(next_path)}">
-<button type="submit">Sign out</button>
+<button type="submit">Log out</button>
 </form>
-<p class="muted">Prototype sign-out. Not a customer feature. Not production authentication.</p>
+<p class="muted">Local sign-out. Not a customer approval control. Not production authentication.</p>
 """
 
 
 def _reviewer_sign_in_form(next_path: str) -> str:
     return f"""
-<form method="post" action="/reviewer/session">
+<form method="post" action="/login">
 <input type="hidden" name="next" value="{escape(next_path)}">
-<label>Reviewer identity</label>
-<input name="reviewer_identity" value="Local prototype reviewer">
-<label>Prototype passphrase</label>
-<input name="reviewer_passphrase" type="password">
-<button type="submit">Sign in as reviewer</button>
+<label>Email</label>
+<input name="email" type="email" autocomplete="username" required>
+<label>Password</label>
+<input name="password" type="password" autocomplete="current-password" required>
+<button type="submit">Log in</button>
 </form>
-<p class="muted">Prototype sign-in. Not a customer feature. Not production authentication.</p>
+<p class="muted"><a href="/register">Register</a>. Local pilot account. Not production authentication. A customer account cannot approve.</p>
 """
+
+
+def login_page(next_path: str = "/", message: str = "") -> str:
+    notice = f"<p class=\"flag\">{escape(message)}</p>" if message else ""
+    body = f"""
+<h1>Login</h1>
+{_SURFACE_NOTE}
+<div class="banner">Local pilot account. Not production authentication. This screen does not grant investor-ready status.</div>
+{notice}
+<form method="post" action="/login">
+<input type="hidden" name="next" value="{escape(next_path)}">
+<label>Email</label>
+<input name="email" type="email" autocomplete="username" required>
+<label>Password</label>
+<input name="password" type="password" autocomplete="current-password" required>
+<button type="submit">Log in</button>
+</form>
+<p class="muted"><a href="/register">Register a local account</a></p>
+"""
+    return layout("Login", body)
+
+
+def register_page(message: str = "") -> str:
+    notice = f"<p class=\"flag\">{escape(message)}</p>" if message else ""
+    body = f"""
+<h1>Register</h1>
+{_SURFACE_NOTE}
+<div class="banner">Local pilot registration. Passwords are stored as a scrypt hash. This is not production authentication.</div>
+<p>Choosing reviewer on this local server creates a reviewer account for approval. It does not approve an assessment and it does not grant investor-ready status. A customer account cannot set human_review_approved.</p>
+{notice}
+<form method="post" action="/register">
+<label>Email</label>
+<input name="email" type="email" autocomplete="username" required>
+<label>Password</label>
+<input name="password" type="password" autocomplete="new-password" required>
+<label>Confirm password</label>
+<input name="password_confirm" type="password" autocomplete="new-password" required>
+<label>Role</label>
+<select name="role">
+<option value="customer" selected>Customer</option>
+<option value="reviewer">Reviewer</option>
+</select>
+<button type="submit">Create account</button>
+</form>
+<p class="muted"><a href="/login">Log in</a></p>
+"""
+    return layout("Register", body)
+
+
+def logout_page(session: dict[str, Any] | None = None) -> str:
+    state, _signed_in, _expired, status_word = _session_status(session)
+    body = f"""
+<h1>Log out</h1>
+{_SURFACE_NOTE}
+<div class="banner">Local pilot session. Not production authentication. Logging out does not change an assessment.</div>
+<p><strong>Authentication state:</strong> {escape(state)}</p>
+<p><strong>Current session status:</strong> {escape(status_word)}</p>
+<form method="post" action="/logout">
+<input type="hidden" name="next" value="/">
+<button type="submit">Log out</button>
+</form>
+"""
+    return layout("Log out", body)
 
 
 def partner_page() -> str:
@@ -2034,7 +2133,7 @@ def settings_page() -> str:
 <h1>Settings</h1>
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
-<p>This copy runs on 127.0.0.1 for a local pilot. It has no customer accounts, no password store, and no payment processing. Business profiles are local prototype records. They do not authenticate a user.</p>
+<p>This copy runs on 127.0.0.1 for a local pilot. Local accounts use an email and a scrypt password hash. The session cookie is HttpOnly. It is not marked Secure because this server is HTTP on 127.0.0.1. A customer account cannot set human_review_approved. This is not production authentication. There is no payment processing. Business profiles are local prototype records. They do not authenticate a user.</p>
 <h2>Owner decisions not activated</h2>
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>
