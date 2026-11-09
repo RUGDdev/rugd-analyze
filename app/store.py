@@ -230,6 +230,13 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    profile_columns = {
+        row[1] for row in connection.execute("PRAGMA table_info(business_profiles)")
+    }
+    if "venture_path" not in profile_columns:
+        connection.execute(
+            "ALTER TABLE business_profiles ADD COLUMN venture_path TEXT NOT NULL DEFAULT 'startup'"
+        )
     return connection
 
 
@@ -460,9 +467,12 @@ def create_assessment(
     business_profile_id: str | None = None,
     from_link: bool = False,
     owner_user_id: str | None = None,
+    venture_path: str = "startup",
 ) -> str:
+    path = _venture_path(venture_path)
     profile = blank_profile(business_name=business_name, purpose=purpose, tier=tier)
     profile["hypothetical"] = hypothetical
+    profile["venture_path"] = path
     if business_profile_id:
         business = get_business_profile(connection, business_profile_id)
         if business is None:
@@ -479,6 +489,7 @@ def create_assessment(
         profile["industry"] = business["industry"]
         profile["market"] = business["geography"]
         profile["stage"] = business["stage"]
+        profile["venture_path"] = _venture_path(str(business.get("venture_path") or path))
         business_name = business["display_name"] or business_name
     else:
         business_profile_id = create_business_profile(
@@ -488,6 +499,7 @@ def create_assessment(
             geography="",
             stage="",
             isolation=_isolation_for_new(business_name, pilot_label, hypothetical),
+            venture_path=path,
         )
     assessment_id = uuid.uuid4().hex
     _insert(
@@ -812,6 +824,7 @@ def create_business_profile(
     stage: str,
     isolation: str,
     profile_id: str | None = None,
+    venture_path: str = "startup",
 ) -> str:
     if isolation not in (ISOLATION_BASELINE, ISOLATION_PILOT, ISOLATION_CUSTOMER):
         raise ValueError("Unknown business profile isolation.")
@@ -820,8 +833,8 @@ def create_business_profile(
     connection.execute(
         """
         INSERT INTO business_profiles (
-            id, display_name, industry, geography, stage, isolation, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            id, display_name, industry, geography, stage, isolation, venture_path, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             profile_id,
@@ -830,6 +843,7 @@ def create_business_profile(
             str(geography or ""),
             str(stage or ""),
             isolation,
+            _venture_path(venture_path),
             now,
             now,
         ),
@@ -1007,9 +1021,14 @@ def _profile_row(row: sqlite3.Row) -> dict[str, Any]:
         "geography": row["geography"],
         "stage": row["stage"],
         "isolation": row["isolation"],
+        "venture_path": _venture_path(str(row["venture_path"] or "startup")),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
+
+
+def _venture_path(value: str) -> str:
+    return value if value in {"startup", "existing"} else "startup"
 
 
 def _insert(

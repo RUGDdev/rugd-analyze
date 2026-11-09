@@ -279,6 +279,7 @@ def _next_step_for(record: dict[str, Any]) -> str:
             "This note does not clear it."
         )
     profile = record.get("profile") or {}
+    path = venture_path_of(record)
     if (
         not record.get("hypothetical")
         and _verified_demand_ready(profile)
@@ -293,12 +294,13 @@ def _next_step_for(record: dict[str, Any]) -> str:
             f"Continue {name}. The next missing required item is demand evidence. "
             "This note does not clear a flag."
         )
-    missing = _missing_labels(profile, _STARTUP_REQUIRED)
-    if missing:
-        return (
-            f"Continue {name}. The next missing required item is {missing[0]}. "
-            "This note does not change the recommendation."
-        )
+    if path != "existing":
+        missing = _missing_labels(profile, _STARTUP_REQUIRED)
+        if missing:
+            return (
+                f"Continue {name}. The next missing required item is {missing[0]}. "
+                "This note does not change the recommendation."
+            )
     monthly = _missing_labels(profile, _MONTHLY_REQUIRED)
     if monthly:
         return (
@@ -337,14 +339,21 @@ def _verified_demand_ready(profile: dict[str, Any]) -> bool:
 
 
 def _draft_progress(item: dict[str, Any], result: dict[str, Any]) -> str:
-    filled = _filled_count(item.get("profile") or {}, _STARTUP_REQUIRED)
-    total = len(_STARTUP_REQUIRED)
+    profile = item.get("profile") or {}
+    if venture_path_of(item) == "existing":
+        filled = _filled_count(profile, _MONTHLY_REQUIRED)
+        total = len(_MONTHLY_REQUIRED)
+        label = "Required monthly fields filled"
+    else:
+        filled = _filled_count(profile, _STARTUP_REQUIRED)
+        total = len(_STARTUP_REQUIRED)
+        label = "Required startup fields filled"
     if result.get("engine_ran"):
         state = "engine result saved"
     else:
         state = "saved draft, engine result not run"
     return (
-        f"Progress: {state}. Required startup fields filled: {filled} of {total}. "
+        f"Progress: {state}. {label}: {filled} of {total}. "
         "Not an approved or investor-ready result."
     )
 
@@ -494,10 +503,16 @@ def _business_profile_card(record: dict[str, Any]) -> str:
     industry = str(business.get("industry") or "") or "not entered"
     geography = str(business.get("geography") or "") or "not entered"
     stage = str(business.get("stage") or "") or "not entered"
+    path_label = (
+        "Existing or expanding business"
+        if venture_path_of(record) == "existing"
+        else "Startup idea"
+    )
     return f"""
 <h2>Business profile</h2>
 {standing}
 <p><strong>Identity:</strong> {escape(str(business.get('display_name') or ''))}</p>
+<p><strong>Onboarding path:</strong> {escape(path_label)}</p>
 <p><strong>Industry:</strong> {escape(industry)}</p>
 <p><strong>Geography:</strong> {escape(geography)}</p>
 <p><strong>Stage:</strong> {escape(stage)}</p>
@@ -547,7 +562,14 @@ def assessment_form(
         )
     if notice:
         banner += f'<div class="banner">{escape(notice)}</div>'
-    fields = _fields(profile, locked)
+    path = venture_path_of(record)
+    if path == "existing":
+        banner += (
+            '<div class="banner">Existing or expanding business. This shorter intake skips '
+            "startup-only cost-build questions and still collects the monthly engine inputs. "
+            "This choice does not clear a flag or grant investor-ready status.</div>"
+        )
+    fields = _fields(profile, locked, path)
     action = "" if record["read_only"] else f"""
 <form method="post" action="/assessments/{escape(record['id'])}/save">
 {fields}
@@ -701,7 +723,7 @@ def shared_assessment_page(
     return layout("Read-only share", body)
 
 
-def _fields(profile: dict[str, Any], locked: str) -> str:
+def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
     def text(name: str, label: str, *, area: bool = False) -> str:
         value = escape(str(profile.get(name) or ""))
         control = (
@@ -722,7 +744,13 @@ def _fields(profile: dict[str, Any], locked: str) -> str:
     measured = "checked" if profile.get("inputs_are_measured") is True else ""
     startup_missing = _missing_labels(profile, _STARTUP_REQUIRED)
     monthly_missing = _missing_labels(profile, _MONTHLY_REQUIRED)
-    if startup_missing:
+    if path == "existing":
+        startup_note = (
+            "This is an existing or expanding business. Startup-only cost-build questions "
+            "are not on this path. The monthly engine inputs below are still required. "
+            "Blank fields stay blank. Nothing has been filled in for you."
+        )
+    elif startup_missing:
         startup_note = (
             "This draft is incomplete. Missing required startup fields: "
             + ", ".join(startup_missing)
@@ -745,6 +773,37 @@ def _fields(profile: dict[str, Any], locked: str) -> str:
             "Monthly fields are filled. Leave “These monthly figures are measured” unchecked "
             "when they are unmeasured placeholders."
         )
+    if path == "existing":
+        capital = """
+<p class="muted">Startup cost-build questions are not on this path. Construction cost, seats, occupancy, and the worksheet lines stay blank. The monthly engine still uses the four fields below.</p>
+"""
+    else:
+        capital = f"""
+<details open>
+<summary>Startup capital</summary>
+<p class="muted">The primary revenue path remains seats × occupancy × average ticket. Required fields are construction cost, seats, average ticket, weekday occupancy, weekend occupancy, operating days, and contribution margin.</p>
+{text("construction_cost", "Construction cost")}
+{text("seats", "Seats")}
+{text("average_ticket", "Average ticket")}
+{text("weekday_occupancy", "Weekday occupancy")}
+{text("weekend_occupancy", "Weekend occupancy")}
+{text("operating_days", "Operating days")}
+{text("contribution_margin", "Contribution margin")}
+</details>
+<details>
+<summary>Optional startup worksheet lines</summary>
+<p class="muted">Values already in these fields are stored with the draft. They are user-supplied worksheet assumptions, not verified data.</p>
+{text("equipment", "Equipment")}
+{text("soft_costs", "Soft costs")}
+{text("preopening_working_capital", "Pre-opening working capital")}
+{text("contingency_pct", "Contingency percentage (0.10 = 10%)")}
+{text("debt_share", "Debt share")}
+{text("annual_interest_rate", "Annual interest rate")}
+{text("amortization_years", "Amortization years")}
+{text("annual_fixed_costs", "Annual fixed costs")}
+{text("downside_multiplier", "Downside occupancy multiplier")}
+</details>
+"""
     return f"""
 <div class="card">
 <p><strong>User-supplied assumptions.</strong> Answers on this form are not verified data.</p>
@@ -772,30 +831,7 @@ def _fields(profile: dict[str, Any], locked: str) -> str:
 {choice("unresolved_regulatory_or_liability", "Is there an unresolved regulatory or liability issue?")}
 {choice("extraction_without_reinvestment", "Do stewardship indicators show extraction without reinvestment?")}
 </details>
-<details open>
-<summary>Startup capital</summary>
-<p class="muted">The primary revenue path remains seats × occupancy × average ticket. Required fields are construction cost, seats, average ticket, weekday occupancy, weekend occupancy, operating days, and contribution margin.</p>
-{text("construction_cost", "Construction cost")}
-{text("seats", "Seats")}
-{text("average_ticket", "Average ticket")}
-{text("weekday_occupancy", "Weekday occupancy")}
-{text("weekend_occupancy", "Weekend occupancy")}
-{text("operating_days", "Operating days")}
-{text("contribution_margin", "Contribution margin")}
-</details>
-<details>
-<summary>Optional startup worksheet lines</summary>
-<p class="muted">Values already in these fields are stored with the draft. They are user-supplied worksheet assumptions, not verified data.</p>
-{text("equipment", "Equipment")}
-{text("soft_costs", "Soft costs")}
-{text("preopening_working_capital", "Pre-opening working capital")}
-{text("contingency_pct", "Contingency percentage (0.10 = 10%)")}
-{text("debt_share", "Debt share")}
-{text("annual_interest_rate", "Annual interest rate")}
-{text("amortization_years", "Amortization years")}
-{text("annual_fixed_costs", "Annual fixed costs")}
-{text("downside_multiplier", "Downside occupancy multiplier")}
-</details>
+{capital}
 <details>
 <summary>Monthly engine</summary>
 <p class="muted">All four monthly fields are required before the monthly engine calculates. Unchecked measured status keeps the figures unmeasured.</p>
@@ -928,7 +964,7 @@ def _results_not_run(
     monthly_missing = _missing_labels(profile, _MONTHLY_REQUIRED)
     message = str(result.get("message") or "Analyze has not been run.")
     details = ""
-    if startup_missing:
+    if venture_path_of(record) != "existing" and startup_missing:
         details += (
             "<p>Missing required startup fields: "
             + escape(", ".join(startup_missing))
@@ -1177,6 +1213,14 @@ _MONTHLY_REQUIRED = (
     ("gross_margin_pct", "Gross margin"),
     ("projected_monthly_revenue_base", "Projected monthly base revenue"),
 )
+
+
+def venture_path_of(record: dict[str, Any]) -> str:
+    """Startup keeps the current Explore intake. Existing uses the shorter path."""
+    business = record.get("business_profile") or {}
+    profile = record.get("profile") or {}
+    raw = str(business.get("venture_path") or profile.get("venture_path") or "startup")
+    return raw if raw in {"startup", "existing"} else "startup"
 
 
 def _missing_labels(profile: dict[str, Any], fields: tuple[tuple[str, str], ...]) -> list[str]:
@@ -2384,15 +2428,26 @@ def settings_page() -> str:
     return layout("Settings", body)
 
 
-def new_assessment_page(profiles: list[dict[str, Any]] | None = None) -> str:
+def new_assessment_page(
+    profiles: list[dict[str, Any]] | None = None, message: str = ""
+) -> str:
     options = []
     for key, label in {**ENGINE_PURPOSES, **UNSUPPORTED_PURPOSES}.items():
         options.append(f'<option value="{escape(key)}">{escape(label)}</option>')
+    notice = f'<div class="banner">{escape(message)}</div>' if message else ""
     body = f"""
 <h1>New assessment</h1>
 {_SURFACE_NOTE}
-<p class="muted">Service tier starts at the choice below. Explore collects a draft. It is not a completed feasibility study.</p>
+{notice}
+<p class="muted">A startup idea opens the current Explore intake. An existing or expanding business opens a shorter intake. Explore collects a draft. It is not a completed feasibility study.</p>
 <form method="post" action="/assessments">
+<label>Is this a startup idea or an existing or expanding business?</label>
+<select name="venture_path" required>
+<option value="">Choose one</option>
+<option value="startup">A startup idea</option>
+<option value="existing">An existing or expanding business</option>
+</select>
+<p class="muted">A startup idea uses the current Explore intake, including the startup cost build. An existing or expanding business skips those startup-only questions and still asks for the monthly engine inputs. The choice is saved on the business profile. If you select an existing customer profile, its saved path is used. This choice does not change a recommendation.</p>
 <label>Business name</label>
 <input name="business_name" required>
 <label>Business profile</label>

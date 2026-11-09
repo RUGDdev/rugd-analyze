@@ -102,6 +102,16 @@ from app.store import (
 )
 
 
+def _keep_venture_path(profile: dict[str, str], original: dict[str, Any]) -> None:
+    """A later save cannot change the onboarding path or approve the assessment."""
+    kept = str(original.get("venture_path") or "")
+    if kept in {"startup", "existing"}:
+        profile["venture_path"] = kept
+    else:
+        profile.pop("venture_path", None)
+    profile.pop("human_review_approved", None)
+
+
 class AppHandler(BaseHTTPRequestHandler):
     db_path = None
 
@@ -225,6 +235,16 @@ class AppHandler(BaseHTTPRequestHandler):
         if path == "/assessments":
             business_name = (form.get("business_name") or "Untitled").strip() or "Untitled"
             profile_id = (form.get("business_profile_id") or "").strip()
+            posted_path = (form.get("venture_path") or "").strip()
+            if posted_path and posted_path not in {"startup", "existing"}:
+                self._html(
+                    new_assessment_page(
+                        list_business_profiles(connection, isolation=ISOLATION_CUSTOMER),
+                        "Choose a startup idea or an existing or expanding business.",
+                    ),
+                    status=403,
+                )
+                return
             try:
                 if profile_id:
                     business = get_business_profile(connection, profile_id)
@@ -233,6 +253,11 @@ class AppHandler(BaseHTTPRequestHandler):
                             "Only a customer business profile can be selected here."
                         )
                     business_name = str(business["display_name"] or business_name)
+                    path_choice = str(business.get("venture_path") or "startup")
+                else:
+                    path_choice = posted_path or "startup"
+                if path_choice not in {"startup", "existing"}:
+                    path_choice = "startup"
                 state = self._account_state(connection)
                 owner = (
                     str(state.get("user_id") or "")
@@ -247,6 +272,7 @@ class AppHandler(BaseHTTPRequestHandler):
                     pilot_label=label_for_new_assessment(business_name),
                     business_profile_id=profile_id or None,
                     owner_user_id=owner or None,
+                    venture_path=path_choice,
                 )
             except PermissionError:
                 self._html(
@@ -444,7 +470,7 @@ class AppHandler(BaseHTTPRequestHandler):
             profile = dict(record["profile"])
             profile.update(form)
             profile["inputs_are_measured"] = form.get("inputs_are_measured") == "true"
-            profile.pop("human_review_approved", None)
+            _keep_venture_path(profile, record["profile"])
             save_profile(connection, assessment_id, profile)
             self._redirect(f"/assessments/{assessment_id}")
             return
@@ -454,6 +480,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 if form:
                     profile.update({key: value for key, value in form.items() if key != "human_review_approved"})
                     profile["inputs_are_measured"] = form.get("inputs_are_measured") == "true"
+                    _keep_venture_path(profile, record["profile"])
                     save_profile(connection, assessment_id, profile)
                     record = get_assessment(connection, assessment_id)
             assert record is not None

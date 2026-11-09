@@ -32,7 +32,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Area | Status | Note |
 | --- | --- | --- |
 | Four service tiers in one application | Met | Tier, recommendation, evidence, approval, and readiness are separate. Changing tier does not change a stored recommendation. |
-| Startup intake with evidence labels | Met | User-supplied assumptions, verified data, and unmeasured placeholders stay distinct. |
+| Startup intake with evidence labels | Met | User-supplied assumptions, verified data, and unmeasured placeholders stay distinct. A startup idea uses that full intake. An existing or expanding business skips the startup-only cost-build questions and still collects the monthly engine inputs and the evidence questions. |
 | Acquisition and investor-commissioned purposes | Partially met | The purposes can be selected and are marked unsupported. They do not score. |
 | Demonstration Analyst | Demonstration-only | It explains the current engine result and cannot change figures, flags, approval, or readiness. An optional external provider uses the same limit and falls back to this analyst. |
 | Reviewer approval | Partially met | A reviewer account created by the bootstrap variables or by an existing reviewer can record approval. Self-registration creates a customer, and a customer role cannot approve. It is not production authentication, and it cannot clear flags or grant investor-ready by itself. |

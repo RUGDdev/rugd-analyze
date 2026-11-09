@@ -49,6 +49,8 @@ The password is stored as a scrypt hash. It is not written into the repository. 
 
 A signed-in reviewer can open `/reviewer/accounts` and create another reviewer. A customer account and a signed-out request are refused. Creating a reviewer does not approve an assessment or set `human_review_approved`.
 
+Start a new assessment asks whether this is a startup idea or an existing or expanding business. A startup idea opens the current Explore intake. An existing or expanding business skips the startup cost-build questions and still asks for the monthly engine inputs. The choice is saved on the business profile.
+
 An assessment owner or a reviewer can create a read-only link from the assessment page. The lifetime is 24 hours, 7 days, or until revoked. The shared page shows the result, the indicative assessment, market context, and an audit summary. It cannot edit the assessment or approve it.
 
 A new account can log in before the email is verified. The pages show a banner until the verification link is opened. That link expires in 24 hours. Forgot password, on the login page, emails a reset link that expires in one hour and works once. Neither link changes a role.

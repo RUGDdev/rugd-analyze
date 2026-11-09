@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 127 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 129 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -339,3 +339,9 @@ Further work on production authentication, real market data, an approved scoring
 - An assessment owner or a reviewer can create a read-only link for 24 hours, 7 days, or until it is revoked. The raw token is shown once and is not stored. The shared view shows the engine result, the indicative assessment, stored market context, and an audit summary, with the prototype warning and the indicative-score warning.
 - The shared view has no save, analyze, review-request, or approval control. A POST to the share link returns 403 and does not change the assessment. An expired or revoked link does not open the assessment. A customer cannot share an assessment they do not own, including the official baseline.
 - The unittest suite is 127 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 startup and existing-business onboarding
+
+- Start a new assessment asks whether this is a startup idea or an existing or expanding business. A startup idea opens the current Explore intake, including the startup cost build. An existing or expanding business opens a shorter intake that skips those startup-only questions and still asks for demand, operator capacity, regulatory and liability, stewardship, and the four monthly engine inputs.
+- The choice is stored on the business profile and on the draft. An omitted choice stays on the startup path, so the named-pilot buttons keep the current Explore form. Selecting an existing customer profile uses the path already stored on that profile. A later save cannot change the path or set `human_review_approved`.
+- The unittest suite is 129 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. The sample intake was not edited.
