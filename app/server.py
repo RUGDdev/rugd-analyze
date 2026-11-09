@@ -24,6 +24,7 @@ from app.pages import (
     explore_page,
     layout,
     market_page,
+    market_pulse_page,
     new_assessment_page,
     partner_page,
     reports_page,
@@ -84,6 +85,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._html(validate_page(None))
             elif path == "/partner":
                 self._html(partner_page())
+            elif path == "/market-pulse":
+                self._html(market_pulse_page())
             elif path == "/market/export":
                 query = parse_qs(urlparse(self.path).query)
                 industry = (query.get("industry") or [""])[-1]

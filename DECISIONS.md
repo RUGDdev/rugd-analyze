@@ -290,3 +290,12 @@ Owner input required before replacing `billing_hooks`:
 - A business profile stores identity, industry, geography, and stage. An assessment stores `business_profile_id`. More than one draft may share a customer profile. A new assessment for that profile copies those four fields so a move to another tier does not require them again. Financial entries, evidence, the engine result, and `human_review_approved` stay on the assessment.
 - The official baseline profile is isolated. A draft cannot link to it. Named-pilot and demonstration profiles are isolated from the baseline and from customer profiles. A customer form cannot select them.
 - Profiles do not authenticate a user. There is no production account, password, or identity provider. Changing tier still does not change a stored recommendation.
+
+## Decision: Market Pulse stays a demonstration
+
+- Date: 2026-11-09
+- Status: Accepted for the local prototype only
+- Market Pulse shows static internal and external example cards. The visible label on the dashboard and on every card is “Hypothetical demonstration — monitoring not active.” Monitoring active stays false. Live feed connected stays false. Scheduled jobs, connectors, and notifications stay empty.
+- The eight actionable recommendation questions are a static template. The repository did not contain a prior list, so the template asks what changed, whether the example is internal or external, which assumption it would touch, whether an existing flag stays active, what evidence is missing, what a manager would check, who must review a change, and what would have to be connected before the card could leave the demonstration. The questions are not answers and are not a recommendation.
+- Durable Value pillar names on a card are educational labels. They are not a DVT evaluation and they are not a score.
+- A query string cannot turn monitoring on. The dashboard does not call a market provider. It does not clear a recommend-against flag or set `human_review_approved`. A scheduled Market Pulse job still requires an owner decision.

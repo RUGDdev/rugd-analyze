@@ -41,6 +41,7 @@ NAV = (
     ("/partner", "Partner (demonstration)"),
     ("/assessments", "My Assessments"),
     ("/market", "Market Intelligence (demonstration)"),
+    ("/market-pulse", "Market Pulse (demonstration)"),
     ("/reports", "Reports"),
     ("/settings", "Settings"),
 )
@@ -1800,10 +1801,60 @@ def partner_page() -> str:
 <p>No scheduled market, financial, or risk monitor is running. Monitoring active: false.</p>
 </div>
 {_ongoing_intelligence(market_framework())}
+{_market_pulse_section()}
 {_guidance_section("demonstration")}
 {_market_block(market_framework())}
 """
     return layout("Partner", body)
+
+
+def market_pulse_page() -> str:
+    body = f"""
+<h1>Market Pulse (demonstration)</h1>
+{_SURFACE_NOTE}
+{_market_pulse_section()}
+"""
+    return layout("Market Pulse", body)
+
+
+def _market_pulse_section() -> str:
+    from app.market_pulse import market_pulse
+
+    pulse = market_pulse()
+    cards = {"internal": [], "external": []}
+    for card in pulse["cards"]:
+        pillars = "".join(
+            f"<li>Educational pillar label: {escape(str(label))}. {escape(str(card['pillar_label_note']))}</li>"
+            for label in card.get("pillar_labels") or []
+        )
+        side = str(card.get("side") or "external")
+        cards.setdefault(side, []).append(
+            f"""
+<article class="card">
+<h3>{escape(str(card.get('title') or ''))}</h3>
+<p>{escape(side.title())} example.</p>
+<p><strong>{escape(str(card.get('label') or pulse['label']))}</strong></p>
+<p>{escape(str(card.get('example') or ''))}</p>
+<ul>{pillars}</ul>
+</article>
+"""
+        )
+    questions = "".join(f"<li>{escape(str(question))}</li>" for question in pulse["questions"])
+    internal = "".join(cards.get("internal") or []) or "<p>No internal example is loaded.</p>"
+    external = "".join(cards.get("external") or []) or "<p>No external example is loaded.</p>"
+    return f"""
+<h2>Market Pulse</h2>
+<div class="banner">{escape(str(pulse['label']))}</div>
+<p>Monitoring active: false. Live feed connected: false. Scheduled jobs: none. Connectors: none. Notifications: none.</p>
+<p>No scheduled job is running. No connector is configured. No notification is sent. Recurring monitoring is not active.</p>
+<h3>Internal examples</h3>
+{internal}
+<h3>External examples</h3>
+{external}
+<h3>Actionable recommendation questions</h3>
+<p>Static template. These questions are not answers. They are not a recommendation. They do not clear a recommend-against flag and they do not set human_review_approved.</p>
+<ol>{questions}</ol>
+"""
 
 
 def _ongoing_intelligence(snapshot: dict[str, Any]) -> str:
@@ -1946,6 +1997,7 @@ def settings_page() -> str:
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>
 <p>Educational guidance on the tier pages is not a DVT evaluation. LongArc / DVT is not connected. The Webflow site is not connected.</p>
+<p>Market Pulse is a hypothetical demonstration. Monitoring is not active. No scheduled job, connector, or notification is configured.</p>
 <p>Only the RUGD Intelligence assessment is the official baseline. Bunny Hive and Small Town Pub stay empty named-pilot drafts until evidence is entered. They are not completed assessments.</p>
 <p>Authoritative calculations remain in the 0.1 Python engine.</p>
 """
