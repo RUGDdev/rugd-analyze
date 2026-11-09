@@ -34,12 +34,13 @@ from app.pages import (
     reports_page,
     research_brief_page,
     results_page,
+    reviewer_accounts_page,
     reviewer_home,
     reviewer_page,
     settings_page,
     validate_page,
 )
-from app.accounts import AccountError, register_account
+from app.accounts import AccountError, create_reviewer_account, register_account
 from app.review import (
     SESSION_COOKIE,
     SESSION_LIFETIME_SECONDS,
@@ -208,6 +209,9 @@ class AppHandler(BaseHTTPRequestHandler):
                 return
             if path == "/register":
                 self._account_register(connection, form)
+                return
+            if path == "/reviewer/accounts":
+                self._create_reviewer_account(connection, form)
                 return
             if path in {"/logout", "/reviewer/session/sign-out"}:
                 self._account_sign_out(connection, form)
@@ -441,6 +445,24 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _reviewer_get(self, connection: Any, path: str) -> None:
         parts = [part for part in path.split("/") if part]
+        if path == "/reviewer/accounts":
+            state = self._reviewer_session_state(connection)
+            if not state.get("active") or state.get("role") != "reviewer":
+                detail = (
+                    "A customer account cannot create a reviewer."
+                    if state.get("active") and state.get("role") == "customer"
+                    else "A signed-in reviewer is required to create a reviewer."
+                )
+                self._html(
+                    layout(
+                        "Not allowed",
+                        f"<h1>Not allowed</h1><p>{detail}</p>",
+                    ),
+                    status=403,
+                )
+                return
+            self._html(reviewer_accounts_page())
+            return
         if path == "/reviewer" or parts == ["reviewer"]:
             self._html(
                 reviewer_home(
@@ -510,13 +532,18 @@ class AppHandler(BaseHTTPRequestHandler):
                 status=403,
             )
             return
-        role = form.get("role") or "customer"
+        posted_role = (form.get("role") or "customer").strip()
+        if posted_role != "customer":
+            self._html(
+                register_page("Self-registration creates a customer account."),
+                status=403,
+            )
+            return
         try:
             register_account(
                 connection,
                 email=form.get("email") or "",
                 password=password,
-                role=role,
             )
             session = open_account_session(
                 connection,
@@ -526,8 +553,39 @@ class AppHandler(BaseHTTPRequestHandler):
         except (AccountError, ReviewError) as exc:
             self._html(register_page(str(exc)), status=403)
             return
-        default = "/reviewer" if session.get("role") == "reviewer" else "/"
-        self._redirect(self._safe_next(form.get("next") or "", default), session["token"])
+        self._redirect(self._safe_next(form.get("next") or "", "/"), session["token"])
+
+    def _create_reviewer_account(self, connection: Any, form: dict[str, str]) -> None:
+        state = self._reviewer_session_state(connection)
+        if not state.get("active") or state.get("role") != "reviewer":
+            detail = (
+                "A customer account cannot create a reviewer."
+                if state.get("active") and state.get("role") == "customer"
+                else "A signed-in reviewer is required to create a reviewer."
+            )
+            self._html(
+                layout(
+                    "Not allowed",
+                    f"<h1>Not allowed</h1><p>{detail}</p>",
+                ),
+                status=403,
+            )
+            return
+        password = form.get("password") or ""
+        if password != (form.get("password_confirm") or ""):
+            self._html(reviewer_accounts_page("Passwords do not match."), status=403)
+            return
+        try:
+            create_reviewer_account(
+                connection,
+                email=form.get("email") or "",
+                password=password,
+                session=state,
+            )
+        except AccountError as exc:
+            self._html(reviewer_accounts_page(str(exc)), status=403)
+            return
+        self._redirect("/reviewer/accounts")
 
     def _account_sign_in(self, connection: Any, form: dict[str, str]) -> None:
         try:

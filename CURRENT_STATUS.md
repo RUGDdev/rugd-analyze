@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 114 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 115 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -47,7 +47,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 
 ## Unfinished
 
-Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. The Ongoing Intelligence panel is a labeled demonstration. Market Pulse is a hypothetical demonstration with no scheduled job, connector, or notification. The default market view is the synthetic snapshot. The optional BLS QCEW extract is an annual file for seven industries and seven geographies. The optional ACS extract is 2024 5-year population and median household income for those geographies, with overlapping-vintage population change and an income-bracket note as extended metrics. The optional County Business Patterns extract defaults to 2023. The year for each extract comes from `MARKET_YEAR`, `ACS_YEAR`, or `CBP_YEAR`. None of them is a live feed. Local email and password accounts exist for pilot use. Passwords are stored as scrypt hashes, and a customer role cannot approve. This is not production authentication: there is no OAuth provider, no external identity provider, and the session cookie is not marked Secure. No billing, public deployment, Webflow change, or LongArc/DVT integration. Educational guidance is not that integration. React remains deferred.
+Bunny Hive and Small Town Pub are empty named-pilot drafts and have no completed assessments. Only the RUGD Intelligence assessment is the official baseline. Partner monitoring is not running. The Ongoing Intelligence panel is a labeled demonstration. Market Pulse is a hypothetical demonstration with no scheduled job, connector, or notification. The default market view is the synthetic snapshot. The optional BLS QCEW extract is an annual file for seven industries and seven geographies. The optional ACS extract is 2024 5-year population and median household income for those geographies, with overlapping-vintage population change and an income-bracket note as extended metrics. The optional County Business Patterns extract defaults to 2023. The year for each extract comes from `MARKET_YEAR`, `ACS_YEAR`, or `CBP_YEAR`. None of them is a live feed. Local email and password accounts exist for pilot use. Passwords are stored as scrypt hashes. Self-registration creates a customer account only. The first reviewer comes from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A customer role cannot approve or change its own role. This is not production authentication: there is no OAuth provider, no external identity provider, and the session cookie is not marked Secure. No billing, public deployment, Webflow change, or LongArc/DVT integration. Educational guidance is not that integration. React remains deferred.
 
 ## Git Checkpoint
 
@@ -295,3 +295,10 @@ Further work on production authentication, real market data, an approved scoring
 - Approval requires an active reviewer-role session. A customer-role session and a missing session receive 403. A POST that contains `human_review_approved` still returns 403. Approval records the account email and still does not clear a flag, change the recommendation, or grant investor-ready. The official baseline cannot be approved.
 - The screens keep the local-prototype warning. Self-service registration on this localhost pilot can create a reviewer account. That is not production role administration.
 - The unittest suite is 114 tests, all passing. The server is stopped. The official baseline intake was not edited.
+
+## Progress — 2026-11-09 controlled reviewer creation
+
+- Self-registration creates a customer account. A posted role of reviewer is refused and does not create an account. An existing customer email cannot be promoted.
+- The first reviewer is created when `RUGD_BOOTSTRAP_REVIEWER_EMAIL` and `RUGD_BOOTSTRAP_REVIEWER_PASSWORD` are set and no reviewer exists. A signed-in reviewer can create another reviewer at `/reviewer/accounts`. A customer and a signed-out request receive 403.
+- Approval still records the signed-in reviewer email. It does not clear a flag, change the recommendation, or grant investor-ready status. The official baseline cannot be approved.
+- The unittest suite is 115 tests, all passing. The server is stopped. The official baseline intake was not edited.

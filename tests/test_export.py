@@ -13,7 +13,7 @@ from pathlib import Path
 from app.analysis import analyze_record
 from app.export import export_research_package, research_package_markdown
 from app.pages import dashboard, research_brief_page, results_page
-from app.accounts import register_account
+from app.accounts import bootstrap_reviewer
 from app.review import open_account_session
 from app.server import make_server
 from app.store import (
@@ -90,11 +90,10 @@ class TestEmptyStatesAndExport(unittest.TestCase):
                 "reviewer_passphrase": "local-prototype-reviewer",
             },
         )
-        register_account(
+        bootstrap_reviewer(
             self.connection,
             email="reviewer@pilot.example",
             password="reviewer-pass-1",
-            role="reviewer",
         )
         session = open_account_session(
             self.connection,

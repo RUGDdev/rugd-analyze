@@ -33,6 +33,22 @@ Press Ctrl+C to stop. This server is local only.
 
 Open `http://127.0.0.1:8765` in a browser.
 
+## How to create a reviewer account
+
+Self-registration on Register creates a customer account. It cannot create a reviewer, and it cannot change a customer into a reviewer.
+
+The first reviewer is created from the environment of the terminal that starts the app, and only when no reviewer account exists yet:
+
+```text
+$env:RUGD_BOOTSTRAP_REVIEWER_EMAIL = "reviewer@example.com"
+$env:RUGD_BOOTSTRAP_REVIEWER_PASSWORD = "a-password-at-least-8"
+"C:\Users\Blaze\AppData\Local\Programs\Python\Python312\python.exe" -m app
+```
+
+The password is stored as a scrypt hash. It is not written into the repository. After the reviewer can log in, unset both variables. Starting the app again with the variables set does not create a second reviewer and does not change an existing account.
+
+A signed-in reviewer can open `/reviewer/accounts` and create another reviewer. A customer account and a signed-out request are refused. Creating a reviewer does not approve an assessment or set `human_review_approved`.
+
 To walk through the hypothetical restaurant drafts, follow `DEMO.md`.
 
 ## How to stop the server
@@ -61,7 +77,7 @@ Bunny Hive and Small Town Pub are empty named-pilot drafts. They are not complet
 - Analyze through the unchanged 0.1 engine
 - Dashboard history, next-step guidance, results tables, Markdown reports, JSON audit, and a read-only HTML audit page
 - A separate verified demand record that follows the documented 0.1 clear rule
-- Prototype reviewer sign-in, a 4-hour session, sign-out, and a local audit trail
+- Local email and password accounts. Self-registration creates a customer. Reviewer accounts are created by the bootstrap variables or by an existing reviewer. Approval requires a signed-in reviewer, records that email, and does not clear a flag.
 - Local JSON export of one saved assessment, and one file for every non-baseline draft
 
 ## Export saved assessments
@@ -123,8 +139,8 @@ The market view control does not change an assessment. Explore shows the headlin
 The page includes a combined summary of the figures for the current industry and geography, with the source and period beside each one, and the active provider and year. **Download market observations (JSON)** saves the observations for the selected view, including a synthetic snapshot when that is what the page is showing. The file does not include an assessment, a session token, or a passphrase. A suppressed cell is labeled not disclosed. If a selection is outside a provider’s map, or that provider’s request fails, that part returns to the labeled synthetic snapshot. The Partner screen does not call these providers, and recurring monitoring stays off. The figures do not clear `INSUFFICIENT_DEMAND_EVIDENCE` or any other flag, and they do not change investor readiness. This is not a live feed and monitoring is not active.
 
 - Bunny Hive and Small Town Pub have no completed assessments
-- Reviewer sign-in is prototype-grade: one source-constant passphrase, no OAuth, no password hash, and no account directory
-- No production accounts, billing, public deployment, live market feed, or investor matchmaking. The optional BLS extract above is an annual file, not a live feed
+- Local accounts are pilot-grade: scrypt password hashes, no OAuth, no external identity provider, and the session cookie is not marked Secure
+- No billing, public deployment, live market feed, or investor matchmaking. The optional BLS extract above is an annual file, not a live feed
 - React remains deferred
 
 To resume after an owner decision, read `HANDOFF.md`. Disabled seams for authentication, scoring, deployment, and billing live in `app/future.py` and stay off until `DECISIONS.md` records the owner input.

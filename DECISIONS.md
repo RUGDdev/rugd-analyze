@@ -308,3 +308,12 @@ Owner input required before replacing `billing_hooks`:
 - Registration and login are local screens. A session cookie named `rugd_session` is HttpOnly, Path=/, and SameSite=Lax. The raw token is not written to SQLite. The cookie is not marked Secure because the server is HTTP on 127.0.0.1. A session lasts 4 hours. Logout deletes the stored session.
 - A customer account cannot set `human_review_approved`. Approval requires an authenticated reviewer-role session. Approval still cannot clear a recommend-against flag, change the recommendation, mark a result final, or grant investor-ready by itself. The official baseline cannot be approved. The audit records the account email.
 - The previous shared passphrase is no longer accepted. Anyone who can open this local server can register a reviewer account. That is a pilot limitation, not production role administration. OAuth, an external identity provider, production password policy, and TLS cookies remain an owner decision.
+
+## Decision: Reviewer accounts are not self-service
+
+- Date: 2026-11-09
+- Status: Accepted for the local pilot only. This does not enable the production authentication seam.
+- The public Register screen creates a customer account. A submitted role other than customer is refused and creates no account. Register does not change the role of an existing account.
+- The first reviewer is created only when both `RUGD_BOOTSTRAP_REVIEWER_EMAIL` and `RUGD_BOOTSTRAP_REVIEWER_PASSWORD` are set and no reviewer account exists. The password is hashed and is not written into source. If a reviewer already exists, the variables do nothing. If that email is already a customer, the role stays customer.
+- A later reviewer is created at `POST /reviewer/accounts` by a signed-in reviewer. A customer session and a missing session receive 403. There is no control that changes a customer's role to reviewer.
+- Approval still requires that reviewer session, still records that reviewer's email, and still cannot clear a flag, change the recommendation, or grant investor-ready status. The official baseline cannot be approved. Existing reviewer rows remain valid.

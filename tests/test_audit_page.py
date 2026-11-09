@@ -11,7 +11,7 @@ import urllib.request
 from pathlib import Path
 
 from app.pages import audit_html_page
-from app.accounts import register_account
+from app.accounts import bootstrap_reviewer
 from app.review import approve_assessment, open_account_session
 from app.server import make_server
 from app.store import (
@@ -55,11 +55,10 @@ class TestHtmlAuditPage(unittest.TestCase):
             assessment_id,
             {**current["profile"], "operator_capacity_adequate": "no"},
         )
-        register_account(
+        bootstrap_reviewer(
             self.connection,
             email="reviewer@pilot.example",
             password="reviewer-pass-1",
-            role="reviewer",
         )
         session = open_account_session(
             self.connection,

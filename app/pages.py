@@ -70,6 +70,7 @@ _TITLE_ACTIVE = {
     "New assessment": "/assessments",
     "Reviewer": "",
     "Reviewer control": "",
+    "Reviewer accounts": "",
 }
 
 
@@ -1765,7 +1766,10 @@ def reviewer_home(
 ) -> str:
     state, signed_in, expired, status_word = _session_status(session)
     if signed_in:
-        form = _reviewer_sign_out_form("/reviewer")
+        form = (
+            '<p><a href="/reviewer/accounts">Create a reviewer account</a></p>'
+            + _reviewer_sign_out_form("/reviewer")
+        )
     elif _has_account(session):
         form = (
             "<p>This account cannot record approval. Customer role is not a reviewer.</p>"
@@ -1865,7 +1869,7 @@ def _reviewer_sign_in_form(next_path: str) -> str:
 <input name="password" type="password" autocomplete="current-password" required>
 <button type="submit">Log in</button>
 </form>
-<p class="muted"><a href="/register">Register</a>. Local pilot account. Not production authentication. A customer account cannot approve.</p>
+<p class="muted"><a href="/register">Register</a>. Self-registration creates a customer account. It does not create a reviewer. Not production authentication.</p>
 """
 
 
@@ -1884,7 +1888,7 @@ def login_page(next_path: str = "/", message: str = "") -> str:
 <input name="password" type="password" autocomplete="current-password" required>
 <button type="submit">Log in</button>
 </form>
-<p class="muted"><a href="/register">Register a local account</a></p>
+<p class="muted"><a href="/register">Register a customer account</a>. Self-registration cannot create a reviewer.</p>
 """
     return layout("Login", body)
 
@@ -1895,7 +1899,7 @@ def register_page(message: str = "") -> str:
 <h1>Register</h1>
 {_SURFACE_NOTE}
 <div class="banner">Local pilot registration. Passwords are stored as a scrypt hash. This is not production authentication.</div>
-<p>Choosing reviewer on this local server creates a reviewer account for approval. It does not approve an assessment and it does not grant investor-ready status. A customer account cannot set human_review_approved.</p>
+<p>Self-registration creates a customer account. It does not create a reviewer, it does not change an existing role, and it does not grant investor-ready status. A customer account cannot set human_review_approved.</p>
 {notice}
 <form method="post" action="/register">
 <label>Email</label>
@@ -1904,16 +1908,32 @@ def register_page(message: str = "") -> str:
 <input name="password" type="password" autocomplete="new-password" required>
 <label>Confirm password</label>
 <input name="password_confirm" type="password" autocomplete="new-password" required>
-<label>Role</label>
-<select name="role">
-<option value="customer" selected>Customer</option>
-<option value="reviewer">Reviewer</option>
-</select>
-<button type="submit">Create account</button>
+<button type="submit">Create customer account</button>
 </form>
 <p class="muted"><a href="/login">Log in</a></p>
 """
     return layout("Register", body)
+
+
+def reviewer_accounts_page(message: str = "") -> str:
+    notice = f"<p class=\"flag\">{escape(message)}</p>" if message else ""
+    body = f"""
+<h1>Create a reviewer account</h1>
+{_SURFACE_NOTE}
+<div class="banner">Reviewer control. Not a customer feature. Not production authentication. This screen does not grant investor-ready status.</div>
+<p>An existing reviewer can create another reviewer account. This does not change a customer account into a reviewer. It does not approve an assessment, clear a flag, or set human_review_approved.</p>
+{notice}
+<form method="post" action="/reviewer/accounts">
+<label>Email</label>
+<input name="email" type="email" autocomplete="username" required>
+<label>Password</label>
+<input name="password" type="password" autocomplete="new-password" required>
+<label>Confirm password</label>
+<input name="password_confirm" type="password" autocomplete="new-password" required>
+<button type="submit">Create reviewer account</button>
+</form>
+"""
+    return layout("Reviewer accounts", body)
 
 
 def logout_page(session: dict[str, Any] | None = None) -> str:
@@ -2133,7 +2153,7 @@ def settings_page() -> str:
 <h1>Settings</h1>
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
-<p>This copy runs on 127.0.0.1 for a local pilot. Local accounts use an email and a scrypt password hash. The session cookie is HttpOnly. It is not marked Secure because this server is HTTP on 127.0.0.1. A customer account cannot set human_review_approved. This is not production authentication. There is no payment processing. Business profiles are local prototype records. They do not authenticate a user.</p>
+<p>This copy runs on 127.0.0.1 for a local pilot. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. The session cookie is HttpOnly. It is not marked Secure because this server is HTTP on 127.0.0.1. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Business profiles are local prototype records. They do not authenticate a user.</p>
 <h2>Owner decisions not activated</h2>
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>

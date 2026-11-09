@@ -1,14 +1,28 @@
-"""Local email and password accounts for the pilot. This is not production authentication."""
+"""Local email and password accounts for the pilot. This is not production authentication.
+
+Self-registration creates a customer. The first reviewer is created from
+RUGD_BOOTSTRAP_REVIEWER_EMAIL and RUGD_BOOTSTRAP_REVIEWER_PASSWORD when no
+reviewer exists. Later reviewers are created by a signed-in reviewer.
+"""
 
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from app.store import create_user, get_user_by_email
+from app.store import (
+    count_users_with_role,
+    create_user,
+    get_user_by_email,
+    record_reviewer_event,
+)
+
+BOOTSTRAP_EMAIL_VARIABLE = "RUGD_BOOTSTRAP_REVIEWER_EMAIL"
+BOOTSTRAP_PASSWORD_VARIABLE = "RUGD_BOOTSTRAP_REVIEWER_PASSWORD"
 
 ROLES = frozenset({"customer", "reviewer"})
 MIN_PASSWORD_LENGTH = 8
@@ -72,16 +86,89 @@ def register_account(
     *,
     email: str,
     password: str,
+) -> dict[str, Any]:
+    """Create a customer account. This path cannot create or promote a reviewer."""
+    return _create_account(connection, email=email, password=password, role="customer")
+
+
+def bootstrap_reviewer(
+    connection: Any,
+    *,
+    email: str,
+    password: str,
+) -> dict[str, Any] | None:
+    """Create the first reviewer when none exists. An existing account is left unchanged."""
+    if count_users_with_role(connection, "reviewer") > 0:
+        return None
+    try:
+        normalized = normalize_email(email)
+    except AccountError:
+        return None
+    if get_user_by_email(connection, normalized) is not None:
+        return None
+    try:
+        _check_password(password)
+    except AccountError:
+        return None
+    return _create_account(connection, email=normalized, password=password, role="reviewer")
+
+
+def bootstrap_reviewer_from_environment(connection: Any) -> dict[str, Any] | None:
+    """Read the bootstrap variables. Missing values and an existing reviewer do nothing."""
+    email = os.environ.get(BOOTSTRAP_EMAIL_VARIABLE, "").strip()
+    password = os.environ.get(BOOTSTRAP_PASSWORD_VARIABLE, "")
+    if not email or not password:
+        return None
+    return bootstrap_reviewer(connection, email=email, password=password)
+
+
+def create_reviewer_account(
+    connection: Any,
+    *,
+    email: str,
+    password: str,
+    session: dict[str, Any],
+) -> dict[str, Any]:
+    """Create another reviewer. The caller must already be a signed-in reviewer."""
+    if (
+        not session.get("active")
+        or session.get("role") != "reviewer"
+        or session.get("authentication_method") != "local-account"
+    ):
+        raise AccountError("A customer account cannot create a reviewer.")
+    existing = None
+    try:
+        existing = get_user_by_email(connection, normalize_email(email))
+    except AccountError:
+        existing = None
+    if existing is not None:
+        raise AccountError("An account with that email is already registered.")
+    created = _create_account(connection, email=email, password=password, role="reviewer")
+    record_reviewer_event(
+        connection,
+        action="create-reviewer",
+        reviewer_identity=str(session.get("reviewer_identity") or ""),
+        session_token=str(session.get("token") or ""),
+        authentication_method=str(session.get("authentication_method") or ""),
+        note=(
+            f"Created reviewer account {created['email']}. "
+            "This does not change an assessment, clear a flag, or set human_review_approved."
+        ),
+    )
+    return created
+
+
+def _create_account(
+    connection: Any,
+    *,
+    email: str,
+    password: str,
     role: str,
 ) -> dict[str, Any]:
-    """Create a local account. The stored row contains a hash, not the password."""
-    normalized = normalize_email(email)
     if role not in ROLES:
         raise AccountError("Role must be customer or reviewer.")
-    if len(password) < MIN_PASSWORD_LENGTH:
-        raise AccountError("Use a password of at least 8 characters.")
-    if len(password) > 200:
-        raise AccountError("That password is too long.")
+    normalized = normalize_email(email)
+    _check_password(password)
     try:
         user = create_user(
             connection,
@@ -93,6 +180,13 @@ def register_account(
     except ValueError as exc:
         raise AccountError(str(exc)) from exc
     return public_user(user)
+
+
+def _check_password(password: str) -> None:
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise AccountError("Use a password of at least 8 characters.")
+    if len(password) > 200:
+        raise AccountError("That password is too long.")
 
 
 def authenticate_user(connection: Any, *, email: str, password: str) -> dict[str, Any]:

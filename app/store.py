@@ -231,6 +231,9 @@ def seed(connection: sqlite3.Connection) -> None:
     _ensure_restaurant_demo(connection, verified_demand=False)
     _ensure_restaurant_demo(connection, verified_demand=True)
     ensure_business_profiles(connection)
+    from app.accounts import bootstrap_reviewer_from_environment
+
+    bootstrap_reviewer_from_environment(connection)
 
 
 def restaurant_demonstration_profile(*, verified_demand: bool) -> dict[str, Any]:
@@ -1028,6 +1031,14 @@ def create_user(
     user = get_user_by_email(connection, email)
     assert user is not None
     return user
+
+
+def count_users_with_role(connection: sqlite3.Connection, role: str) -> int:
+    row = connection.execute(
+        "SELECT COUNT(*) AS n FROM users WHERE role = ?",
+        (role,),
+    ).fetchone()
+    return int(row["n"])
 
 
 def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, Any] | None:

@@ -11,7 +11,6 @@ import urllib.request
 from pathlib import Path
 
 from app.analysis import analyze_record
-from app.accounts import register_account
 from app.pages import reviewer_page, validate_page
 from app.review import (
     approve_assessment,
@@ -441,17 +440,13 @@ class TestReviewerApproval(unittest.TestCase):
             thread.join(timeout=3)
 
     def _reviewer_session(self):
-        from app.accounts import AccountError
+        from app.accounts import bootstrap_reviewer
 
-        try:
-            register_account(
-                self.connection,
-                email=REVIEWER_EMAIL,
-                password=REVIEWER_PASSWORD,
-                role="reviewer",
-            )
-        except AccountError:
-            pass
+        bootstrap_reviewer(
+            self.connection,
+            email=REVIEWER_EMAIL,
+            password=REVIEWER_PASSWORD,
+        )
         return open_account_session(
             self.connection,
             email=REVIEWER_EMAIL,
@@ -466,7 +461,12 @@ class TestReviewerApproval(unittest.TestCase):
         password: str = REVIEWER_PASSWORD,
         role: str = "reviewer",
     ) -> str:
-        self._register(base, email, password, role)
+        if role == "reviewer":
+            from app.accounts import bootstrap_reviewer
+
+            bootstrap_reviewer(self.connection, email=email, password=password)
+        else:
+            self._register(base, email, password, role)
         return self._login(base, next_path, email, password)
 
     def _register(self, base: str, email: str, password: str, role: str) -> None:
