@@ -34,19 +34,35 @@ _SURFACE_NOTE = (
 )
 
 NAV = (
-    ("/", "Dashboard"),
-    ("/explore", "Explore"),
-    ("/analyze", "Analyze"),
-    ("/validate", "Validate (demonstration)"),
-    ("/partner", "Partner (demonstration)"),
-    ("/assessments", "My Assessments"),
-    ("/market", "Market Intelligence (demonstration)"),
-    ("/market-pulse", "Market Pulse (demonstration)"),
-    ("/reports", "Reports"),
-    ("/login", "Login"),
-    ("/register", "Register"),
-    ("/logout", "Log out"),
-    ("/settings", "Settings"),
+    ("/", "Dashboard", "See saved drafts and the next recommended step."),
+    ("/explore", "Explore", "Start or continue an intake and save a draft."),
+    ("/analyze", "Analyze", "Run the engine on a saved draft and read the result."),
+    (
+        "/validate",
+        "Validate (demonstration)",
+        "Request a human review in this demonstration. It cannot approve an assessment.",
+    ),
+    (
+        "/partner",
+        "Partner (demonstration)",
+        "Open the partner dashboard. Monitoring is not running.",
+    ),
+    ("/assessments", "My Assessments", "Open, export, or start one of your drafts."),
+    (
+        "/market",
+        "Market Intelligence (demonstration)",
+        "Read a market snapshot for a place and an industry.",
+    ),
+    (
+        "/market-pulse",
+        "Market Pulse (demonstration)",
+        "See example monitoring cards. Monitoring is not active.",
+    ),
+    ("/reports", "Reports", "Open a research brief or the audit of a saved result."),
+    ("/login", "Login", "Sign in with a local email and password."),
+    ("/register", "Register", "Create a local customer account."),
+    ("/logout", "Log out", "End this local session."),
+    ("/settings", "Settings", "Update this local account and its email preferences."),
 )
 
 
@@ -86,9 +102,12 @@ def layout(title: str, body: str, *, printable: bool = False, active: str = "") 
     else:
         current = active or _TITLE_ACTIVE.get(title, "/assessments")
     links = []
-    for href, label in NAV:
+    for href, label, tip in NAV:
         marker = ' class="active" aria-current="page"' if href == current else ""
-        links.append(f'<a href="{href}"{marker}>{escape(label)}</a>')
+        links.append(
+            f'<a href="{href}"{marker}>{escape(label)}'
+            f'<span class="nav-tip">{escape(tip)}</span></a>'
+        )
     nav = "".join(links)
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -104,15 +123,17 @@ def layout(title: str, body: str, *, printable: bool = False, active: str = "") 
 * {{ box-sizing: border-box; }}
 body {{ margin: 0; font-family: "Segoe UI", Calibri, sans-serif; background: var(--ivory); color: var(--ink); line-height: 1.45; }}
 .shell {{ display: flex; min-height: 100vh; align-items: stretch; }}
-.sidebar {{ width: 16.5rem; flex: 0 0 16.5rem; background: var(--slate); color: var(--ivory); padding: 0 0 1.5rem; }}
+.sidebar {{ position: relative; z-index: 2; width: 16.5rem; flex: 0 0 16.5rem; background: var(--slate); color: var(--ivory); padding: 0 0 1.5rem; overflow: visible; }}
 .brand {{ display: block; background: var(--ivory); padding: 0.85rem 0.9rem 0.4rem; }}
 .brand img {{ display: block; width: 100%; height: auto; }}
 .brand-meta {{ margin: 0.75rem 1rem 1rem; color: var(--gold); font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; }}
 nav {{ display: flex; flex-direction: column; gap: 0.15rem; padding: 0 0.75rem; }}
-nav a {{ color: var(--ivory); text-decoration: none; padding: 0.55rem 0.7rem; border-left: 3px solid transparent; }}
+nav a {{ position: relative; color: var(--ivory); text-decoration: none; padding: 0.55rem 0.7rem; border-left: 3px solid transparent; }}
 nav a:hover {{ background: #324656; }}
 nav a.active {{ background: #324656; color: var(--gold); border-left-color: var(--bronze); }}
-.workspace {{ flex: 1; min-width: 0; }}
+.nav-tip {{ display: none; position: absolute; z-index: 3; left: calc(100% + 0.35rem); top: 0.15rem; width: 14rem; background: var(--ivory); color: var(--ink); border-left: 3px solid var(--bronze); padding: 0.5rem 0.65rem; font-size: 0.82rem; line-height: 1.35; box-shadow: 0 2px 8px rgba(38, 55, 70, 0.18); pointer-events: none; }}
+nav a:hover .nav-tip, nav a:focus-visible .nav-tip {{ display: block; }}
+.workspace {{ position: relative; z-index: 1; flex: 1; min-width: 0; }}
 main {{ max-width: 980px; margin: 0 auto; padding: 2rem 1.75rem 3rem; }}
 h1 {{ font-weight: 600; font-size: 2rem; letter-spacing: -0.02em; margin: 0 0 0.6rem; }}
 h2 {{ font-weight: 600; font-size: 1.35rem; margin-top: 1.6rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--stone); }}
@@ -141,6 +162,7 @@ summary {{ cursor: pointer; }}
   .shell {{ flex-direction: column; }}
   .sidebar {{ width: 100%; flex-basis: auto; }}
   nav {{ flex-direction: row; flex-wrap: wrap; }}
+  .nav-tip {{ left: 0; top: calc(100% + 0.2rem); width: 12.5rem; }}
   main {{ padding: 1.25rem 1rem 2rem; }}
 }}
 @media print {{

@@ -37,6 +37,37 @@ NAV_LABELS = (
     "Reports",
     "Settings",
 )
+NAV_TIPS = (
+    ('href="/"', "Dashboard", "See saved drafts and the next recommended step."),
+    ('href="/explore"', "Explore", "Start or continue an intake and save a draft."),
+    ('href="/analyze"', "Analyze", "Run the engine on a saved draft and read the result."),
+    (
+        'href="/validate"',
+        "Validate (demonstration)",
+        "Request a human review in this demonstration. It cannot approve an assessment.",
+    ),
+    (
+        'href="/partner"',
+        "Partner (demonstration)",
+        "Open the partner dashboard. Monitoring is not running.",
+    ),
+    ('href="/assessments"', "My Assessments", "Open, export, or start one of your drafts."),
+    (
+        'href="/market"',
+        "Market Intelligence (demonstration)",
+        "Read a market snapshot for a place and an industry.",
+    ),
+    (
+        'href="/market-pulse"',
+        "Market Pulse (demonstration)",
+        "See example monitoring cards. Monitoring is not active.",
+    ),
+    ('href="/reports"', "Reports", "Open a research brief or the audit of a saved result."),
+    ('href="/settings"', "Settings", "Update this local account and its email preferences."),
+    ('href="/login"', "Login", "Sign in with a local email and password."),
+    ('href="/register"', "Register", "Create a local customer account."),
+    ('href="/logout"', "Log out", "End this local session."),
+)
 
 
 class TestBrandShell(unittest.TestCase):
@@ -157,6 +188,14 @@ class TestBrandShell(unittest.TestCase):
                 "score_line": "Not calculated — methodology pending approval.",
             },
         ))
+
+    def test_sidebar_hover_explains_each_section(self) -> None:
+        page = dashboard([])
+        self.assertIn("nav a:hover .nav-tip", page)
+        self.assertIn("border-left: 3px solid var(--bronze)", page)
+        for href, label, tip in NAV_TIPS:
+            self.assertIn(href, page)
+            self.assertIn(f"{label}<span class=\"nav-tip\">{tip}</span>", page)
 
     def test_logo_route_does_not_change_the_baseline(self) -> None:
         before = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
