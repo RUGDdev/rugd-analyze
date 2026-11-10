@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 154 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 155 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -441,3 +441,9 @@ Further work on production authentication, real market data, an approved scoring
 - Explore intake shows local example suggestions for development stage, products and services, target customers, and competition. The examples narrow when an industry, and a development stage, are already saved. A suggestion fills that field as a user-supplied assumption. It does not invent a number or fill a financial field.
 - The demand evidence question is unchanged. Using a suggestion does not clear a recommend-against flag, change demand evidence, or change investor readiness.
 - The unittest suite is 154 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-10 suggestion catalog
+
+- Explore suggestions are loaded from `app/explore_suggestions.json`. A match uses the industry name, aliases, keywords, and search terms. An unmatched industry uses the general fallbacks. The chips update when industry or development stage changes on the form.
+- The same four fields are covered. A selected example stays a user-supplied assumption. It does not fill a financial field or change a flag, demand evidence, or investor readiness.
+- The unittest suite is 155 tests, all passing. The official baseline intake was not edited.

@@ -27,7 +27,7 @@ from app.market import (
     load_market,
     market_framework,
 )
-from app.suggestions import SUGGESTION_NOTE, suggestions_for
+from app.suggestions import SUGGESTION_NOTE, catalog_json, suggestions_for
 
 _SURFACE_NOTE = (
     '<div class="banner">Local prototype. Not production security. '
@@ -1004,7 +1004,7 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
         return (
             text(name, label, area=area)
             + f'<div class="suggest" data-suggest="{escape(name)}">'
-            + '<p class="muted">Examples</p>'
+            + '<p class="muted">Examples only. Guidance.</p>'
             + listing
             + "</div>"
         )
@@ -1123,22 +1123,117 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
 """
 
 
+_SUGGESTION_SCRIPT = """
+<script>
+(function () {
+  var catalogNode = document.getElementById("suggestion-catalog");
+  if (!catalogNode) return;
+  var catalog = JSON.parse(catalogNode.textContent);
+  var fields = {
+    stage: "development_stage",
+    products: "products_services",
+    customers: "target_customers",
+    competition: "competition"
+  };
+  var allowed = {stage: true, products: true, customers: true, competition: true};
+
+  function words(value) {
+    var found = String(value || "").toLowerCase().match(/[a-z0-9]+/g);
+    return found ? found.join(" ") : "";
+  }
+  function padded(value) {
+    var text = words(value);
+    return text ? " " + text + " " : "";
+  }
+  function stageBucket(stage) {
+    var folded = words(stage);
+    if (!folded) return "default";
+    if (folded.indexOf("expanding") !== -1 || folded.indexOf("expansion") !== -1 || folded.indexOf("second location") !== -1 || folded.indexOf("scale") !== -1) return "expanding";
+    if (folded.indexOf("startup") !== -1 || folded.indexOf("pre opening") !== -1 || folded.indexOf("preopening") !== -1 || folded.indexOf("prototype") !== -1 || folded.indexOf("beta") !== -1 || folded.indexOf("buildout") !== -1) return "startup";
+    if (folded.indexOf("early revenue") !== -1 || folded.indexOf("operating") !== -1 || folded.indexOf("open") !== -1) return "operating";
+    if (folded.indexOf("idea") !== -1 || folded.indexOf("concept") !== -1) return "idea";
+    return "default";
+  }
+  function matchIndustry(industry) {
+    var haystack = padded(industry);
+    if (!haystack) return null;
+    var best = null;
+    var bestLength = 0;
+    (catalog.industries || []).forEach(function (record) {
+      var phrases = [record.name].concat(record.aliases || [], record.keywords || [], record.search_terms || []);
+      phrases.forEach(function (phrase) {
+        var needle = padded(phrase);
+        if (needle && haystack.indexOf(needle) !== -1 && needle.length > bestLength) {
+          best = record;
+          bestLength = needle.length;
+        }
+      });
+    });
+    return best;
+  }
+  function pick(record, key, bucket) {
+    var general = (catalog.general || {})[key] || [];
+    var source = record && record[key] ? record[key] : general;
+    if (Object.prototype.toString.call(source) === "[object Array]") return source;
+    var chosen = source[bucket] || source["default"];
+    if (chosen && chosen.length) return chosen;
+    return general;
+  }
+  function render(box, examples) {
+    var field = box.getAttribute("data-suggest");
+    box.textContent = "";
+    var note = document.createElement("p");
+    note.className = "muted";
+    note.textContent = "Examples only. Guidance.";
+    box.appendChild(note);
+    examples.forEach(function (example) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "chip";
+      button.setAttribute("data-field", field);
+      button.setAttribute("data-example", example);
+      button.textContent = example;
+      box.appendChild(button);
+    });
+  }
+  function refresh() {
+    var industry = document.querySelector('[name="industry"]');
+    var stage = document.querySelector('[name="stage"]');
+    var record = matchIndustry(industry ? industry.value : "");
+    var bucket = stageBucket(stage ? stage.value : "");
+    document.querySelectorAll("[data-suggest]").forEach(function (box) {
+      var field = box.getAttribute("data-suggest");
+      render(box, pick(record, fields[field], bucket));
+    });
+  }
+  document.addEventListener("click", function (event) {
+    var chip = event.target.closest ? event.target.closest("button.chip") : null;
+    if (!chip) return;
+    var name = chip.getAttribute("data-field");
+    if (!allowed[name]) return;
+    var field = document.querySelector('[name="' + name + '"]');
+    if (!field || field.disabled) return;
+    field.value = chip.getAttribute("data-example") || "";
+    if (name === "stage") refresh();
+  });
+  var industryField = document.querySelector('[name="industry"]');
+  var stageField = document.querySelector('[name="stage"]');
+  if (industryField) industryField.addEventListener("input", refresh);
+  if (stageField) stageField.addEventListener("input", refresh);
+})();
+</script>
+"""
+
+
 def _suggestion_script(locked: str) -> str:
     if locked:
         return ""
-    return """
-<script>
-document.querySelectorAll("button.chip").forEach(function (chip) {
-  chip.addEventListener("click", function () {
-    var name = chip.getAttribute("data-field");
-    var field = document.querySelector('[name="' + name + '"]');
-    if (!field || field.disabled) return;
-    if (name !== "stage" && name !== "products" && name !== "customers" && name !== "competition") return;
-    field.value = chip.getAttribute("data-example") || "";
-  });
-});
-</script>
-"""
+    return (
+        '<script type="application/json" id="suggestion-catalog">'
+        + catalog_json()
+        + "</script>"
+        + _SUGGESTION_SCRIPT
+    )
 
 
 def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:

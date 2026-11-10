@@ -4,7 +4,11 @@ import unittest
 
 from app.analysis import analyze_record
 from app.pages import assessment_form
-from app.suggestions import SUGGESTION_NOTE, suggestions_for
+from app.suggestions import SUGGESTION_NOTE, load_catalog, suggestions_for
+
+
+def _chip(field: str, example: str) -> str:
+    return f'data-field="{field}" data-example="{example}"'
 
 
 def _draft(industry: str = "", stage: str = "") -> dict:
@@ -39,11 +43,12 @@ class TestSuggestions(unittest.TestCase):
         self.assertIn("The closest alternative a customer would choose instead", chosen["competition"])
         page = assessment_form(_draft())
         self.assertIn('id="suggestion-note"', page)
+        self.assertIn('id="suggestion-catalog"', page)
         self.assertIn(SUGGESTION_NOTE, page)
-        self.assertIn("The closest alternative a customer would choose instead", page)
+        self.assertIn("Examples only. Guidance.", page)
+        self.assertIn(_chip("competition", "The closest alternative a customer would choose instead"), page)
         self.assertIn('class="chip"', page)
-        self.assertIn('data-field="competition"', page)
-        self.assertNotIn("A hosted software subscription for a named workflow", page)
+        self.assertNotIn(_chip("products", "A hosted software subscription for a named workflow"), page)
         self.assertIn(
             "Is there demand evidence? A yes here is still only a user-supplied assumption.",
             page,
@@ -65,14 +70,14 @@ class TestSuggestions(unittest.TestCase):
         self.assertIn("A hosted software subscription for a named workflow", software["products"])
 
         idea_page = assessment_form(_draft("Neighborhood restaurant", "Idea"))
-        self.assertIn("A short sample menu of lunch plates", idea_page)
-        self.assertNotIn("The same menu offered at a second location", idea_page)
-        self.assertNotIn("A hosted software subscription for a named workflow", idea_page)
-        self.assertNotIn("The closest alternative a customer would choose instead", idea_page)
+        self.assertIn(_chip("products", "A short sample menu of lunch plates"), idea_page)
+        self.assertNotIn(_chip("products", "The same menu offered at a second location"), idea_page)
+        self.assertNotIn(_chip("products", "A hosted software subscription for a named workflow"), idea_page)
+        self.assertNotIn(_chip("competition", "The closest alternative a customer would choose instead"), idea_page)
         software_page = assessment_form(_draft("Software", "Beta"))
-        self.assertIn("Beta", software_page)
-        self.assertIn("A hosted software subscription for a named workflow", software_page)
-        self.assertNotIn("A short sample menu of lunch plates", software_page)
+        self.assertIn(_chip("stage", "Beta"), software_page)
+        self.assertIn(_chip("products", "A hosted software subscription for a named workflow"), software_page)
+        self.assertNotIn(_chip("products", "A short sample menu of lunch plates"), software_page)
 
     def test_examples_contain_no_numbers_and_do_not_change_the_engine(self) -> None:
         for industry, stage in (("", ""), ("Restaurant", "Idea"), ("Software", "Beta"), ("Retail shop", "Operating")):
@@ -99,6 +104,25 @@ class TestSuggestions(unittest.TestCase):
         self.assertEqual(after["readiness_status"], "internal")
         self.assertFalse(after["human_review_approved"])
         self.assertEqual(after["demand"]["status"], "uncleared")
+
+    def test_aliases_keywords_and_unknown_industry_use_the_json_catalog(self) -> None:
+        catalog = load_catalog()
+        self.assertIn("industries", catalog)
+        self.assertIn("general", catalog)
+        restaurant = next(item for item in catalog["industries"] if item["name"] == "Restaurant")
+        self.assertIn("cafe", restaurant["aliases"])
+        self.assertIn("food service", restaurant["keywords"])
+        self.assertIn("restaurant", restaurant["search_terms"])
+        by_alias = suggestions_for("Cafe")
+        by_keyword = suggestions_for("FOOD SERVICE")
+        self.assertIn("Lunch and dinner service for guests on site", by_alias["products"])
+        self.assertIn("Lunch and dinner service for guests on site", by_keyword["products"])
+        unknown = suggestions_for("underwater basket weaving")
+        self.assertEqual(unknown["competition"], suggestions_for("")["competition"])
+        self.assertNotIn("A short sample menu of lunch plates", unknown["products"])
+        page = assessment_form(_draft("Cafe", "Idea"))
+        self.assertIn(_chip("products", "A short sample menu of lunch plates"), page)
+        self.assertIn('id="suggestion-catalog"', page)
 
     def test_read_only_intake_shows_examples_without_fill_buttons(self) -> None:
         record = _draft()
