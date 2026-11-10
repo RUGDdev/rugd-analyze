@@ -453,3 +453,9 @@ Further work on production authentication, real market data, an approved scoring
 - `app/explore_suggestions.json` is the provided 0.3 local database. Industries cover restaurant, retail, professional services, health care, construction, manufacturing, and accommodation. Each list is examples only.
 - A typed industry matches the name, aliases, and keywords. Search terms stay in the file and are not used for matching. The longest phrase wins. An unmatched industry uses the general fallbacks, including the mature stage. The catalog does not add a stage-specific product list.
 - The unittest suite is 155 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-10 visible intake suggestions
+
+- Explore intake shows an “Examples only.” list under development stage, products and services, target customers, and competition. The chips sit on a white strip with a bronze edge so they stay readable on the ivory page. They refresh from the industry field.
+- Selecting a chip fills that field only. It does not change a flag, a recommendation, or investor readiness.
+- The unittest suite is 155 tests, all passing. The official baseline intake was not edited.

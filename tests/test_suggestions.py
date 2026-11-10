@@ -46,6 +46,8 @@ class TestSuggestions(unittest.TestCase):
         self.assertIn('id="suggestion-catalog"', page)
         self.assertIn(SUGGESTION_NOTE, page)
         self.assertIn("Examples only. Guidance.", page)
+        self.assertIn(">Examples only.</p>", page)
+        self.assertIn('addEventListener("input", refresh)', page)
         self.assertIn(_chip("competition", "Other local businesses"), page)
         self.assertIn(_chip("stage", "mature"), page)
         self.assertIn('class="chip"', page)

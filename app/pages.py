@@ -158,9 +158,9 @@ label {{ display: block; margin: 0.7rem 0 0.2rem; font-size: 0.92rem; }}
 input, select, textarea {{ width: 100%; padding: 0.5rem; border: 1px solid var(--stone); background: white; color: var(--ink); font: inherit; }}
 button, .button {{ background: var(--ink); color: var(--ivory); border: 0; padding: 0.55rem 0.9rem; text-decoration: none; display: inline-block; margin: 0.35rem 0.45rem 0.35rem 0; }}
 button:hover, .button:hover {{ background: var(--bronze); color: var(--slate); }}
-button.chip, .chip {{ width: auto; background: var(--ivory); color: var(--ink); border: 1px solid var(--stone); font-size: 0.82rem; font-weight: 400; padding: 0.18rem 0.55rem; margin: 0.15rem 0.35rem 0.15rem 0; }}
+button.chip, .chip {{ width: auto; background: white; color: var(--ink); border: 1px solid var(--bronze); font-size: 0.88rem; font-weight: 400; padding: 0.28rem 0.65rem; margin: 0.2rem 0.4rem 0.2rem 0; }}
 button.chip:hover {{ background: var(--gold); color: var(--ink); }}
-.suggest {{ margin: 0.1rem 0 0.45rem; }}
+.suggest {{ background: white; border: 1px solid var(--stone); border-left: 4px solid var(--bronze); padding: 0.35rem 0.75rem 0.5rem; margin: 0.2rem 0 0.9rem; }}
 .suggest-note {{ color: #5c6b76; font-size: 0.86rem; margin: 0.35rem 0 0.6rem; }}
 .muted {{ color: #5c6b76; font-size: 0.92rem; }}
 table {{ width: 100%; border-collapse: collapse; background: white; margin: 0.6rem 0 1rem; }}
@@ -1004,7 +1004,7 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
         return (
             text(name, label, area=area)
             + f'<div class="suggest" data-suggest="{escape(name)}">'
-            + '<p class="muted">Examples only. Guidance.</p>'
+            + '<p class="muted">Examples only.</p>'
             + listing
             + "</div>"
         )
@@ -1183,7 +1183,7 @@ _SUGGESTION_SCRIPT = """
     box.textContent = "";
     var note = document.createElement("p");
     note.className = "muted";
-    note.textContent = "Examples only. Guidance.";
+    note.textContent = "Examples only.";
     box.appendChild(note);
     examples.forEach(function (example) {
       var button = document.createElement("button");
@@ -1217,6 +1217,7 @@ _SUGGESTION_SCRIPT = """
   var stageField = document.querySelector('[name="stage"]');
   if (industryField) industryField.addEventListener("input", refresh);
   if (stageField) stageField.addEventListener("input", refresh);
+  refresh();
 })();
 </script>
 """
