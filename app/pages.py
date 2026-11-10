@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from app import APP_VERSION
-from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, get_analyst
+from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, get_analyst
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
 from app.store import (
     HYPOTHETICAL_DEMO_LABEL,
@@ -180,6 +180,10 @@ summary {{ cursor: pointer; }}
 .journey li {{ flex: 1; background: white; border: 1px solid var(--stone); border-top: 4px solid var(--stone); padding: 0.55rem 0.6rem; font-weight: 600; text-align: center; }}
 .journey li.done {{ border-top-color: var(--bronze); color: var(--slate); }}
 .journey li.current {{ border-top-color: var(--bronze); background: var(--gold); color: var(--ink); }}
+.agent-flow {{ display: flex; gap: 0.4rem; list-style: none; padding: 0; margin: 0.6rem 0; flex-wrap: wrap; }}
+.agent-flow li {{ flex: 1; min-width: 7.5rem; background: white; border: 1px solid var(--stone); border-top: 4px solid var(--stone); padding: 0.45rem 0.5rem; font-weight: 600; text-align: center; }}
+.agent-flow li.done {{ border-top-color: var(--bronze); color: var(--slate); }}
+.agent-flow li.current {{ border-top-color: var(--bronze); background: var(--gold); color: var(--ink); }}
 .journey.card-journey {{ margin: 0.35rem 0 0.7rem; }}
 .journey.card-journey li {{ padding: 0.35rem 0.4rem; font-size: 0.82rem; }}
 .glance {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin: 0 0 1rem; }}
@@ -936,7 +940,7 @@ def assessment_form(
 {_plain("insufficient_demand_evidence")}
 {_plain("investor_readiness")}
 </div>
-{_assistant_panel(record)}
+{_assistant_panel(record, surface="intake")}
 {_evidence_checklist(record, record.get("result"), notes, return_to="draft")}
 {_intake_status(record)}
 {_business_profile_card(record)}
@@ -1431,7 +1435,7 @@ def results_page(
 {links}
 {_scenario_comparison(record, result)}
 {_evidence_checklist(record, result, notes, return_to="results")}
-{_assistant_panel(record)}
+{_assistant_panel(record, surface="results")}
 {_analyst_panel(record, result)}
 {_LIMITATIONS}
 <h2>Demand evidence</h2>
@@ -1524,7 +1528,7 @@ def _results_not_run(
 <h2>What this means</h2>
 <p><strong>What to do next:</strong> Return to the draft, fill the missing fields named above, save, and run Analyze. This page did not invent a number.</p>
 </div>
-{_assistant_panel(record)}
+{_assistant_panel(record, surface="results")}
 <p class="muted">Scenario comparison is available after Analyze has been run. It does not change a recommendation or a hard gate.</p>
 <p><a class="button" href="/assessments/{escape(record['id'])}">Return to the draft</a>
 <a class="button" href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
@@ -1956,14 +1960,53 @@ def assistant_page(record: dict[str, Any], lines: list[str], question: str = "")
 <h1>Ask about {escape(record['business_name'])}</h1>
 {_SURFACE_NOTE}
 <p class="muted">You asked: {escape(question or "a question about this assessment.")}</p>
-{_assistant_panel(record, lines)}
+{_assistant_panel(record, lines, surface="results" if (record.get("result") or {}).get("engine_ran") else "intake")}
 <p><a class="button" href="/assessments/{escape(record['id'])}">Return to the draft</a>
 <a class="button" href="/assessments/{escape(record['id'])}/results">Return to results</a></p>
 """
     return layout("Assistant", body)
 
 
-def _assistant_panel(record: dict[str, Any], lines: list[str] | None = None) -> str:
+def _agent_workflow_card(record: dict[str, Any], surface: str) -> str:
+    """Show the assistance stage. The card does not write a result."""
+    flow = agent_workflow(record, surface=surface)
+    order = [key for key, _label in flow["stages"]]
+    index = order.index(flow["current"]) if flow["current"] in order else 0
+    items = []
+    for position, (key, label) in enumerate(flow["stages"]):
+        if key == flow["current"]:
+            marker = ' class="current" aria-current="step"'
+        elif position < index:
+            marker = ' class="done"'
+        else:
+            marker = ""
+        items.append(f"<li{marker}>{escape(label)}</li>")
+    assessment_id = escape(str(record.get("id") or ""))
+    questions = "".join(
+        f'<button type="submit" name="starter" value="{escape(question)}">{escape(question)}</button>'
+        for question in flow["questions"]
+    )
+    return f"""
+<section class="card" id="agent-workflow">
+<h2>Assistance workflow</h2>
+<p>Intake guidance, gap identification, results explanation, then a next-step recommendation. This workflow reads the stored file. It does not change a number, a flag, or an approval.</p>
+<ol class="agent-flow">{''.join(items)}</ol>
+<p><strong>Suggested next action:</strong> {escape(str(flow["action"]))}</p>
+<p><a class="button" href="{escape(str(flow["href"]))}">{escape(str(flow["link_label"]))}</a></p>
+<form method="post" action="/assessments/{assessment_id}/assistant">
+{questions}
+</form>
+<p class="muted">{escape(ASSISTANCE_LABEL)}</p>
+</section>
+"""
+
+
+def _assistant_panel(
+    record: dict[str, Any],
+    lines: list[str] | None = None,
+    *,
+    surface: str = "intake",
+) -> str:
     assessment_id = escape(str(record.get("id") or ""))
     starters = "".join(
         f'<button type="submit" name="starter" value="{escape(question)}">{escape(question)}</button>'
@@ -1979,7 +2022,7 @@ def _assistant_panel(record: dict[str, Any], lines: list[str] | None = None) -> 
             "Choose a starter or type a question about this assessment. "
             "The reply explains what is already stored, and it is not saved.</p>"
         )
-    return f"""
+    return _agent_workflow_card(record, surface) + f"""
 <section class="card" id="assistant">
 <h2>Ask about this assessment</h2>
 <p>You can ask about this draft. The reply reads what is already stored. It does not change the assessment.</p>

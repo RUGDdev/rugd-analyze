@@ -513,3 +513,10 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not change the 0.1 engine, a recommend-against flag, or the official baseline.
 - Public pages for LivePlan and Upmetrics were reviewed for guidance only. No text, image, or code was copied.
 - Each assessment card shows Intake, Analyze, and Review so the current stage is visible on the dashboard. Results open with three stored facts: recommendation, gate status, and the next step. Advisor Summary opens with recommendation, gate status, and investor readiness. Explore intake opens with three numbered steps. None of these write a result or clear a gate.
+
+## Decision: Assistance workflow
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, a recommend-against flag, or the official baseline.
+- The intake and results pages show four assistance stages: Intake guidance, Gap identification, Results explanation, and Next-step recommendation. The current stage is read from the stored file. A suggested next action links to the intake, the evidence checklist, or the stored result.
+- The same panel offers two questions for that stage. `get_analyst()` still answers them. If Analyze has not been run, the reply says so and points back to the intake. The reply does not invent a figure, clear a flag, or set `human_review_approved`.

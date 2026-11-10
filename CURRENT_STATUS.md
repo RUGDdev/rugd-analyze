@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 156 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 157 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -478,3 +478,9 @@ Further work on production authentication, real market data, an approved scoring
 - Public pages for LivePlan and Upmetrics were reviewed for guidance only. No text, image, or code was copied.
 - Assessment cards show Intake, Analyze, and Review. Results and Advisor Summary open with three stored facts. Explore intake opens with three numbered steps. Settings states that it stores preferences and does not approve an assessment.
 - The unittest suite is 156 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.
+
+## Progress — 2026-11-10 agent workflow
+
+- The intake and results pages show an assistance workflow: Intake guidance, Gap identification, Results explanation, and Next-step recommendation. The current stage and a suggested next action come from the stored file.
+- Two questions and one link follow that stage. Every reply still starts with the assistance-only label. The reply does not change a number, a flag, readiness, or approval.
+- The unittest suite is 157 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.

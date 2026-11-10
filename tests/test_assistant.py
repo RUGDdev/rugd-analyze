@@ -13,7 +13,7 @@ from pathlib import Path
 
 from app.accounts import register_account
 from app.analysis import analyze_record
-from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, answer
+from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, answer
 from app.pages import assessment_form, dashboard, explore_page, market_page, results_page
 from app.server import make_server
 from app.store import BASELINE_ID, SAMPLE, connect, get_assessment, get_user_by_id, seed
@@ -206,6 +206,77 @@ class TestPlainLanguageAndAssistant(unittest.TestCase):
             thread.join(timeout=3)
             connection.close()
             directory.cleanup()
+
+    def test_agent_workflow_reads_the_file_and_does_not_change_it(self) -> None:
+        draft = {
+            "id": "flow-1",
+            "business_name": "Flow Cafe",
+            "tier": "explore",
+            "read_only": False,
+            "hypothetical": False,
+            "pilot_label": "Customer draft. Not a completed assessment.",
+            "purpose": "startup_feasibility",
+            "profile": {
+                "business_name": "Flow Cafe",
+                "purpose": "startup_feasibility",
+                "tier": "explore",
+                "venture_path": "startup",
+            },
+            "result": None,
+            "human_review_approved": False,
+        }
+        before = copy.deepcopy(draft)
+        flow = agent_workflow(draft, surface="intake")
+        self.assertEqual(draft, before)
+        self.assertEqual(flow["current"], "intake")
+        page = assessment_form(draft)
+        self.assertIn('id="agent-workflow"', page)
+        self.assertIn('class="current" aria-current="step">Intake guidance', page)
+        self.assertIn("What evidence is still missing?", page)
+        self.assertIn("Open the intake fields", page)
+        self.assertIn(ASSISTANCE_LABEL, page)
+        waiting = answer(draft, None, "Explain this result")
+        self.assertEqual(draft, before)
+        self.assertEqual(waiting[0], ASSISTANCE_LABEL)
+        self.assertIn("Analyze has not been run yet", " ".join(waiting))
+        self.assertIn("Return to the intake", " ".join(waiting))
+        not_run = results_page(draft, {"engine_ran": False, "message": "Analyze has not been run."})
+        self.assertIn('class="current" aria-current="step">Intake guidance', not_run)
+        self.assertIn('href="/assessments/flow-1#intake"', not_run)
+
+        analyzed = {
+            **draft,
+            "result": {
+                "engine_ran": True,
+                "recommendation": "do-not-proceed",
+                "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+                "missing": ["Initial capital"],
+                "readiness_status": "internal",
+                "human_review_approved": False,
+                "score_line": "Not calculated — methodology pending approval.",
+            },
+        }
+        before_result = copy.deepcopy(analyzed["result"])
+        evidence = answer(analyzed, analyzed["result"], "What evidence is still missing?")
+        self.assertEqual(analyzed["result"], before_result)
+        self.assertEqual(evidence[0], ASSISTANCE_LABEL)
+        self.assertIn("Initial capital", " ".join(evidence))
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", " ".join(evidence))
+        self.assertIn("does not clear", " ".join(evidence))
+        self.assertNotIn("flag has been cleared", " ".join(evidence).lower())
+        explained = answer(analyzed, analyzed["result"], "Explain this result")
+        self.assertEqual(explained[0], ASSISTANCE_LABEL)
+        self.assertIn("do-not-proceed", " ".join(explained))
+        self.assertIn("does not change it", " ".join(explained))
+        self.assertEqual(analyzed["result"]["recommendation"], "do-not-proceed")
+        self.assertEqual(analyzed["result"]["readiness_status"], "internal")
+        self.assertFalse(analyzed["result"]["human_review_approved"])
+        shown = results_page(analyzed, analyzed["result"])
+        self.assertIn('class="current" aria-current="step">Results explanation', shown)
+        self.assertIn("Explain this result", shown)
+        self.assertIn("Suggested next action:", shown)
+        self.assertIn("does not clear it", shown)
+        self.assertEqual(analyzed["result"], before_result)
 
     def _login(self, base: str) -> str:
         status, _body, headers = self._raw(base + "/login", {"email": EMAIL, "password": PASSWORD})

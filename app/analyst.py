@@ -62,6 +62,13 @@ STARTER_QUESTIONS = (
     "How is this different from a business plan?",
 )
 
+AGENT_WORKFLOW = (
+    ("intake", "Intake guidance"),
+    ("gaps", "Gap identification"),
+    ("results", "Results explanation"),
+    ("next", "Next-step recommendation"),
+)
+
 
 class Analyst(Protocol):
     label: str
@@ -200,6 +207,59 @@ class ExternalAnalyst:
         return _response_text(self.provider, response)
 
 
+def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[str, Any]:
+    """Name the assistance stage for this file. Reading it does not write a result."""
+    record = record or {}
+    result = record.get("result") if isinstance(record.get("result"), dict) else {}
+    ran = bool(result.get("engine_ran"))
+    flags = [str(flag) for flag in result.get("blocking_flags") or []]
+    missing = [str(item) for item in result.get("missing") or []]
+    assessment_id = str(record.get("id") or "")
+    if not ran:
+        current = "intake"
+        action = "Save the draft, then run Analyze. This suggestion does not run the engine."
+        href = f"/assessments/{assessment_id}#intake" if surface == "results" else "#intake"
+        link_label = "Open the intake fields"
+        questions = ("What should I do next?", "What evidence is still missing?")
+    elif surface == "results":
+        current = "results"
+        if flags:
+            action = (
+                f"Read the active recommend-against flag {flags[0]}. "
+                "This suggestion does not clear it."
+            )
+        else:
+            action = "Read the stored recommendation. This suggestion does not change it."
+        href = "#results-lead"
+        link_label = "Read the stored result"
+        questions = ("Explain this result", "What should I do next?")
+    else:
+        current = "gaps"
+        if missing:
+            action = (
+                "The engine already lists missing items on this draft. "
+                "This suggestion does not fill them."
+            )
+        elif flags:
+            action = (
+                f"Recommend-against flag {flags[0]} is still active. "
+                "This suggestion does not clear it."
+            )
+        else:
+            action = "Read the stored result. This suggestion does not change it."
+        href = f"#evidence-checklist-{assessment_id}"
+        link_label = "Open the evidence checklist"
+        questions = ("What evidence is still missing?", "Explain this result")
+    return {
+        "stages": AGENT_WORKFLOW,
+        "current": current,
+        "action": action,
+        "href": href,
+        "link_label": link_label,
+        "questions": questions,
+    }
+
+
 def get_analyst(environ: Any | None = None, transport: Transport | None = None) -> Any:
     """Return the configured analyst. A missing key or unknown provider falls back."""
     env = os.environ if environ is None else environ
@@ -276,6 +336,7 @@ def _grounded_reply(
             "Analyze has not been run yet. Save the draft, then run Analyze. "
             "This reply does not run the engine and does not fill a blank field."
         )
+        lines.append("Return to the intake on this draft. Blank fields stay blank.")
         return lines
     flags = [str(flag) for flag in result.get("blocking_flags") or []]
     if "score" in folded:
@@ -292,6 +353,31 @@ def _grounded_reply(
             lines.append(
                 "INSUFFICIENT_DEMAND_EVIDENCE is not in the active recommend-against flags on this stored result. "
                 "This reply does not change that list."
+            )
+    if "explain" in folded:
+        lines.append(
+            f"The stored recommendation is {result.get('recommendation')}. "
+            f"Investor readiness is {result.get('readiness_status')}. "
+            "This reply explains the stored result and does not change it."
+        )
+        lines.extend(_indicative_reading(result))
+    if "evidence" in folded or "missing" in folded:
+        missing = [str(item) for item in result.get("missing") or []]
+        if missing:
+            shown = "; ".join(missing[:6])
+            lines.append(
+                f"The engine already lists these missing items: {shown}. "
+                "This reply does not fill them and does not clear a flag."
+            )
+        if flags:
+            listed = "; ".join(flags)
+            lines.append(
+                f"Recommend-against flags still active: {listed}. This reply does not clear them."
+            )
+        elif not missing:
+            lines.append(
+                "No recommend-against flag is listed on this stored result. "
+                "This reply does not add or remove one."
             )
     if "next" in folded or "what should i do" in folded:
         missing = [str(item) for item in result.get("missing") or []]
