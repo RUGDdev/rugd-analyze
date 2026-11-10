@@ -180,6 +180,12 @@ summary {{ cursor: pointer; }}
 .journey li {{ flex: 1; background: white; border: 1px solid var(--stone); border-top: 4px solid var(--stone); padding: 0.55rem 0.6rem; font-weight: 600; text-align: center; }}
 .journey li.done {{ border-top-color: var(--bronze); color: var(--slate); }}
 .journey li.current {{ border-top-color: var(--bronze); background: var(--gold); color: var(--ink); }}
+.journey.card-journey {{ margin: 0.35rem 0 0.7rem; }}
+.journey.card-journey li {{ padding: 0.35rem 0.4rem; font-size: 0.82rem; }}
+.glance {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; margin: 0 0 1rem; }}
+.glance p {{ background: white; border: 1px solid var(--stone); border-top: 4px solid var(--bronze); margin: 0; padding: 0.65rem 0.75rem; }}
+.start-here {{ margin: 0.4rem 0 1rem; padding-left: 1.2rem; }}
+.start-here li {{ margin: 0.35rem 0; }}
 #results-lead, #advisor-sheet, #market-provenance {{ border-top: 4px solid var(--bronze); }}
 #results-lead {{ padding: 1.25rem 1.4rem 1.4rem; }}
 .figure-block {{ background: var(--ivory); border: 1px solid var(--stone); padding: 0.15rem 1rem 0.4rem; margin-top: 1rem; }}
@@ -192,6 +198,7 @@ summary {{ cursor: pointer; }}
   nav {{ flex-direction: row; flex-wrap: wrap; }}
   .nav-tip {{ left: 0; top: calc(100% + 0.2rem); width: 12.5rem; }}
   main {{ padding: 1.25rem 1rem 2rem; }}
+  .glance {{ grid-template-columns: 1fr; }}
 }}
 @media print {{
   .sidebar, nav, .no-print {{ display: none !important; }}
@@ -383,6 +390,7 @@ def _history_card(item: dict[str, Any]) -> str:
 <h2 class="card-title">{escape(str(item.get("business_name") or "Untitled"))}</h2>
 {kind_line}
 <p class="card-meta"><strong>Business stage:</strong> {escape(_stage_label(item))}</p>
+{_card_journey(item)}
 {gate}
 <p class="status-line">{escape(_engine_status_line(result))}</p>
 <p class="card-updated"><strong>Last updated:</strong> {escape(str(item.get("updated_at") or "not recorded"))}</p>
@@ -489,8 +497,7 @@ def _gate_gloss(status: str, band: str) -> str:
     return f'<p class="muted">{escape(status_line)}</p><p class="muted">{escape(band_line)}</p>'
 
 
-def _journey_progress(current: str) -> str:
-    """Informational stages. The marker does not write a flag or a recommendation."""
+def _journey_items(current: str) -> str:
     steps = (("intake", "Intake"), ("analyze", "Analyze"), ("review", "Review"))
     order = [key for key, _label in steps]
     index = order.index(current) if current in order else 0
@@ -503,13 +510,70 @@ def _journey_progress(current: str) -> str:
         else:
             marker = ""
         items.append(f"<li{marker}>{label}</li>")
+    return "".join(items)
+
+
+def _journey_progress(current: str) -> str:
+    """Informational stages. The marker does not write a flag or a recommendation."""
     return (
         '<ol class="journey" id="journey-progress">'
-        + "".join(items)
+        + _journey_items(current)
         + "</ol>"
         '<p class="muted">This progress indicator is informational. '
         "It does not change a flag or a recommendation.</p>"
     )
+
+
+def _card_journey(record: dict[str, Any]) -> str:
+    """A short progress mark on a dashboard card. It does not write a result."""
+    return (
+        '<ol class="journey card-journey" aria-label="Where this draft is">'
+        + _journey_items(_journey_stage(record))
+        + "</ol>"
+    )
+
+
+def _at_a_glance(record: dict[str, Any], result: dict[str, Any]) -> str:
+    """Three stored facts before the long tables. No figure is invented."""
+    from app.indicative_score import indicative_score
+
+    score = indicative_score(result)
+    recommendation = str(result.get("recommendation") or "not run")
+    gate = str(score.get("gate_status") or "Not run")
+    return f"""
+<div class="glance" id="at-a-glance">
+<p><strong>Recommendation</strong><br>{escape(recommendation)}</p>
+<p><strong>Gate status</strong><br>{escape(gate)}</p>
+<p><strong>Next</strong><br>{escape(_next_step_for(record))}</p>
+</div>
+<p class="muted">These three lines read the stored file. They do not change a flag or a recommendation.</p>
+"""
+
+
+def _advisor_glance(assessment: dict[str, Any], indicative: dict[str, Any]) -> str:
+    """Three stored facts for the advisor page. This view does not save them."""
+    recommendation = str(assessment.get("recommendation") or "not run")
+    gate = str((indicative or {}).get("gate_status") or "Not run")
+    readiness = str(assessment.get("readiness_status") or "not run")
+    return f"""
+<div class="glance" id="advisor-glance">
+<p><strong>Recommendation</strong><br>{escape(recommendation)}</p>
+<p><strong>Gate status</strong><br>{escape(gate)}</p>
+<p><strong>Investor readiness</strong><br>{escape(readiness)}</p>
+</div>
+<p class="muted">These three lines read the stored file. They do not approve the assessment.</p>
+"""
+
+
+def _intake_start() -> str:
+    """Numbered start for a long form. It does not fill a field."""
+    return """
+<ol class="start-here" id="intake-start">
+<li><strong>Describe the business.</strong> Industry, stage, customers, and competition stay your assumptions.</li>
+<li><strong>Enter the monthly figures you know.</strong> Leave a blank blank. This form does not invent a number.</li>
+<li><strong>Save, then run Analyze.</strong> The engine writes the result. A suggestion does not clear a gate.</li>
+</ol>
+"""
 
 
 def _journey_stage(record: dict[str, Any] | None, *, review_requested: bool = False) -> str:
@@ -878,6 +942,7 @@ def assessment_form(
 {_business_profile_card(record)}
 <p class="muted">Tier {escape(record['tier'])}. Changing tier does not change a recommendation. Entered answers stay user-supplied assumptions.</p>
 <h2 id="intake">Explore intake</h2>
+{_intake_start()}
 {action}
 <p><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a>
 <a href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
@@ -1348,6 +1413,7 @@ def results_page(
 {_journey_progress(_journey_stage(record))}
 <div class="banner">{escape(standing)}</div>
 <div class="card" id="results-lead">
+{_at_a_glance(record, result)}
 {_view_summary_block(result)}
 {_indicative_block(result, notes)}
 {_your_next_step(record)}
@@ -3064,6 +3130,7 @@ def advisor_summary_page(
 {_journey_progress(_journey_stage(package.get("assessment") or {}, review_requested=review_requested))}
 <div class="banner">{_draft_label(assessment)}{escape(str(package.get('prototype_disclaimer') or ''))}</div>
 {share_note}
+{_advisor_glance(assessment, indicative)}
 <div class="card" id="advisor-sheet">
 <p><strong>Business:</strong> {escape(str(assessment.get('business_name') or ''))}</p>
 <p><strong>Stored recommendation:</strong> {escape(str(assessment.get('recommendation')))}</p>
@@ -3229,6 +3296,7 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
         )
     body = f"""
 <h1>Settings</h1>
+<p>This page stores preferences for this local account. It does not approve an assessment or change a role.</p>
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
 <p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, those messages are written to the server log. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>

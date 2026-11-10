@@ -506,3 +506,10 @@ Owner input required before replacing `billing_hooks`:
 - The signed-in dashboard, results, and Advisor Summary state what the review is for. A hard recommend-against flag keeps the recommendation at do-not-proceed. An indicative number, a market figure, and an assistant reply cannot clear that flag or grant investor-ready status.
 - Results name the industry and geography entered on the draft and show the labeled synthetic market examples. Optional public extracts stay on Market Intelligence. Those examples do not clear a recommend-against flag.
 - The assistant can explain how this differs from a business plan. The reply does not change the stored recommendation. The official baseline intake stays unchanged.
+
+## Decision: Guided patterns from a public review
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, a recommend-against flag, or the official baseline.
+- Public pages for LivePlan and Upmetrics were reviewed for guidance only. No text, image, or code was copied.
+- Each assessment card shows Intake, Analyze, and Review so the current stage is visible on the dashboard. Results open with three stored facts: recommendation, gate status, and the next step. Advisor Summary opens with recommendation, gate status, and investor readiness. Explore intake opens with three numbered steps. None of these write a result or clear a gate.

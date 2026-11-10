@@ -472,3 +472,9 @@ Further work on production authentication, real market data, an approved scoring
 - Results name the industry and geography entered on the draft and show the labeled synthetic market examples. Optional public extracts stay on Market Intelligence. They do not clear a flag.
 - The assistant can explain how this differs from a business plan. The reply does not change the stored recommendation.
 - The unittest suite is 156 tests, all passing. The official baseline intake was not edited. This work has not been published.
+
+## Progress — 2026-11-10 guided patterns
+
+- Public pages for LivePlan and Upmetrics were reviewed for guidance only. No text, image, or code was copied.
+- Assessment cards show Intake, Analyze, and Review. Results and Advisor Summary open with three stored facts. Explore intake opens with three numbered steps. Settings states that it stores preferences and does not approve an assessment.
+- The unittest suite is 156 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.
