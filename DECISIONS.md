@@ -498,3 +498,11 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
 - The example list for development stage, products and services, target customers, and competition is hidden until that field is hovered or focused. It is labeled Examples only. Choosing an example fills the field and closes the list. The field still accepts free text.
 - The list still follows the industry name, aliases, and keywords, or the general fallbacks. It does not change a flag, a recommendation, or investor readiness. The official baseline intake stays unchanged.
+
+## Decision: Pilot review purpose
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- The signed-in dashboard, results, and Advisor Summary state what the review is for. A hard recommend-against flag keeps the recommendation at do-not-proceed. An indicative number, a market figure, and an assistant reply cannot clear that flag or grant investor-ready status.
+- Results name the industry and geography entered on the draft and show the labeled synthetic market examples. Optional public extracts stay on Market Intelligence. Those examples do not clear a recommend-against flag.
+- The assistant can explain how this differs from a business plan. The reply does not change the stored recommendation. The official baseline intake stays unchanged.

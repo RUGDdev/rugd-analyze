@@ -274,6 +274,36 @@ def _guest_dashboard() -> str:
     return layout("Dashboard", body)
 
 
+def _pilot_purpose() -> str:
+    """States the review purpose. It does not change a stored result."""
+    return """
+<section class="card" id="pilot-purpose">
+<h2>What this review is for</h2>
+<p>This screen is for a pilot review of a draft. It shows the hard evidence gate, the stored engine result when one exists, and where a market figure comes from.</p>
+<p>A hard recommend-against flag keeps the recommendation at do-not-proceed. An indicative number, a market figure, and an assistant reply cannot clear that flag or grant investor-ready status.</p>
+<p class="muted">This local prototype is not a billing system, a live market feed, or a pitch deck.</p>
+</section>
+"""
+
+
+def _draft_market_context(record: dict[str, Any]) -> str:
+    """Name the entered industry. Do not invent a market figure or clear a flag."""
+    profile = record.get("profile") or {}
+    industry = str(profile.get("industry") or "not entered")
+    geography = str(profile.get("market") or "not entered")
+    snapshot = market_framework(industry, geography)
+    examples = "".join(f"<li>{escape(line)}</li>" for line in snapshot["synthetic_examples"])
+    return f"""
+<section class="card" id="draft-market-context">
+<h2>Market context for this draft</h2>
+<p><strong>Industry entered:</strong> {escape(industry)}. <strong>Geography entered:</strong> {escape(geography)}.</p>
+<p>{escape(str(snapshot.get('label') or ''))} Live feed connected: false. Optional public extracts for BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS are requested on Market Intelligence. They are not loaded on this page.</p>
+<ul>{examples}</ul>
+<p>These figures do not clear a recommend-against flag and do not grant investor-ready status.</p>
+</section>
+"""
+
+
 def dashboard(
     records: list[dict[str, Any]],
     *,
@@ -317,6 +347,7 @@ def dashboard(
     body = f"""
 {heading}
 {_SURFACE_NOTE}
+{_pilot_purpose()}
 <p class="muted">These are the assessments this account created. This list does not grant investor-ready status. An indicative assessment is shown after Analyze. It does not override engine flags or human review. No feasibility score is calculated. An owner can create a read-only share. The shared page cannot edit or approve the assessment.</p>
 <p><a class="button primary" href="/assessments/new">Start a new assessment</a></p>
 {empty}
@@ -1310,8 +1341,10 @@ def results_page(
     links = _output_links(record)
     body = f"""
 <h1>Results for {escape(record['business_name'])}</h1>
+<p>This page shows the stored engine result, the hard gate, and the next step. It does not grant investor-ready status.</p>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
+{_pilot_purpose()}
 {_journey_progress(_journey_stage(record))}
 <div class="banner">{escape(standing)}</div>
 <div class="card" id="results-lead">
@@ -1328,6 +1361,7 @@ def results_page(
 {projection}
 </div>
 </div>
+{_draft_market_context(record)}
 {links}
 {_scenario_comparison(record, result)}
 {_evidence_checklist(record, result, notes, return_to="results")}
@@ -1410,8 +1444,11 @@ def _results_not_run(
 """
     return f"""
 <h1>Analyze has not been run</h1>
+<p>This page says Analyze has not written a result yet. It does not invent a number and it does not grant investor-ready status.</p>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
+{_pilot_purpose()}
+{_draft_market_context(record)}
 {_journey_progress("intake")}
 <div class="banner">{escape(message)} This page did not run the engine and did not fill any blank fields.</div>
 {details}
@@ -1482,7 +1519,7 @@ def _indicative_block(result: dict[str, Any], notes: list[dict[str, Any]] | None
 {_gate_gloss(str(score['gate_status']), str(score['band']))}
 <p><strong>Gate recommendation:</strong> {escape(score['gate_recommendation'])}</p>
 <ul>{rendered}</ul>
-<p class="muted"><strong>Overall number (indicative only):</strong> {score['score']} of 100</p>
+<p class="muted"><strong>Overall number (indicative only):</strong> {score['score']} of 100. This indicative number does not override a hard recommend-against flag and does not grant investor-ready status.</p>
 <p>{escape(score['explanation'])}</p>
 </section>
 """
@@ -3020,8 +3057,10 @@ def advisor_summary_page(
     body = f"""
 <div class="advisor-page">
 <h1>Advisor Summary</h1>
+<p>This page is a one-page reading of the stored file for a pilot review. It cannot approve the assessment.</p>
 {downloads}
 {_SURFACE_NOTE}
+{_pilot_purpose()}
 {_journey_progress(_journey_stage(package.get("assessment") or {}, review_requested=review_requested))}
 <div class="banner">{_draft_label(assessment)}{escape(str(package.get('prototype_disclaimer') or ''))}</div>
 {share_note}

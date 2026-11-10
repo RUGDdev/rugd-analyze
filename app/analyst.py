@@ -59,6 +59,7 @@ STARTER_QUESTIONS = (
     "What does the recommendation mean?",
     "What does this gate mean?",
     "Am I investor-ready?",
+    "How is this different from a business plan?",
 )
 
 
@@ -262,6 +263,13 @@ def _grounded_reply(
         lines.append(
             "This is the official baseline. Its draft stays do-not-proceed until the intake itself "
             "and an authorized review change it. This reply does not change the intake."
+        )
+    if "different" in folded or "business plan" in folded:
+        lines.append(
+            "RUGD keeps a hard recommend-against flag in force. A business-plan narrative, "
+            "an indicative number, and a market example do not clear that flag or grant investor-ready status. "
+            "When a public extract is requested, Market Intelligence shows the source and the period. "
+            "This reply does not change the recommendation."
         )
     if not result or not result.get("engine_ran"):
         lines.append(

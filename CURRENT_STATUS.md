@@ -465,3 +465,10 @@ Further work on production authentication, real market data, an approved scoring
 - The example lists for development stage, products and services, target customers, and competition stay hidden until that field is hovered or focused. The popover is labeled Examples only. Choosing one fills the field and closes the list.
 - The examples still come from the industry name, aliases, and keywords, or the general fallbacks. They do not change a flag, a recommendation, or investor readiness.
 - The unittest suite is 156 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-10 pilot review
+
+- The signed-in dashboard, results, and Advisor Summary state what the review is for. A hard recommend-against flag keeps do-not-proceed. An indicative number, a market figure, and an assistant reply cannot clear that flag or grant investor-ready status.
+- Results name the industry and geography entered on the draft and show the labeled synthetic market examples. Optional public extracts stay on Market Intelligence. They do not clear a flag.
+- The assistant can explain how this differs from a business plan. The reply does not change the stored recommendation.
+- The unittest suite is 156 tests, all passing. The official baseline intake was not edited. This work has not been published.
