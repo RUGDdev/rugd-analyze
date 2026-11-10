@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from app import APP_VERSION
-from app.analyst import get_analyst
+from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, get_analyst
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
 from app.store import (
     HYPOTHETICAL_DEMO_LABEL,
@@ -70,6 +70,7 @@ _TITLE_ACTIVE = {
     "Verify email": "/login",
     "Read-only share": "",
     "Advisor Summary": "/analyze",
+    "Assistant": "/analyze",
     "Register": "/register",
     "Log out": "/logout",
     "New assessment": "/assessments",
@@ -118,6 +119,9 @@ h2 {{ font-weight: 600; font-size: 1.35rem; margin-top: 1.6rem; padding-bottom: 
 h3 {{ font-weight: 600; }}
 .banner {{ background: var(--gold); border-left: 4px solid var(--bronze); padding: 0.85rem 1rem; margin: 1rem 0; }}
 .card {{ background: white; border: 1px solid var(--stone); padding: 1rem 1.15rem; margin: 0.9rem 0; }}
+details.plain {{ margin: 0.35rem 0 0.75rem; }}
+details.plain summary {{ cursor: pointer; }}
+.assistant-reply {{ background: white; border-left: 4px solid var(--bronze); padding: 0.75rem 1rem; margin: 0.6rem 0; }}
 label {{ display: block; margin: 0.7rem 0 0.2rem; font-size: 0.92rem; }}
 input, select, textarea {{ width: 100%; padding: 0.5rem; border: 1px solid var(--stone); background: white; color: var(--ink); font: inherit; }}
 button, .button {{ background: var(--ink); color: var(--ivory); border: 0; padding: 0.55rem 0.9rem; text-decoration: none; display: inline-block; margin: 0.35rem 0.45rem 0.35rem 0; }}
@@ -167,6 +171,12 @@ body.print-view .sidebar {{ display: none; }}
 </html>"""
 
 
+def _plain(key: str) -> str:
+    from app.plain import term_note
+
+    return term_note(key)
+
+
 def dashboard(records: list[dict[str, Any]]) -> str:
     items = "".join(_history_card(item) for item in records)
     if not items:
@@ -186,6 +196,13 @@ def dashboard(records: list[dict[str, Any]]) -> str:
 </div>
 <p><a class="button" href="/assessments/new">Start a new assessment</a>
 <a class="button" href="/assessments/export">Export all drafts</a></p>
+<div class="card">
+<h2>Words you will see</h2>
+<p>The precise term stays in the heading. The sentence next to it is the plain meaning. Learn more keeps the tighter definition.</p>
+{_plain("recommendation")}
+{_plain("insufficient_demand_evidence")}
+{_plain("investor_readiness")}
+</div>
 {_draft_empty_state(records)}
 <div class="card">
 <p><strong>Next recommended step:</strong> {escape(_next_step(records))}</p>
@@ -330,12 +347,14 @@ def _draft_empty_state(records: list[dict[str, Any]]) -> str:
 <div class="card">
 <h2>No drafts yet</h2>
 <p>No assessments are saved. Start a new assessment when you are ready. Blank fields stay blank until you enter them. Nothing is copied from the official baseline.</p>
+<p><strong>What to do first:</strong> Choose Start a new assessment. Say whether this is a startup idea or an existing business. Save the draft, then open it and fill the blank required fields. Run Analyze when you want the engine's draft answer.</p>
 </div>
 """
     return """
 <div class="card">
 <h2>No drafts yet</h2>
 <p>No customer drafts are saved. The official baseline is listed separately and is not a customer draft. Starting a draft does not copy baseline figures into blank fields.</p>
+<p><strong>What to do first:</strong> Choose Start a new assessment. The official baseline stays a separate file. Your new draft starts blank.</p>
 </div>
 """
 
@@ -607,6 +626,13 @@ def assessment_form(
 <p><strong>Next recommended step:</strong> {escape(_next_step_for(record))}</p>
 <p class="muted">This note does not clear a flag, change the recommendation, or mark the assessment investor-ready.</p>
 </div>
+<div class="card">
+<h2>What this means</h2>
+<p><strong>What to do next:</strong> Fill the blank required fields, save the draft, then run Analyze. The engine writes the result. This page does not invent a number.</p>
+{_plain("insufficient_demand_evidence")}
+{_plain("investor_readiness")}
+</div>
+{_assistant_panel(record)}
 {_evidence_checklist(record, record.get("result"), notes, return_to="draft")}
 {_intake_status(record)}
 {_business_profile_card(record)}
@@ -937,17 +963,22 @@ def results_page(
 {_scenario_comparison(record, result)}
 {_evidence_checklist(record, result, notes, return_to="results")}
 {_indicative_block(result, notes)}
+{_assistant_panel(record)}
 {_analyst_panel(record, result)}
 {_LIMITATIONS}
 <h2>Demand evidence</h2>
 {_demand_status(result.get("demand") or {})}
-<h2>Recommend-against flags</h2><ul>{flags}</ul>
+<h2>Recommend-against flags</h2>
+{_plain("recommend_against")}
+<ul>{flags}</ul>
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
 <h2>Missing information</h2><ul>{missing}</ul>
 {_guidance_section("explore" if str(record.get("tier")) == "explore" else "analyze", result, notes, record)}
 {_tier_research(record, result)}
 <h2>Monthly base and downside</h2>{financial}
 <h2>Sources and uses, scenarios, and DSCR</h2>
+{_plain("sources_and_uses")}
+{_plain("dscr")}
 {projection}
 {links}
 """
@@ -1022,6 +1053,11 @@ def _results_not_run(
 {details}
 {baseline}
 {_evidence_checklist(record, result, notes, return_to="results")}
+<div class="card">
+<h2>What this means</h2>
+<p><strong>What to do next:</strong> Return to the draft, fill the missing fields named above, save, and run Analyze. This page did not invent a number.</p>
+</div>
+{_assistant_panel(record)}
 <p class="muted">Scenario comparison is available after Analyze has been run. It does not change a recommendation or a hard gate.</p>
 <p><a class="button" href="/assessments/{escape(record['id'])}">Return to the draft</a>
 <a class="button" href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
@@ -1076,6 +1112,7 @@ def _indicative_block(result: dict[str, Any], notes: list[dict[str, Any]] | None
 <section class="indicative-score card">
 <h2>Indicative assessment</h2>
 <p><strong>{escape(score['label'])}</strong></p>
+{_plain("indicative_score")}
 <p><strong>Gate status:</strong> {escape(score['gate_status'])}</p>
 <p><strong>Band:</strong> {escape(score['band'])}</p>
 <p><strong>Gate recommendation:</strong> {escape(score['gate_recommendation'])}</p>
@@ -1097,9 +1134,13 @@ def _view_summary_block(result: dict[str, Any]) -> str:
     approved = "true" if summary["human_review_approved"] else "false"
     return f"""
 <p><strong>Recommendation:</strong> {escape(str(summary.get('recommendation')))}</p>
+{_plain("recommendation")}
 <p><strong>Score:</strong> {escape(result.get('score_line', ''))}</p>
+{_plain("indicative_score")}
 <p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> {escape(str(summary.get('insufficient_demand_evidence')))}</p>
+{_plain("insufficient_demand_evidence")}
 <p><strong>Investor readiness:</strong> {escape(str(summary.get('investor_readiness')))}</p>
+{_plain("investor_readiness")}
 <p><strong>Human review status:</strong> {escape(str(summary.get('human_review_status')))}</p>
 <p><strong>human_review_approved:</strong> {approved}</p>
 <p><strong>Demand evidence provenance:</strong></p>
@@ -1446,6 +1487,44 @@ def _financial_table(financial: dict[str, Any] | None) -> str:
     return f"<table>{rows}</table>"
 
 
+def assistant_page(record: dict[str, Any], lines: list[str], question: str = "") -> str:
+    body = f"""
+<h1>Ask about {escape(record['business_name'])}</h1>
+{_SURFACE_NOTE}
+<p class="muted">You asked: {escape(question or "a question about this assessment.")}</p>
+{_assistant_panel(record, lines)}
+<p><a class="button" href="/assessments/{escape(record['id'])}">Return to the draft</a>
+<a class="button" href="/assessments/{escape(record['id'])}/results">Return to results</a></p>
+"""
+    return layout("Assistant", body)
+
+
+def _assistant_panel(record: dict[str, Any], lines: list[str] | None = None) -> str:
+    assessment_id = escape(str(record.get("id") or ""))
+    starters = "".join(
+        f'<button type="submit" name="starter" value="{escape(question)}">{escape(question)}</button>'
+        for question in STARTER_QUESTIONS
+    )
+    reply = ""
+    if lines:
+        items = "".join(f"<li>{escape(line)}</li>" for line in lines)
+        reply = f'<div class="assistant-reply"><ul>{items}</ul></div>'
+    return f"""
+<section class="card" id="assistant">
+<h2>Ask about this assessment</h2>
+<p>{escape(ASSISTANCE_LABEL)}</p>
+<form method="post" action="/assessments/{assessment_id}/assistant">
+<label>Your question</label>
+<input name="question" maxlength="500">
+<button type="submit">Ask</button>
+<p class="muted">Suggested questions</p>
+{starters}
+</form>
+{reply}
+</section>
+"""
+
+
 def analyst_page(record: dict[str, Any], lines: list[str]) -> str:
     items = "".join(f"<li>{escape(line)}</li>" for line in lines)
     label = lines[0] if lines else "Demonstration Analyst"
@@ -1526,6 +1605,7 @@ def _synthetic_market_page(
 <h1>Market Intelligence (demonstration)</h1>
 {_SURFACE_NOTE}
 <div class="banner">Demonstration only. This page does not load a live market feed. Not live monitoring.</div>
+{_plain("market_snapshot")}
 <form method="get" action="/market">
 <label>Demonstration industry</label>
 <select name="industry">{industry_options}</select>
@@ -1577,6 +1657,7 @@ def _public_market_page(
 <h1>Market Intelligence</h1>
 {_SURFACE_NOTE}
 <div class="banner">{escape(view['label'])}</div>
+{_plain("market_snapshot")}
 <form method="get" action="/market">
 <label>Industry</label>
 <select name="industry">{industry_options}</select>
@@ -1614,6 +1695,7 @@ def _fallback_market_page(
 <h1>Market Intelligence (demonstration)</h1>
 {_SURFACE_NOTE}
 <div class="banner">{escape(view['label'])}</div>
+{_plain("market_snapshot")}
 <form method="get" action="/market">
 <label>Industry</label>
 <select name="industry">{industry_options}</select>
@@ -2746,6 +2828,7 @@ def _evidence_checklist(
             f'<input type="hidden" name="known_{escape(item_id)}" value="1">'
             f'<label><input type="checkbox" name="check_{escape(item_id)}" value="1"{checked}> '
             f"{escape(str(item['title']))}</label>"
+            f"<p>{escape(str(item.get('plain') or ''))}</p>"
             f"<p><strong>Checklist status:</strong> {escape(str(item['status']).title())}</p>"
             f"<p class=\"muted\">{escape(str(item['guidance']))}</p>"
             "</li>"
@@ -2797,6 +2880,7 @@ def explore_page(
 <p class="muted">Service tier: Explore.</p>
 <div class="banner">Explore is an intake and gap check. It is not a completed feasibility study. It does not clear a flag.</div>
 <p>Use a saved draft to clarify the concept, capital assumptions, and missing evidence. Run Analyze only when you want the deterministic engine.</p>
+<p>Open a draft to ask the assistant about that assessment. The assistant is assistance only and cannot change the draft.</p>
 <p><a class="button" href="/assessments/new">Start an Explore draft</a></p>
 """
         + _guidance_section("explore")

@@ -46,6 +46,18 @@ _ALIASES = {
 Transport = Callable[[str, dict[str, str], dict[str, Any]], dict[str, Any]]
 
 
+ASSISTANCE_LABEL = (
+    "Assistance only. This reply cannot change numbers, clear a recommend-against flag, "
+    "set human_review_approved, or grant investor-ready status."
+)
+
+STARTER_QUESTIONS = (
+    "What does my score mean?",
+    "Why is demand evidence missing?",
+    "What should I do next?",
+)
+
+
 class Analyst(Protocol):
     label: str
 
@@ -64,6 +76,17 @@ class DemonstrationAnalyst:
         safe_result = copy.deepcopy(result) if result is not None else None
         return _explain(safe_record, safe_result)
 
+    def reply(
+        self,
+        record: dict[str, Any],
+        result: dict[str, Any] | None,
+        question: str,
+        market_notes: list[str] | None = None,
+    ) -> list[str]:
+        safe_record = copy.deepcopy(record)
+        safe_result = copy.deepcopy(result) if result is not None else None
+        return [ASSISTANCE_LABEL, self.label, *_grounded_reply(safe_record, safe_result, question, market_notes)]
+
 
 class FallbackAnalyst:
     """Labeled Demonstration Analyst used when a provider was requested but cannot run."""
@@ -75,6 +98,18 @@ class FallbackAnalyst:
 
     def explain(self, record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:
         return [self.label, *DemonstrationAnalyst().explain(record, result)]
+
+    def reply(
+        self,
+        record: dict[str, Any],
+        result: dict[str, Any] | None,
+        question: str,
+        market_notes: list[str] | None = None,
+    ) -> list[str]:
+        lines = DemonstrationAnalyst().reply(record, result, question, market_notes)
+        if lines and lines[0] == ASSISTANCE_LABEL:
+            return [ASSISTANCE_LABEL, self.label, *lines[1:]]
+        return [ASSISTANCE_LABEL, self.label, *lines]
 
 
 class ExternalAnalyst:
@@ -103,6 +138,29 @@ class ExternalAnalyst:
             fallback = FallbackAnalyst("The external analyst call failed.")
             return fallback.explain(record, result)
         lines = [self.label, SAFETY_PROMPT]
+        lines.extend(line.strip() for line in text.splitlines() if line.strip())
+        return lines
+
+    def reply(
+        self,
+        record: dict[str, Any],
+        result: dict[str, Any] | None,
+        question: str,
+        market_notes: list[str] | None = None,
+    ) -> list[str]:
+        safe_record = copy.deepcopy(record)
+        safe_result = copy.deepcopy(result) if result is not None else None
+        summary = _summary(safe_record, safe_result)
+        summary["question"] = str(question or "")[:500]
+        summary["market_notes"] = [str(item) for item in (market_notes or [])]
+        try:
+            text = self._complete(summary).strip()
+            if not text:
+                raise ValueError("empty analyst response")
+        except Exception:
+            fallback = FallbackAnalyst("The external analyst call failed.")
+            return fallback.reply(record, result, question, market_notes)
+        lines = [ASSISTANCE_LABEL, self.label, SAFETY_PROMPT]
         lines.extend(line.strip() for line in text.splitlines() if line.strip())
         return lines
 
@@ -161,6 +219,124 @@ def explain(
     transport: Transport | None = None,
 ) -> list[str]:
     return get_analyst(environ=environ, transport=transport).explain(record, result)
+
+
+def answer(
+    record: dict[str, Any],
+    result: dict[str, Any] | None,
+    question: str,
+    *,
+    environ: Any | None = None,
+    transport: Transport | None = None,
+    market_notes: list[str] | None = None,
+) -> list[str]:
+    """Answer one question from the current assessment. Nothing is saved."""
+    lines = get_analyst(environ=environ, transport=transport).reply(
+        record,
+        result,
+        question,
+        market_notes,
+    )
+    if not lines or lines[0] != ASSISTANCE_LABEL:
+        return [ASSISTANCE_LABEL, *lines]
+    return lines
+
+
+def _grounded_reply(
+    record: dict[str, Any],
+    result: dict[str, Any] | None,
+    question: str,
+    market_notes: list[str] | None,
+) -> list[str]:
+    """Sentences drawn from this assessment. No figure is invented."""
+    asked = " ".join(str(question or "").split()).strip()
+    folded = asked.lower()
+    lines = [
+        f"You asked: {asked or 'a question about this assessment.'}",
+    ]
+    if record.get("read_only"):
+        lines.append(
+            "This is the official baseline. Its draft stays do-not-proceed until the intake itself "
+            "and an authorized review change it. This reply does not change the intake."
+        )
+    if not result or not result.get("engine_ran"):
+        lines.append(
+            "Analyze has not been run yet. Save the draft, then run Analyze. "
+            "This reply does not run the engine and does not fill a blank field."
+        )
+        return lines
+    flags = [str(flag) for flag in result.get("blocking_flags") or []]
+    if "score" in folded:
+        lines.append(f"The feasibility score line is {result.get('score_line')}.")
+        lines.extend(_indicative_reading(result))
+    if "demand" in folded:
+        if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
+            lines.append(
+                "Demand evidence is missing because INSUFFICIENT_DEMAND_EVIDENCE is still active. "
+                "The engine needs a verified demand record: source verified, a rationale, and a true demand claim "
+                "or trailing revenue above zero. This reply does not create that record and does not clear the flag."
+            )
+        else:
+            lines.append(
+                "INSUFFICIENT_DEMAND_EVIDENCE is not in the active recommend-against flags on this stored result. "
+                "This reply does not change that list."
+            )
+    if "next" in folded or "what should i do" in folded:
+        missing = [str(item) for item in result.get("missing") or []]
+        if missing:
+            shown = "; ".join(missing[:6])
+            lines.append(
+                f"Next, the engine already lists these missing items: {shown}. "
+                "Entering them is your edit on the draft. This reply does not write them."
+            )
+        elif "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
+            lines.append(
+                "Next, gather verified demand evidence and save it on the draft. "
+                "This reply does not clear the flag."
+            )
+        else:
+            lines.append(
+                "Next, read the recommend-against flags and the evidence checklist on this file. "
+                "This reply does not close them."
+            )
+    if "market" in folded:
+        notes = [str(item) for item in (market_notes or []) if str(item).strip()]
+        if notes:
+            lines.append(
+                "Market observations already attached to this question, as observations only: "
+                + "; ".join(notes[:4])
+                + ". They do not clear a flag."
+            )
+        else:
+            lines.append(
+                "No market observation is stored on this engine result. "
+                "The Market Intelligence page is a labeled demonstration unless a public extract was requested. "
+                "This reply does not add a market figure."
+            )
+    lines.append(
+        f"Stored recommendation: {result.get('recommendation')}. "
+        f"Investor readiness: {result.get('readiness_status')}. "
+        f"human_review_approved: {str(bool(result.get('human_review_approved'))).lower()}."
+    )
+    for flag in flags:
+        lines.append(f"Recommend-against flag still active: {flag}.")
+    if not flags:
+        lines.append("No recommend-against flag is listed on this stored result. This reply does not add or remove one.")
+    return lines
+
+
+def _indicative_reading(result: dict[str, Any]) -> list[str]:
+    from app.indicative_score import indicative_score
+
+    score = indicative_score(copy.deepcopy(result))
+    return [
+        (
+            f"Indicative gate status is {score.get('gate_status')}, band {score.get('band')}, "
+            f"gate recommendation {score.get('gate_recommendation')}. "
+            "A recommend-against flag forces Blocked and do-not-proceed. "
+            "The indicative number does not replace the feasibility line."
+        )
+    ]
 
 
 def _explain(record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:

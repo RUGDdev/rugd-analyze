@@ -415,3 +415,12 @@ Owner input required before replacing `billing_hooks`:
 - When the owner has turned an event on, the existing mail path sends one notice to that owner. With `SMTP_HOST` unset, the running server writes the notice to its log. The raw share token is not included. Verification and password-reset messages stay available and are not gated by these preferences.
 - A notice does not approve an assessment, clear a recommend-against flag, change a role, or set `human_review_approved`. An assessment with no owner, including the official baseline, sends no preference notice.
 - `HANDOFF.md` records that the local prototype is ready for a guided pilot and lists the owner decisions that remain open. Those decisions stay open. The official baseline intake stays unchanged.
+
+## Decision: Plain language and a conversational assistant
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- Dashboard, Explore, the intake, results, the indicative assessment, and Market Intelligence keep the precise term visible and add one plain-language sentence. Learn more holds the tighter definition. The prototype warning and the indicative-score warning stay on the page.
+- The evidence checklist leads with an everyday sentence. The precise name and the existing guidance stay. Checking or completing an item still updates guidance only.
+- Results and the open draft include an assistant panel with three starter questions. The panel calls `get_analyst()`. A missing provider or a missing key uses the Demonstration Analyst. An external provider, when configured, receives the question with the same safety prompt. Every reply begins with the assistance-only label.
+- The assistant reads the current assessment, engine result, flags, and any market notes passed with the question. It does not save a result, clear a recommend-against flag, set `human_review_approved`, or grant investor-ready status. The official baseline intake stays unchanged.

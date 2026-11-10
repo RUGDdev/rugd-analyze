@@ -64,6 +64,7 @@ Changing tier does not change a stored recommendation. None of these views grant
 | Evidence checklist | Guidance for demand evidence, missing inputs, and Durable Value notes. A check does not clear a hard gate | Same on the draft and on results | Same on the draft and on results | Same on the draft and on results |
 | Scenario comparison | After Analyze, one saved Base and one Downside or Upside case. The comparison does not change the official result | Same | Same | Same |
 | Email preferences | Stored on the signed-in account. A chosen notice is written to the server log when SMTP_HOST is unset. The notice does not approve or clear a flag | Same | Same | Same |
+| Plain language and assistant | Short explanations sit beside the precise terms. The assistant answers from the current assessment and cannot change it | Same | Same | Same |
 | Market Pulse | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration | Hypothetical demonstration |
 
 ## Owner decisions required before further work

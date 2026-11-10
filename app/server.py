@@ -30,9 +30,10 @@ from app.export import (
     export_research_package,
     research_package_markdown,
 )
-from app.analyst import explain
+from app.analyst import answer, explain
 from app.pages import (
     analyst_page,
+    assistant_page,
     audit_html_page,
     analyze_index,
     assessment_form,
@@ -490,6 +491,9 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if action == "checklist":
             self._save_checklist(connection, record, form)
+            return
+        if action == "assistant":
+            self._assistant_post(connection, record, form)
             return
         if action == "scenarios":
             self._save_scenario(connection, record, form)
@@ -964,6 +968,12 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _account_state(self, connection: Any) -> dict[str, Any]:
         return self._reviewer_session_state(connection)
+
+    def _assistant_post(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
+        question = (form.get("starter") or form.get("question") or "").strip()[:500]
+        stored = record.get("result") if isinstance(record.get("result"), dict) else None
+        lines = answer(record, stored, question)
+        self._html(assistant_page(record, lines, question))
 
     def _save_notification_preferences(self, connection: Any, form: dict[str, str]) -> None:
         state = self._account_state(connection)

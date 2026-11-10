@@ -56,7 +56,7 @@ def build_checklist(
     blocking = [str(flag) for flag in stored.get("blocking_flags") or []]
     items: list[dict[str, Any]] = []
 
-    def add(item_id: str, title: str, guidance: str, recorded: bool) -> None:
+    def add(item_id: str, title: str, guidance: str, recorded: bool, plain: str) -> None:
         checked = checks.get(item_id) is True
         if recorded:
             status = "recorded"
@@ -68,6 +68,7 @@ def build_checklist(
             {
                 "id": item_id,
                 "title": title,
+                "plain": plain,
                 "guidance": guidance,
                 "status": status,
                 "recorded": recorded,
@@ -95,10 +96,25 @@ def build_checklist(
             + demand_extra
         ),
         _verified_support(profile),
+        "In everyday words: show proof that people will pay, such as signed orders or past sales. Checking this box does not create that proof.",
     )
-    add("monthly-inputs", "Monthly financial inputs", *_financial_copy(profile, _MONTHLY, "monthly"))
+    monthly_guidance, monthly_recorded = _financial_copy(profile, _MONTHLY, "monthly")
+    add(
+        "monthly-inputs",
+        "Monthly financial inputs",
+        monthly_guidance,
+        monthly_recorded,
+        "In everyday words: enter the four monthly money figures. A blank stays blank, and checking the box does not invent a number.",
+    )
     if _venture_path(record) != "existing":
-        add("startup-inputs", "Startup capital inputs", *_financial_copy(profile, _STARTUP, "startup"))
+        startup_guidance, startup_recorded = _financial_copy(profile, _STARTUP, "startup")
+        add(
+            "startup-inputs",
+            "Startup capital inputs",
+            startup_guidance,
+            startup_recorded,
+            "In everyday words: enter the one-time opening costs and the seat assumptions. Checking the box does not fill them in.",
+        )
     for pillar in _note_pillars(blocking):
         stored_note = any(
             str(item.get("pillar_id") or "") == pillar["id"] and str(item.get("note") or "").strip()
@@ -112,6 +128,7 @@ def build_checklist(
                 "Checking this item or saving a note does not clear a flag and is not a DVT evaluation."
             ),
             stored_note,
+            "In everyday words: write the open question in your own words. The note is guidance, not a score.",
         )
     for flag in blocking:
         if flag == "INSUFFICIENT_DEMAND_EVIDENCE" or not _FLAG_ID.fullmatch(flag):
@@ -124,6 +141,7 @@ def build_checklist(
                 "Checking this item does not clear it."
             ),
             False,
+            "In everyday words: the engine still blocks a go-ahead on this point. Checking the box does not remove the block.",
         )
     noted_or_recorded = sum(1 for item in items if item["status"] != "open")
     return {

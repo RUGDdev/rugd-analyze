@@ -24,9 +24,10 @@ Current prototype capabilities:
 - The Explore page, the open draft, and the results page show an evidence checklist for verified demand, missing financial inputs, and key Durable Value notes. Checking or completing an item updates guidance only. It does not clear a hard gate.
 - Results can save the current engine result as Base and run one Downside or Upside case from the current inputs. The comparison does not change the official recommendation or a hard gate.
 - Settings stores email preferences for assessment shared, review requested, and review recorded. The notice goes to the assessment owner when that account opted in. With `SMTP_HOST` unset, the server log prints it. Verification and password-reset messages stay available. A notice does not approve an assessment or clear a flag.
+- Dashboard, Explore, the intake, results, and Market Intelligence show a short plain-language sentence beside the precise term. Learn more keeps the tighter definition. Results and the open draft include an assistant panel. The assistant reads the current assessment through `get_analyst()` and does not change numbers, flags, or approval.
 - Optional public extracts: BLS QCEW, ACS, County Business Patterns, BEA Regional, and BLS LAUS. A failed part falls back to the synthetic snapshot. The figures do not clear a flag.
 
-Tests are `python -m unittest discover -s tests` from this directory. The current suite is 138 tests.
+Tests are `python -m unittest discover -s tests` from this directory. The current suite is 140 tests.
 
 ## Ready for pilot users
 
@@ -40,6 +41,7 @@ A pilot user can:
 - Open Advisor Summary and download the package.
 - Create a read-only share for 24 hours, 7 days, or until it is revoked.
 - Store email preferences for assessment shared, review requested, and review recorded. The preference is stored on the account. With `SMTP_HOST` unset, a chosen notice is written to the server log.
+- Read a plain-language sentence beside the precise terms, and ask the assistant about the current assessment. The assistant cannot change the assessment.
 
 The official RUGD Intelligence baseline stays draft do-not-proceed, blocking flag `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. A pilot draft does not change that file.
 
