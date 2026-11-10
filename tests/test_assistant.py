@@ -96,7 +96,8 @@ class TestPlainLanguageAndAssistant(unittest.TestCase):
         self.assertIn(ASSISTANCE_LABEL, intake)
         self.assertIn('id="assistant-empty"', intake)
         self.assertIn("Choose a starter or type a question", intake)
-        self.assertEqual(len(STARTER_QUESTIONS), 5)
+        self.assertEqual(len(STARTER_QUESTIONS), 6)
+        self.assertIn("What should I work on next?", STARTER_QUESTIONS)
         for question in STARTER_QUESTIONS:
             self.assertIn(question, intake)
         self.assertIn("What this means", intake)

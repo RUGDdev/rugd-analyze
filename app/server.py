@@ -211,7 +211,7 @@ class AppHandler(BaseHTTPRequestHandler):
         elif path == "/logout":
             self._html(logout_page(self._account_state(connection)))
         elif path == "/assessments":
-            self._html(self._dashboard_page(connection))
+            self._html(self._dashboard_page(connection, surface="assessments"))
         elif path == "/assessments/export":
             payload = json.dumps(export_drafts(list_assessments(connection)), indent=2).encode("utf-8")
             self._bytes(
@@ -617,6 +617,7 @@ class AppHandler(BaseHTTPRequestHandler):
                     printable=True,
                     link_base="",
                     active=active,
+                    review_requested=bool(record.get("review_requested")),
                 )
             )
             return
@@ -628,6 +629,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 package,
                 link_base=link_base,
                 active=active,
+                review_requested=bool(record.get("review_requested")),
             )
         )
 
@@ -906,7 +908,7 @@ class AppHandler(BaseHTTPRequestHandler):
         peer = str(self.client_address[0]) if self.client_address else ""
         return limiter.allow(client_key(peer, self.headers.get("X-Forwarded-For")))
 
-    def _dashboard_page(self, connection: Any) -> str:
+    def _dashboard_page(self, connection: Any, surface: str = "home") -> str:
         state = self._account_state(connection)
         user_id = str(state.get("user_id") or "")
         if not state.get("active") or not user_id:
@@ -916,7 +918,7 @@ class AppHandler(BaseHTTPRequestHandler):
             for item in list_assessments(connection)
             if str(item.get("owner_user_id") or "") == user_id
         ]
-        return dashboard(owned, signed_in=True, viewer_id=user_id)
+        return dashboard(owned, signed_in=True, viewer_id=user_id, surface=surface)
 
     def _welcome_cookie(self) -> str:
         return session_cookie("rugd_welcome", "dismissed", 60 * 60 * 24 * 365)

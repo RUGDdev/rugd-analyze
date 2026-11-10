@@ -55,6 +55,7 @@ STARTER_QUESTIONS = (
     "What does my score mean?",
     "Why is demand evidence missing?",
     "What should I do next?",
+    "What should I work on next?",
     "What does the recommendation mean?",
     "Am I investor-ready?",
 )

@@ -441,3 +441,12 @@ Owner input required before replacing `billing_hooks`:
 - The signed-in dashboard lists only assessments owned by that account. Each card shows the name, business stage, last updated time, Continue or View results, and, after Analyze, the indicative gate status and band. A status line repeats a stored engine flag, a stored base-case DSCR when the engine calculated one, or the stored recommendation. It does not invent a figure. An account with no assessments is pointed to Start a new assessment.
 - Explore, Analyze, Validate, Partner, Market Intelligence, Market Pulse, and Reports each show a welcome heading and one or two plain-language sentences. Demonstration labels and the prototype warning stay on those pages.
 - The official baseline intake stays unchanged. A customer path still cannot set `human_review_approved`.
+
+## Decision: Guided next step and progress marker
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- The signed-in dashboard and the open assessment show Your next step. The link is Continue Intake before Analyze and View Results after Analyze. The note says completing the step does not clear a hard gate.
+- Explore intake, the results page, and Advisor Summary show Intake, Analyze, and Review. The highlighted stage follows the stored file: Intake before Analyze, Analyze after a stored result, and Review after a review has been requested. The marker does not change a flag or a recommendation.
+- My Assessments uses the welcome heading Welcome to RUGD My Assessments. Assessment cards link to the Ask panel. The Ask panel adds “What should I work on next?” and still begins every reply with the assistance-only label.
+- The official baseline intake stays unchanged. A customer path still cannot set `human_review_approved`.

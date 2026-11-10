@@ -158,6 +158,9 @@ details {{ margin: 0.8rem 0; }}
 summary {{ cursor: pointer; }}
 .bar-track {{ background: var(--stone); height: 0.7rem; margin: 0.25rem 0 0.7rem; }}
 .bar {{ background: var(--bronze); height: 0.7rem; }}
+.journey {{ display: flex; gap: 0.5rem; list-style: none; padding: 0; margin: 0.8rem 0 0.35rem; }}
+.journey li {{ flex: 1; background: white; border: 1px solid var(--stone); border-top: 3px solid var(--stone); padding: 0.45rem 0.6rem; font-weight: 600; }}
+.journey li.current {{ border-top-color: var(--bronze); background: var(--gold); }}
 @media (max-width: 800px) {{
   .shell {{ flex-direction: column; }}
   .sidebar {{ width: 100%; flex-basis: auto; }}
@@ -251,6 +254,7 @@ def dashboard(
     *,
     signed_in: bool = False,
     viewer_id: str = "",
+    surface: str = "home",
 ) -> str:
     """Home page. A signed-out visitor sees no assessment data."""
     if not signed_in:
@@ -263,13 +267,9 @@ def dashboard(
     items = "".join(_history_card(item) for item in owned)
     empty = ""
     step = ""
-    if owned:
-        step = f"""
-<div class="card">
-<p><strong>Next recommended step:</strong> {escape(_next_step(owned))}</p>
-<p class="muted">This indicator does not change a flag, a recommendation, or investor readiness.</p>
-</div>
-"""
+    focus = _focus_record(owned)
+    if focus is not None:
+        step = _your_next_step(focus)
     else:
         empty = """
 <div class="card" id="your-assessments-empty">
@@ -279,8 +279,18 @@ def dashboard(
 <p><a class="button" href="/assessments/new">Start a new assessment</a></p>
 </div>
 """
+    if surface == "assessments":
+        heading = _section_welcome(
+            "Welcome to RUGD My Assessments",
+            "This page lists the assessments this account created.",
+            "You can continue a draft or open a stored result. The list does not grant investor-ready status.",
+        )
+        title = "My Assessments"
+    else:
+        heading = "<h1>Your assessments</h1>"
+        title = "Dashboard"
     body = f"""
-<h1>Your assessments</h1>
+{heading}
 {_SURFACE_NOTE}
 <p class="muted">These are the assessments this account created. This list does not grant investor-ready status. An indicative assessment is shown after Analyze. It does not override engine flags or human review. No feasibility score is calculated. An owner can create a read-only share. The shared page cannot edit or approve the assessment.</p>
 <p><a class="button" href="/assessments/new">Start a new assessment</a></p>
@@ -295,7 +305,7 @@ def dashboard(
 {_plain("investor_readiness")}
 </div>
 """
-    return layout("Dashboard", body)
+    return layout(title, body)
 
 
 def _history_card(item: dict[str, Any]) -> str:
@@ -304,11 +314,11 @@ def _history_card(item: dict[str, Any]) -> str:
     assessment_id = escape(str(item.get("id") or ""))
     if result.get("engine_ran"):
         action = (
-            f'<a class="button" href="/assessments/{assessment_id}/results">View results</a>'
+            f'<a class="button" href="/assessments/{assessment_id}/results">View Results</a>'
         )
         gate = _gate_line(result)
     else:
-        action = f'<a class="button" href="/assessments/{assessment_id}">Continue</a>'
+        action = f'<a class="button" href="/assessments/{assessment_id}#intake">Continue Intake</a>'
         gate = ""
     kind = _card_kind(item)
     kind_line = f'<p class="muted">{escape(kind)}</p>' if kind else ""
@@ -321,6 +331,7 @@ def _history_card(item: dict[str, Any]) -> str:
 {gate}
 <p>{escape(_engine_status_line(result))}</p>
 <p>{action}</p>
+<p><a href="/assessments/{assessment_id}#assistant">Ask about this assessment</a></p>
 <p class="muted">This card does not grant investor-ready status.</p>
 </div>
 """
@@ -386,22 +397,75 @@ def _base_dscr_present(result: dict[str, Any]) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def _next_step(records: list[dict[str, Any]]) -> str:
+def _journey_progress(current: str) -> str:
+    """Informational stages. The marker does not write a flag or a recommendation."""
+    steps = (("intake", "Intake"), ("analyze", "Analyze"), ("review", "Review"))
+    items = []
+    for key, label in steps:
+        marker = ' class="current" aria-current="step"' if key == current else ""
+        items.append(f"<li{marker}>{label}</li>")
+    return (
+        '<ol class="journey" id="journey-progress">'
+        + "".join(items)
+        + "</ol>"
+        '<p class="muted">This progress indicator is informational. '
+        "It does not change a flag or a recommendation.</p>"
+    )
+
+
+def _journey_stage(record: dict[str, Any] | None, *, review_requested: bool = False) -> str:
+    record = record or {}
+    if review_requested or record.get("review_requested"):
+        return "review"
+    result = record.get("result") if isinstance(record.get("result"), dict) else {}
+    if (result or {}).get("engine_ran") or record.get("engine_ran"):
+        return "analyze"
+    return "intake"
+
+
+def _your_next_step(record: dict[str, Any]) -> str:
+    assessment_id = escape(str(record.get("id") or ""))
+    result = record.get("result") if isinstance(record.get("result"), dict) else {}
+    if (result or {}).get("engine_ran"):
+        href = f"/assessments/{assessment_id}/results"
+        label = "View Results"
+    else:
+        href = f"/assessments/{assessment_id}#intake"
+        label = "Continue Intake"
+    return f"""
+<div class="card" id="your-next-step">
+<h2>Your next step</h2>
+<p><strong>Guidance. Not a decision.</strong></p>
+<p><strong>Next recommended step:</strong> {escape(_next_step_for(record))}</p>
+<p><a class="button" href="{href}">{label}</a></p>
+<p class="muted">Completing this step does not clear a hard gate, change a recommendation, or mark the assessment investor-ready.</p>
+</div>
+"""
+
+
+def _focus_record(records: list[dict[str, Any]]) -> dict[str, Any] | None:
     drafts = [item for item in records if not item.get("read_only")]
     if not drafts:
-        return "Start a new assessment. The official baseline is not a customer draft."
+        return None
     for item in drafts:
         flags = (item.get("result") or {}).get("blocking_flags") or []
         if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
-            return _next_step_for(item)
+            return item
     for item in drafts:
         if not (item.get("result") or {}).get("engine_ran"):
-            return _next_step_for(item)
+            return item
     for item in drafts:
         flags = (item.get("result") or {}).get("blocking_flags") or []
         if flags:
-            return _next_step_for(item)
-    return _next_step_for(drafts[0])
+            return item
+    return drafts[0]
+
+
+def _next_step(records: list[dict[str, Any]]) -> str:
+    focus = _focus_record(records)
+    if focus is None:
+        return "Start a new assessment. The official baseline is not a customer draft."
+    return _next_step_for(focus)
 
 
 def _next_step_for(record: dict[str, Any]) -> str:
@@ -700,12 +764,9 @@ def assessment_form(
 <h1>{escape(record['business_name'])}</h1>
 {_SURFACE_NOTE}
 {banner}
-<div class="card">
-<p><strong>Guidance. Not a decision.</strong></p>
-<p><strong>Next recommended step:</strong> {escape(_next_step_for(record))}</p>
+{_journey_progress(_journey_stage(record))}
+{_your_next_step(record)}
 {_continue_intake(record)}
-<p class="muted">This note does not clear a flag, change the recommendation, or mark the assessment investor-ready.</p>
-</div>
 <div class="card">
 <h2>What this means</h2>
 <p><strong>What to do next:</strong> Fill the blank required fields, save the draft, then run Analyze. The engine writes the result. This page does not invent a number.</p>
@@ -1035,6 +1096,7 @@ def results_page(
 <h1>Results for {escape(record['business_name'])}</h1>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
+{_journey_progress(_journey_stage(record))}
 <div class="banner">{escape(standing)}</div>
 {links}
 <div class="card">
@@ -1130,6 +1192,7 @@ def _results_not_run(
 <h1>Analyze has not been run</h1>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
+{_journey_progress("intake")}
 <div class="banner">{escape(message)} This page did not run the engine and did not fill any blank fields.</div>
 {details}
 {baseline}
@@ -2636,6 +2699,7 @@ def advisor_summary_page(
     printable: bool = False,
     link_base: str = "",
     active: str = "",
+    review_requested: bool = False,
 ) -> str:
     """Render the advisor package. The package is already a copy and this view does not save it."""
     assessment = package.get("assessment") or {}
@@ -2701,6 +2765,7 @@ def advisor_summary_page(
 <h1>Advisor Summary</h1>
 {downloads}
 {_SURFACE_NOTE}
+{_journey_progress(_journey_stage(package.get("assessment") or {}, review_requested=review_requested))}
 <div class="banner">{escape(str(package.get('prototype_disclaimer') or ''))}</div>
 {share_note}
 <div class="card">

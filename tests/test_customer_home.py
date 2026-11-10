@@ -6,15 +6,19 @@ import unittest
 from pathlib import Path
 
 from app.analysis import analyze_record
+from app.export import export_advisor_package
 from app.pages import (
     _engine_status_line,
+    advisor_summary_page,
     analyze_index,
+    assessment_form,
     dashboard,
     explore_page,
     market_page,
     market_pulse_page,
     partner_page,
     reports_page,
+    results_page,
     validate_page,
 )
 from app.store import BASELINE_ID, SAMPLE, connect, get_assessment, seed
@@ -81,6 +85,58 @@ class TestCustomerHome(unittest.TestCase):
         self.assertIn("Monitoring is not running", pages["Partner"])
         self.assertIn("Monitoring is not active", pages["Market Pulse"])
         self.assertIn("Authoritative financial numbers come only from the 0.1 engine.", pages["Analyze"])
+        mine = dashboard([], signed_in=True, viewer_id="guide-reader", surface="assessments")
+        self.assertIn("Welcome to RUGD My Assessments", mine)
+        self.assertIn('id="section-welcome"', mine)
+        self.assertIn('href="/assessments" class="active"', mine)
+
+    def test_progress_and_next_step_stay_informational(self) -> None:
+        draft = {
+            "id": "guide-1",
+            "business_name": "Guide Cafe",
+            "tier": "explore",
+            "owner_user_id": "guide-reader",
+            "read_only": False,
+            "hypothetical": False,
+            "pilot_label": "Customer draft. Not a completed assessment.",
+            "purpose": "startup_feasibility",
+            "profile": {"business_name": "Guide Cafe", "purpose": "startup_feasibility", "tier": "explore", "venture_path": "startup"},
+            "result": None,
+            "human_review_approved": False,
+        }
+        form = assessment_form(draft)
+        self.assertIn('id="journey-progress"', form)
+        self.assertIn('class="current" aria-current="step">Intake', form)
+        self.assertIn("does not change a flag or a recommendation", form)
+        self.assertIn('id="your-next-step"', form)
+        self.assertIn("Your next step", form)
+        self.assertIn('href="/assessments/guide-1#intake">Continue Intake', form)
+        self.assertIn("does not clear a hard gate", form)
+        analyzed = {
+            **draft,
+            "result": {
+                "engine_ran": True,
+                "recommendation": "do-not-proceed",
+                "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+                "readiness_status": "internal",
+                "human_review_approved": False,
+                "score_line": "Not calculated — methodology pending approval.",
+            },
+        }
+        shown = results_page(analyzed, analyzed["result"])
+        self.assertIn('class="current" aria-current="step">Analyze', shown)
+        self.assertIn("does not change a flag or a recommendation", shown)
+        home = dashboard([analyzed], signed_in=True, viewer_id="guide-reader")
+        self.assertIn("Guide Cafe", home)
+        self.assertIn("Demand evidence missing.", home)
+        self.assertIn(">View Results<", home)
+        self.assertIn("Ask about this assessment", home)
+        self.assertNotIn("Other Cafe", home)
+        package = export_advisor_package(analyzed, analyzed["result"], [])
+        advisor = advisor_summary_page(package, review_requested=True)
+        self.assertIn('class="current" aria-current="step">Review', advisor)
+        self.assertEqual(analyzed["result"]["recommendation"], "do-not-proceed")
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", analyzed["result"]["blocking_flags"])
 
     def test_baseline_file_is_unchanged(self) -> None:
         before = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
