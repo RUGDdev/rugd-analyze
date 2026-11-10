@@ -26,6 +26,41 @@ PASSWORD = "plain-pass-1"
 
 
 class TestPlainLanguageAndAssistant(unittest.TestCase):
+    def test_continue_intake_points_at_the_draft_form(self) -> None:
+        draft = {
+            "id": "pilot-1-draft",
+            "business_name": "Pilot 1",
+            "tier": "explore",
+            "read_only": False,
+            "hypothetical": False,
+            "pilot_label": "Customer draft. Not a completed assessment.",
+            "profile": {"business_name": "Pilot 1", "purpose": "startup_feasibility", "tier": "explore"},
+            "result": None,
+            "human_review_approved": False,
+        }
+        page = assessment_form(draft)
+        self.assertIn("Continue Intake", page)
+        self.assertIn('class="button" href="/assessments/pilot-1-draft#intake"', page)
+        self.assertIn('id="intake"', page)
+        self.assertIn("does not clear a recommend-against flag", page)
+        self.assertNotIn(">Edit Intake<", page)
+        analyzed = {
+            **draft,
+            "result": {
+                "engine_ran": True,
+                "recommendation": "do-not-proceed",
+                "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+                "human_review_approved": False,
+                "readiness_status": "internal",
+            },
+        }
+        edited = assessment_form(analyzed)
+        self.assertIn(">Edit Intake<", edited)
+        self.assertIn('class="button" href="/assessments/pilot-1-draft#intake"', edited)
+        self.assertIn("Editing the intake does not clear a recommend-against flag", edited)
+        self.assertNotIn(">Continue Intake<", edited)
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", edited)
+
     def test_notes_keep_the_warnings_and_precise_terms(self) -> None:
         directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         connection = connect(Path(directory.name) / "analyze.sqlite")

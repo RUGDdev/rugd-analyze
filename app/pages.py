@@ -171,6 +171,28 @@ body.print-view .sidebar {{ display: none; }}
 </html>"""
 
 
+def _continue_intake(record: dict[str, Any]) -> str:
+    """Primary link to this draft's Explore intake. Editing does not clear a flag."""
+    assessment_id = escape(str(record.get("id") or ""))
+    href = f"/assessments/{assessment_id}#intake"
+    analyzed = bool((record.get("result") or {}).get("engine_ran"))
+    label = "Edit Intake" if analyzed else "Continue Intake"
+    if analyzed:
+        note = (
+            "Editing the intake does not clear a recommend-against flag, "
+            "change the stored recommendation, or set human_review_approved."
+        )
+    else:
+        note = (
+            "Opening the intake does not clear a recommend-against flag "
+            "or set human_review_approved."
+        )
+    return (
+        f'<p><a class="button" href="{href}">{label}</a></p>'
+        f'<p class="muted">{note}</p>'
+    )
+
+
 def _plain(key: str) -> str:
     from app.plain import term_note
 
@@ -624,6 +646,7 @@ def assessment_form(
 <div class="card">
 <p><strong>Guidance. Not a decision.</strong></p>
 <p><strong>Next recommended step:</strong> {escape(_next_step_for(record))}</p>
+{_continue_intake(record)}
 <p class="muted">This note does not clear a flag, change the recommendation, or mark the assessment investor-ready.</p>
 </div>
 <div class="card">
@@ -637,6 +660,7 @@ def assessment_form(
 {_intake_status(record)}
 {_business_profile_card(record)}
 <p class="muted">Tier {escape(record['tier'])}. Changing tier does not change a recommendation. Entered answers stay user-supplied assumptions.</p>
+<h2 id="intake">Explore intake</h2>
 {action}
 <p><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a>
 <a href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>

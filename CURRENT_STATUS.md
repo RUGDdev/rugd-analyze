@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 140 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 141 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -390,3 +390,7 @@ Further work on production authentication, real market data, an approved scoring
 - The evidence checklist leads with an everyday sentence. The precise item name and the guidance stay on the page. Checking an item still does not clear a hard gate.
 - Results and the open draft include an assistant panel. It reuses `get_analyst()`. With no external provider it is the Demonstration Analyst. Each reply is labeled assistance only. The reply reads the current assessment and does not save, clear a flag, set `human_review_approved`, or grant investor-ready status.
 - The unittest suite is 140 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-10 continue intake
+
+- The assessment overview shows a primary Continue Intake button that opens that draft's Explore intake. After Analyze has been run, the label is Edit Intake, and the note says editing does not clear a recommend-against flag. The unittest suite is 141 tests, all passing.
