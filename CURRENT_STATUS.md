@@ -428,3 +428,10 @@ Further work on production authentication, real market data, an approved scoring
 - Market Intelligence shows source, period, and limits before the figures. Those figures still cannot clear a flag.
 - The Ask panel adds “What does this gate mean?” The assistance-only label is unchanged.
 - The unittest suite is 150 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-10 visual hierarchy
+
+- Signed-in assessment cards put the name, stage, gate and band badges, one stored status line, the last updated time, and one primary button in that order. An empty account still points to Start a new assessment. The signed-out welcome is unchanged.
+- The Intake, Analyze, and Review marker reads as a progress bar. The current stage is highlighted. Earlier stages are marked done. The marker still does not change a flag or a recommendation.
+- Results separate the recommendation and the gate from the key engine figures. Advisor Summary sits in one shareable page. Spacing and buttons use the existing ivory, charcoal, and bronze colors. Prototype warnings and demonstration labels stay.
+- The unittest suite is 150 tests, all passing. The official baseline intake was not edited.

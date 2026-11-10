@@ -459,3 +459,11 @@ Owner input required before replacing `billing_hooks`:
 - Advisor Summary and a read-only share say Draft when `human_review_approved` is false. The advisor view still has no form that can edit or approve the assessment.
 - Market Intelligence shows source, period, and limits before any figure. The figures do not clear a recommend-against flag.
 - The Ask panel can explain the gate. Every reply still begins with the assistance-only label. The official baseline intake stays unchanged.
+
+## Decision: Visual hierarchy
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- Assessment cards, the Intake to Review progress bar, the results lead, and Advisor Summary use clearer spacing and the existing ivory, charcoal, and bronze colors. A badge repeats the stored gate and band. It does not replace them.
+- The progress bar can mark an earlier stage done. That mark does not change a flag, a recommendation, or `human_review_approved`.
+- The official baseline intake stays unchanged.

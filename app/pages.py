@@ -139,7 +139,17 @@ h1 {{ font-weight: 600; font-size: 2rem; letter-spacing: -0.02em; margin: 0 0 0.
 h2 {{ font-weight: 600; font-size: 1.35rem; margin-top: 1.6rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--stone); }}
 h3 {{ font-weight: 600; }}
 .banner {{ background: var(--gold); border-left: 4px solid var(--bronze); padding: 0.85rem 1rem; margin: 1rem 0; }}
-.card {{ background: white; border: 1px solid var(--stone); padding: 1rem 1.15rem; margin: 0.9rem 0; }}
+.card {{ background: white; border: 1px solid var(--stone); padding: 1.15rem 1.3rem; margin: 1rem 0; }}
+.assessment-card .card-title {{ font-size: 1.45rem; margin: 0 0 0.2rem; border: 0; padding: 0; }}
+.card-meta, .card-updated {{ margin: 0.25rem 0; }}
+.status-line {{ font-size: 1.05rem; margin: 0.55rem 0 0.2rem; }}
+.badges {{ margin: 0.45rem 0; }}
+.badge {{ display: inline-block; background: var(--slate); color: var(--ivory); padding: 0.18rem 0.55rem; margin: 0 0.35rem 0.25rem 0; font-size: 0.82rem; letter-spacing: 0.01em; }}
+.badge-blocked {{ background: #7a2e2e; }}
+.badge-open {{ background: var(--bronze); color: var(--slate); }}
+.card-action {{ margin-top: 0.7rem; }}
+.empty-state {{ border-left: 4px solid var(--bronze); }}
+.button.primary {{ padding: 0.72rem 1.15rem; font-weight: 600; }}
 details.plain {{ margin: 0.35rem 0 0.75rem; }}
 details.plain summary {{ cursor: pointer; }}
 .assistant-reply {{ background: white; border-left: 4px solid var(--bronze); padding: 0.75rem 1rem; margin: 0.6rem 0; }}
@@ -158,10 +168,16 @@ details {{ margin: 0.8rem 0; }}
 summary {{ cursor: pointer; }}
 .bar-track {{ background: var(--stone); height: 0.7rem; margin: 0.25rem 0 0.7rem; }}
 .bar {{ background: var(--bronze); height: 0.7rem; }}
-.journey {{ display: flex; gap: 0.5rem; list-style: none; padding: 0; margin: 0.8rem 0 0.35rem; }}
-.journey li {{ flex: 1; background: white; border: 1px solid var(--stone); border-top: 3px solid var(--stone); padding: 0.45rem 0.6rem; font-weight: 600; }}
-.journey li.current {{ border-top-color: var(--bronze); background: var(--gold); }}
+.journey {{ display: flex; gap: 0.4rem; list-style: none; padding: 0; margin: 0.9rem 0 0.35rem; }}
+.journey li {{ flex: 1; background: white; border: 1px solid var(--stone); border-top: 4px solid var(--stone); padding: 0.55rem 0.6rem; font-weight: 600; text-align: center; }}
+.journey li.done {{ border-top-color: var(--bronze); color: var(--slate); }}
+.journey li.current {{ border-top-color: var(--bronze); background: var(--gold); color: var(--ink); }}
 #results-lead, #advisor-sheet, #market-provenance {{ border-top: 4px solid var(--bronze); }}
+#results-lead {{ padding: 1.25rem 1.4rem 1.4rem; }}
+.figure-block {{ background: var(--ivory); border: 1px solid var(--stone); padding: 0.15rem 1rem 0.4rem; margin-top: 1rem; }}
+#your-next-step {{ border-left: 4px solid var(--bronze); }}
+.advisor-page h2 {{ margin-top: 1.15rem; }}
+.advisor-page .card {{ margin: 0.65rem 0; }}
 @media (max-width: 800px) {{
   .shell {{ flex-direction: column; }}
   .sidebar {{ width: 100%; flex-basis: auto; }}
@@ -273,11 +289,11 @@ def dashboard(
         step = _your_next_step(focus)
     else:
         empty = """
-<div class="card" id="your-assessments-empty">
+<div class="card empty-state" id="your-assessments-empty">
 <h2>No assessments yet</h2>
 <p>You have not created an assessment. Blank fields stay blank until you enter them. Nothing is copied from the official baseline.</p>
 <p><strong>What to do first:</strong> Choose Start a new assessment. Say whether this is a startup idea or an existing business. Save the draft, then fill the blank required fields.</p>
-<p><a class="button" href="/assessments/new">Start a new assessment</a></p>
+<p><a class="button primary" href="/assessments/new">Start a new assessment</a></p>
 </div>
 """
     if surface == "assessments":
@@ -294,7 +310,7 @@ def dashboard(
 {heading}
 {_SURFACE_NOTE}
 <p class="muted">These are the assessments this account created. This list does not grant investor-ready status. An indicative assessment is shown after Analyze. It does not override engine flags or human review. No feasibility score is calculated. An owner can create a read-only share. The shared page cannot edit or approve the assessment.</p>
-<p><a class="button" href="/assessments/new">Start a new assessment</a></p>
+<p><a class="button primary" href="/assessments/new">Start a new assessment</a></p>
 {empty}
 {step}
 {items}
@@ -315,26 +331,26 @@ def _history_card(item: dict[str, Any]) -> str:
     assessment_id = escape(str(item.get("id") or ""))
     if result.get("engine_ran"):
         action = (
-            f'<a class="button" href="/assessments/{assessment_id}/results">View Results</a>'
+            f'<a class="button primary" href="/assessments/{assessment_id}/results">View Results</a>'
         )
         gate = _gate_line(result)
     else:
-        action = f'<a class="button" href="/assessments/{assessment_id}#intake">Continue Intake</a>'
+        action = f'<a class="button primary" href="/assessments/{assessment_id}#intake">Continue Intake</a>'
         gate = ""
     kind = _card_kind(item)
     kind_line = f'<p class="muted">{escape(kind)}</p>' if kind else ""
     return f"""
-<div class="card">
-<p><strong>{escape(str(item.get("business_name") or "Untitled"))}</strong></p>
+<article class="card assessment-card">
+<h2 class="card-title">{escape(str(item.get("business_name") or "Untitled"))}</h2>
 {kind_line}
-<p><strong>Business stage:</strong> {escape(_stage_label(item))}</p>
-<p><strong>Last updated:</strong> {escape(str(item.get("updated_at") or "not recorded"))}</p>
+<p class="card-meta"><strong>Business stage:</strong> {escape(_stage_label(item))}</p>
 {gate}
-<p>{escape(_engine_status_line(result))}</p>
-<p>{action}</p>
+<p class="status-line">{escape(_engine_status_line(result))}</p>
+<p class="card-updated"><strong>Last updated:</strong> {escape(str(item.get("updated_at") or "not recorded"))}</p>
+<p class="card-action">{action}</p>
 <p><a href="/assessments/{assessment_id}#assistant">Ask about this assessment</a></p>
 <p class="muted">This card does not grant investor-ready status.</p>
-</div>
+</article>
 """
 
 
@@ -365,10 +381,15 @@ def _gate_line(result: dict[str, Any]) -> str:
     from app.indicative_score import indicative_score
 
     score = indicative_score(result)
+    status = str(score.get("gate_status") or "")
+    band = str(score.get("band") or "")
+    tone = "blocked" if status == "Blocked" else "open" if status == "Open" else "plain"
     return (
-        f"<p><strong>Gate status:</strong> {escape(str(score.get('gate_status') or ''))}. "
-        f"<strong>Band:</strong> {escape(str(score.get('band') or ''))}.</p>"
-        + _gate_gloss(str(score.get("gate_status") or ""), str(score.get("band") or ""))
+        f'<p class="badges"><span class="badge badge-{tone}">Gate {escape(status)}</span>'
+        f'<span class="badge">Band {escape(band)}</span></p>'
+        f"<p><strong>Gate status:</strong> {escape(status)}. "
+        f"<strong>Band:</strong> {escape(band)}.</p>"
+        + _gate_gloss(status, band)
         + "<p class=\"muted\">Indicative assessment — market validity, financial viability, and "
         "stewardship readiness. Does not override engine flags or human review.</p>"
     )
@@ -432,9 +453,16 @@ def _gate_gloss(status: str, band: str) -> str:
 def _journey_progress(current: str) -> str:
     """Informational stages. The marker does not write a flag or a recommendation."""
     steps = (("intake", "Intake"), ("analyze", "Analyze"), ("review", "Review"))
+    order = [key for key, _label in steps]
+    index = order.index(current) if current in order else 0
     items = []
-    for key, label in steps:
-        marker = ' class="current" aria-current="step"' if key == current else ""
+    for position, (key, label) in enumerate(steps):
+        if key == current:
+            marker = ' class="current" aria-current="step"'
+        elif position < index:
+            marker = ' class="done"'
+        else:
+            marker = ""
         items.append(f"<li{marker}>{label}</li>")
     return (
         '<ol class="journey" id="journey-progress">'
@@ -1135,12 +1163,14 @@ def results_page(
 {_indicative_block(result, notes)}
 {_your_next_step(record)}
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
+<div class="figure-block">
 <h2>Key engine figures</h2>
 <h2>Monthly base and downside</h2>{financial}
 <h2>Sources and uses, scenarios, and DSCR</h2>
 {_plain("sources_and_uses")}
 {_plain("dscr")}
 {projection}
+</div>
 </div>
 {links}
 {_scenario_comparison(record, result)}
@@ -2832,6 +2862,7 @@ def advisor_summary_page(
             "request review, or approve it. It does not grant investor-ready status.</div>"
         )
     body = f"""
+<div class="advisor-page">
 <h1>Advisor Summary</h1>
 {downloads}
 {_SURFACE_NOTE}
@@ -2877,6 +2908,7 @@ def advisor_summary_page(
 <p><strong>Limitations:</strong> {escape(str(provenance.get('limitations') or ''))}</p>
 <p>Educational notes are not engine inputs. This view does not change the stored assessment.</p>
 {_LIMITATIONS}
+</div>
 """
     return layout("Advisor Summary", body, printable=printable, active=active)
 
