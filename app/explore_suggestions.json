@@ -1,199 +1,200 @@
 {
-  "guidance": "Examples only. Guidance. These phrases are not market facts and do not change an engine result.",
-  "general": {
-    "development_stage": [
-      "Idea",
-      "Concept",
-      "Startup",
-      "Early revenue",
-      "Operating",
-      "Expanding"
-    ],
-    "products_services": [
-      "The main product or service you would sell first",
-      "A second offer you might add later"
-    ],
-    "target_customers": [
-      "The person or business most likely to pay first",
-      "A nearby or online group you would serve"
-    ],
-    "competition": [
-      "The closest alternative a customer would choose instead",
-      "A larger option in the same category"
-    ]
-  },
+  "version": "0.3",
+  "description": "Local suggestion database for RUGD Explore intake. All values are examples only and do not affect engine results or flags.",
   "industries": [
     {
       "name": "Restaurant",
-      "aliases": ["cafe", "coffee shop", "diner", "bakery"],
-      "keywords": ["food service", "dining"],
-      "search_terms": ["restaurant", "cafe", "diner", "coffee shop"],
-      "development_stage": ["Idea", "Concept", "Startup", "Early revenue", "Operating", "Expanding"],
-      "products_services": {
-        "idea": ["A short sample menu of lunch plates"],
-        "startup": ["Counter service with a fixed lunch menu"],
-        "operating": ["The current lunch and dinner menu"],
-        "expanding": ["The same menu offered at a second location"],
-        "default": ["Lunch and dinner service for guests on site"]
-      },
-      "target_customers": {
-        "idea": ["People nearby who would try a first menu"],
-        "startup": ["Nearby workers and residents for the opening weeks"],
-        "operating": ["Current weekday lunch guests"],
-        "expanding": ["Guests who already visit, plus a new neighborhood"],
-        "default": ["Nearby residents and weekday lunch guests"]
-      },
-      "competition": {
-        "default": ["Other independent restaurants a guest could choose instead"]
-      }
+      "aliases": ["food", "cafe", "dining", "bar", "pub", "eatery", "bistro"],
+      "keywords": ["restaurant", "food service", "dining", "cafe", "bar", "kitchen", "hospitality", "menu", "seating"],
+      "search_terms": ["restaurant startup", "cafe business", "food truck", "bar concept", "restaurant market"],
+      "development_stages": ["idea", "planning", "startup", "operating", "expanding"],
+      "products_services": [
+        "Full-service dining",
+        "Quick service / fast casual",
+        "Coffee and bakery",
+        "Bar and lounge",
+        "Food truck",
+        "Catering",
+        "Takeout and delivery focused"
+      ],
+      "target_customers": [
+        "Local residents",
+        "Office workers",
+        "Tourists",
+        "Families",
+        "Young professionals",
+        "Late-night crowd"
+      ],
+      "competition": [
+        "Other local restaurants in the same price range",
+        "National chains",
+        "Food delivery platforms",
+        "Grocery prepared foods"
+      ]
     },
     {
       "name": "Retail",
-      "aliases": ["boutique", "store"],
-      "keywords": ["retail shop", "merchandise"],
-      "search_terms": ["retail", "boutique", "store"],
-      "development_stage": ["Idea", "Concept", "Startup", "Early revenue", "Operating", "Expanding"],
-      "products_services": {
-        "idea": ["A first assortment you would test with nearby shoppers"],
-        "expanding": ["The same goods offered in a second shop"],
-        "default": ["A small set of goods on the shelf"]
-      },
-      "target_customers": {
-        "default": ["Nearby shoppers who buy this kind of good"]
-      },
-      "competition": {
-        "default": ["Other local shops selling a similar good"]
-      }
+      "aliases": ["store", "shop", "boutique", "ecommerce", "retailer"],
+      "keywords": ["retail", "store", "shop", "merchandise", "inventory", "ecommerce", "boutique", "point of sale"],
+      "search_terms": ["retail store", "boutique business", "ecommerce shop", "specialty retail", "retail market"],
+      "development_stages": ["idea", "planning", "startup", "operating", "expanding"],
+      "products_services": [
+        "Specialty retail",
+        "Apparel",
+        "Home goods",
+        "Gift shop",
+        "Online store",
+        "Pop-up retail"
+      ],
+      "target_customers": [
+        "Local shoppers",
+        "Tourists",
+        "Online buyers",
+        "Gift buyers",
+        "Repeat local customers"
+      ],
+      "competition": [
+        "National chains",
+        "Amazon and online retailers",
+        "Other local specialty stores",
+        "Big-box retailers"
+      ]
     },
     {
       "name": "Professional services",
-      "aliases": ["consulting", "accounting", "law firm"],
-      "keywords": ["legal services", "advisory"],
-      "search_terms": ["consulting", "accounting", "professional services"],
-      "development_stage": ["Idea", "Concept", "Startup", "Early revenue", "Operating", "Expanding"],
-      "products_services": {
-        "default": ["A fixed-scope professional engagement"]
-      },
-      "target_customers": {
-        "default": ["Local businesses that hire this kind of help"]
-      },
-      "competition": {
-        "default": ["Other local firms a client could hire instead"]
-      }
+      "aliases": ["consulting", "agency", "advisory", "legal", "accounting", "firm"],
+      "keywords": ["consulting", "professional services", "agency", "advisory", "client", "retainer", "expertise"],
+      "search_terms": ["consulting firm", "marketing agency", "accounting practice", "professional services business"],
+      "development_stages": ["idea", "planning", "startup", "operating", "expanding"],
+      "products_services": [
+        "Consulting",
+        "Marketing agency",
+        "Accounting / bookkeeping",
+        "Legal services",
+        "Design studio",
+        "IT services"
+      ],
+      "target_customers": [
+        "Small businesses",
+        "Local companies",
+        "Startups",
+        "Individuals",
+        "Mid-size firms"
+      ],
+      "competition": [
+        "Other local firms",
+        "Freelance platforms",
+        "Larger regional firms",
+        "In-house teams"
+      ]
+    },
+    {
+      "name": "Health care",
+      "aliases": ["medical", "clinic", "dental", "wellness", "therapy", "healthcare"],
+      "keywords": ["healthcare", "clinic", "medical", "patients", "practice", "wellness", "therapy", "provider"],
+      "search_terms": ["medical clinic", "dental practice", "wellness center", "healthcare startup", "therapy practice"],
+      "development_stages": ["idea", "planning", "startup", "operating", "expanding"],
+      "products_services": [
+        "Primary care clinic",
+        "Specialty clinic",
+        "Dental practice",
+        "Physical therapy",
+        "Wellness / med spa",
+        "Mental health practice"
+      ],
+      "target_customers": [
+        "Local residents",
+        "Patients with specific conditions",
+        "Families",
+        "Insurance-covered patients",
+        "Self-pay clients"
+      ],
+      "competition": [
+        "Other local clinics",
+        "Hospital systems",
+        "Telehealth providers",
+        "National chains"
+      ]
     },
     {
       "name": "Construction",
-      "aliases": ["contractor", "plumbing"],
-      "keywords": ["trades", "electrical contractor"],
-      "search_terms": ["construction", "contractor", "plumbing"],
-      "development_stage": ["Idea", "Startup", "Early revenue", "Operating", "Expanding"],
-      "products_services": {
-        "default": ["A quoted trade job for a local property"]
-      },
-      "target_customers": {
-        "default": ["Property owners who hire this trade"]
-      },
-      "competition": {
-        "default": ["Other local contractors a customer could call"]
-      }
-    },
-    {
-      "name": "Software",
-      "aliases": ["saas"],
-      "keywords": ["technology"],
-      "search_terms": ["software", "saas", "technology"],
-      "development_stage": ["Idea", "Prototype", "Beta", "Early revenue", "Operating"],
-      "products_services": {
-        "idea": ["A sketched workflow you would test with a few users"],
-        "startup": ["A hosted software subscription for a named workflow"],
-        "default": ["A hosted software subscription for a named workflow"]
-      },
-      "target_customers": {
-        "default": ["Teams that would pay for this workflow"]
-      },
-      "competition": {
-        "default": ["Other software a buyer could subscribe to instead"]
-      }
-    },
-    {
-      "name": "Lodging",
-      "aliases": ["hotel", "motel", "inn"],
-      "keywords": ["short term rental", "hospitality stay"],
-      "search_terms": ["hotel", "lodging", "inn"],
-      "development_stage": ["Idea", "Startup", "Early revenue", "Operating", "Expanding"],
-      "products_services": {
-        "default": ["Nightly rooms for short stays"]
-      },
-      "target_customers": {
-        "default": ["Travelers who need a short stay in this place"]
-      },
-      "competition": {
-        "default": ["Other places to stay a traveler could book"]
-      }
-    },
-    {
-      "name": "Healthcare",
-      "aliases": ["clinic", "dental"],
-      "keywords": ["medical practice"],
-      "search_terms": ["clinic", "healthcare", "dental"],
-      "development_stage": ["Idea", "Startup", "Early revenue", "Operating", "Expanding"],
-      "products_services": {
-        "default": ["An appointment-based clinical visit"]
-      },
-      "target_customers": {
-        "default": ["Patients who would book this kind of visit"]
-      },
-      "competition": {
-        "default": ["Other clinics a patient could visit instead"]
-      }
+      "aliases": ["contractor", "builder", "remodeling", "trades", "construction"],
+      "keywords": ["construction", "contractor", "building", "remodeling", "trades", "project", "site"],
+      "search_terms": ["construction company", "remodeling contractor", "building business", "trade contractor"],
+      "development_stages": ["idea", "planning", "startup", "operating", "expanding"],
+      "products_services": [
+        "Residential remodeling",
+        "New home construction",
+        "Commercial construction",
+        "Specialty trades",
+        "Handyman services"
+      ],
+      "target_customers": [
+        "Homeowners",
+        "Property investors",
+        "Commercial property owners",
+        "General contractors"
+      ],
+      "competition": [
+        "Other local contractors",
+        "National builders",
+        "DIY and big-box services",
+        "Specialty trade competitors"
+      ]
     },
     {
       "name": "Manufacturing",
-      "aliases": ["factory"],
-      "keywords": ["production"],
-      "search_terms": ["manufacturing", "factory"],
-      "development_stage": ["Idea", "Prototype", "Startup", "Early revenue", "Operating", "Expanding"],
-      "products_services": {
-        "default": ["A made-to-order production run"]
-      },
-      "target_customers": {
-        "default": ["Businesses that would order this product"]
-      },
-      "competition": {
-        "default": ["Other makers a buyer could order from"]
-      }
+      "aliases": ["maker", "production", "factory", "fabrication", "manufacturer"],
+      "keywords": ["manufacturing", "production", "fabrication", "maker", "factory", "assembly", "output"],
+      "search_terms": ["manufacturing business", "fabrication shop", "small batch production", "contract manufacturing"],
+      "development_stages": ["idea", "planning", "startup", "operating", "expanding"],
+      "products_services": [
+        "Custom fabrication",
+        "Small-batch production",
+        "Contract manufacturing",
+        "Specialty products"
+      ],
+      "target_customers": [
+        "Other businesses",
+        "Distributors",
+        "Direct-to-consumer buyers",
+        "Industrial customers"
+      ],
+      "competition": [
+        "Other regional manufacturers",
+        "Overseas suppliers",
+        "Larger established producers"
+      ]
     },
     {
-      "name": "Education",
-      "aliases": ["tutoring", "school"],
-      "keywords": ["training"],
-      "search_terms": ["education", "tutoring", "training"],
-      "development_stage": ["Idea", "Concept", "Startup", "Early revenue", "Operating", "Expanding"],
-      "products_services": {
-        "default": ["A scheduled class or training session"]
-      },
-      "target_customers": {
-        "default": ["Learners who would enroll in this class"]
-      },
-      "competition": {
-        "default": ["Other classes a learner could take instead"]
-      }
-    },
-    {
-      "name": "Personal services",
-      "aliases": ["salon", "barber", "gym"],
-      "keywords": ["fitness studio"],
-      "search_terms": ["salon", "barber", "gym"],
-      "development_stage": ["Idea", "Startup", "Early revenue", "Operating", "Expanding"],
-      "products_services": {
-        "default": ["An appointment for a personal service"]
-      },
-      "target_customers": {
-        "default": ["Nearby clients who book this service"]
-      },
-      "competition": {
-        "default": ["Other local providers a client could book"]
-      }
+      "name": "Accommodation",
+      "aliases": ["hotel", "lodging", "short-term rental", "inn", "hospitality"],
+      "keywords": ["lodging", "hotel", "accommodation", "hospitality", "guests", "rental", "inn"],
+      "search_terms": ["hotel business", "short term rental", "bed and breakfast", "lodging startup", "boutique hotel"],
+      "development_stages": ["idea", "planning", "startup", "operating", "expanding"],
+      "products_services": [
+        "Hotel / motel",
+        "Bed and breakfast",
+        "Short-term rentals",
+        "Boutique lodging"
+      ],
+      "target_customers": [
+        "Tourists",
+        "Business travelers",
+        "Weekend visitors",
+        "Event attendees"
+      ],
+      "competition": [
+        "Other local lodging",
+        "Airbnb and short-term rentals",
+        "National hotel chains"
+      ]
     }
-  ]
+  ],
+  "general": {
+    "development_stages": ["idea", "planning", "startup", "operating", "expanding", "mature"],
+    "fallback_products": ["Custom products or services", "Consulting", "Retail sales", "Online offering"],
+    "fallback_customers": ["Local customers", "Online customers", "Business customers", "Individuals"],
+    "fallback_competition": ["Other local businesses", "Online competitors", "National chains", "Do-it-yourself alternatives"]
+  }
 }

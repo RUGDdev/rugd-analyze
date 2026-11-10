@@ -444,6 +444,12 @@ Further work on production authentication, real market data, an approved scoring
 
 ## Progress — 2026-11-10 suggestion catalog
 
-- Explore suggestions are loaded from `app/explore_suggestions.json`. A match uses the industry name, aliases, keywords, and search terms. An unmatched industry uses the general fallbacks. The chips update when industry or development stage changes on the form.
+- Explore suggestions are loaded from `app/explore_suggestions.json`. A match uses the industry name, aliases, and keywords. An unmatched industry uses the general fallbacks. The chips update when the industry changes on the form.
 - The same four fields are covered. A selected example stays a user-supplied assumption. It does not fill a financial field or change a flag, demand evidence, or investor readiness.
+- The unittest suite is 155 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-10 provided suggestion catalog
+
+- `app/explore_suggestions.json` is the provided 0.3 local database. Industries cover restaurant, retail, professional services, health care, construction, manufacturing, and accommodation. Each list is examples only.
+- A typed industry matches the name, aliases, and keywords. Search terms stay in the file and are not used for matching. The longest phrase wins. An unmatched industry uses the general fallbacks, including the mature stage. The catalog does not add a stage-specific product list.
 - The unittest suite is 155 tests, all passing. The official baseline intake was not edited.

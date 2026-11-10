@@ -481,5 +481,13 @@ Owner input required before replacing `billing_hooks`:
 - Date: 2026-11-10
 - Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
 - The example phrases are stored in `app/explore_suggestions.json`. Each industry has a name, aliases, keywords, search terms, and example lists for products and services, target customers, and competition. A general block is the fallback.
-- A strong match is a whole word or phrase from the name, an alias, a keyword, or a search term. The chips update from the industry and development stage typed on the form. Selecting one still writes user-supplied text only.
+- A strong match is a whole word or phrase from the name, an alias, or a keyword. Search terms stay in the file and are not used for matching. The chips update from the industry typed on the form. Selecting one still writes user-supplied text only.
 - A suggestion does not fill a financial field, invent a number, clear a recommend-against flag, change demand evidence, or change investor readiness. The official baseline intake stays unchanged.
+
+## Decision: Provided suggestion catalog
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- `app/explore_suggestions.json` is the provided version 0.3 database. Its industry lists and general fallbacks are examples only. The description in that file says the values do not affect engine results or flags.
+- Matching uses the name, aliases, and keywords. Search terms stay in the file and are not used for matching. The longest whole phrase wins. An equal length prefers a name or alias over a keyword. Unmatched text uses the general fallbacks.
+- The catalog does not contain a separate product list for each development stage, so a stage does not invent a narrower list. Selecting a chip still writes user-supplied text only. The official baseline intake stays unchanged.

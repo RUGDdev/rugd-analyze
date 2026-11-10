@@ -1130,11 +1130,12 @@ _SUGGESTION_SCRIPT = """
   if (!catalogNode) return;
   var catalog = JSON.parse(catalogNode.textContent);
   var fields = {
-    stage: "development_stage",
-    products: "products_services",
-    customers: "target_customers",
-    competition: "competition"
+    stage: ["development_stages", "development_stages"],
+    products: ["products_services", "fallback_products"],
+    customers: ["target_customers", "fallback_customers"],
+    competition: ["competition", "fallback_competition"]
   };
+  var ranks = {name: 3, aliases: 2, keywords: 1};
   var allowed = {stage: true, products: true, customers: true, competition: true};
 
   function words(value) {
@@ -1145,38 +1146,36 @@ _SUGGESTION_SCRIPT = """
     var text = words(value);
     return text ? " " + text + " " : "";
   }
-  function stageBucket(stage) {
-    var folded = words(stage);
-    if (!folded) return "default";
-    if (folded.indexOf("expanding") !== -1 || folded.indexOf("expansion") !== -1 || folded.indexOf("second location") !== -1 || folded.indexOf("scale") !== -1) return "expanding";
-    if (folded.indexOf("startup") !== -1 || folded.indexOf("pre opening") !== -1 || folded.indexOf("preopening") !== -1 || folded.indexOf("prototype") !== -1 || folded.indexOf("beta") !== -1 || folded.indexOf("buildout") !== -1) return "startup";
-    if (folded.indexOf("early revenue") !== -1 || folded.indexOf("operating") !== -1 || folded.indexOf("open") !== -1) return "operating";
-    if (folded.indexOf("idea") !== -1 || folded.indexOf("concept") !== -1) return "idea";
-    return "default";
-  }
   function matchIndustry(industry) {
     var haystack = padded(industry);
     if (!haystack) return null;
     var best = null;
-    var bestLength = 0;
+    var bestScore = 0;
     (catalog.industries || []).forEach(function (record) {
-      var phrases = [record.name].concat(record.aliases || [], record.keywords || [], record.search_terms || []);
-      phrases.forEach(function (phrase) {
-        var needle = padded(phrase);
-        if (needle && haystack.indexOf(needle) !== -1 && needle.length > bestLength) {
-          best = record;
-          bestLength = needle.length;
-        }
+      var groups = [
+        ["name", [record.name]],
+        ["aliases", record.aliases || []],
+        ["keywords", record.keywords || []]
+      ];
+      groups.forEach(function (group) {
+        group[1].forEach(function (phrase) {
+          var needle = padded(phrase);
+          if (needle && haystack.indexOf(needle) !== -1) {
+            var score = needle.length * 10 + ranks[group[0]];
+            if (score > bestScore) {
+              best = record;
+              bestScore = score;
+            }
+          }
+        });
       });
     });
     return best;
   }
-  function pick(record, key, bucket) {
-    var general = (catalog.general || {})[key] || [];
-    var source = record && record[key] ? record[key] : general;
-    if (Object.prototype.toString.call(source) === "[object Array]") return source;
-    var chosen = source[bucket] || source["default"];
-    if (chosen && chosen.length) return chosen;
+  function pick(record, pair) {
+    var general = (catalog.general || {})[pair[1]] || [];
+    var source = record && record[pair[0]];
+    if (Object.prototype.toString.call(source) === "[object Array]" && source.length) return source;
     return general;
   }
   function render(box, examples) {
@@ -1198,12 +1197,10 @@ _SUGGESTION_SCRIPT = """
   }
   function refresh() {
     var industry = document.querySelector('[name="industry"]');
-    var stage = document.querySelector('[name="stage"]');
     var record = matchIndustry(industry ? industry.value : "");
-    var bucket = stageBucket(stage ? stage.value : "");
     document.querySelectorAll("[data-suggest]").forEach(function (box) {
       var field = box.getAttribute("data-suggest");
-      render(box, pick(record, fields[field], bucket));
+      render(box, pick(record, fields[field]));
     });
   }
   document.addEventListener("click", function (event) {

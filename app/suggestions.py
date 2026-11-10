@@ -21,12 +21,15 @@ SUGGESTION_NOTE = (
 
 SUGGESTION_FIELDS = ("stage", "products", "customers", "competition")
 
+# Form field, industry list, general fallback list.
 _JSON_KEYS = {
-    "stage": "development_stage",
-    "products": "products_services",
-    "customers": "target_customers",
-    "competition": "competition",
+    "stage": ("development_stages", "development_stages"),
+    "products": ("products_services", "fallback_products"),
+    "customers": ("target_customers", "fallback_customers"),
+    "competition": ("competition", "fallback_competition"),
 }
+
+_PHRASE_RANK = {"name": 3, "aliases": 2, "keywords": 1}
 
 
 @lru_cache(maxsize=1)
@@ -47,18 +50,25 @@ def suggestions_for(industry: str, stage: str = "") -> dict[str, list[str]]:
     """Example phrases for the four guided fields.
 
     A strong match is a whole word or phrase from the industry name, an alias,
-    a keyword, or a search term. Anything else uses the general fallbacks.
+    or a keyword. Search terms stay in the file and are not used for matching.
+    The longest phrase wins. An equal length prefers a name or alias over a keyword.
+    Anything else uses the general fallbacks.
+    The supplied stage does not add examples that are not in the catalog.
     """
+    del stage  # This catalog lists examples by industry. Stage does not invent a narrower list.
     catalog = load_catalog()
     general = catalog.get("general") if isinstance(catalog.get("general"), dict) else {}
     record = _match_industry(industry, catalog)
-    bucket = _stage_bucket(stage)
     chosen: dict[str, list[str]] = {}
-    for field, key in _JSON_KEYS.items():
-        source = record.get(key) if record else None
-        if not source:
-            source = general.get(key) or []
-        chosen[field] = _pick(source, bucket, general.get(key) or [])
+    for field, (industry_key, general_key) in _JSON_KEYS.items():
+        source = record.get(industry_key) if record else None
+        fallback = general.get(general_key) or []
+        if isinstance(source, list) and source:
+            chosen[field] = [str(item) for item in source]
+        elif isinstance(fallback, list):
+            chosen[field] = [str(item) for item in fallback]
+        else:
+            chosen[field] = []
     return chosen
 
 
@@ -67,7 +77,7 @@ def _match_industry(industry: str, catalog: dict) -> dict | None:
     if not folded:
         return None
     padded = f" {folded} "
-    best_length = 0
+    best_score = 0
     best: dict | None = None
     industries = catalog.get("industries")
     if not isinstance(industries, list):
@@ -75,48 +85,24 @@ def _match_industry(industry: str, catalog: dict) -> dict | None:
     for record in industries:
         if not isinstance(record, dict):
             continue
-        for phrase in _phrases(record):
+        for kind, phrase in _phrases(record):
             needle = f" {_words(phrase)} "
-            if needle.strip() and needle in padded and len(needle) > best_length:
-                best_length = len(needle)
+            if not needle.strip() or needle not in padded:
+                continue
+            score = len(needle) * 10 + _PHRASE_RANK[kind]
+            if score > best_score:
+                best_score = score
                 best = record
     return best
 
 
-def _phrases(record: dict) -> list[str]:
-    phrases = [str(record.get("name") or "")]
-    for key in ("aliases", "keywords", "search_terms"):
+def _phrases(record: dict) -> list[tuple[str, str]]:
+    phrases = [("name", str(record.get("name") or ""))]
+    for key in ("aliases", "keywords"):
         values = record.get(key) or []
         if isinstance(values, list):
-            phrases.extend(str(item) for item in values)
-    return [phrase for phrase in phrases if phrase.strip()]
-
-
-def _pick(source: object, bucket: str, fallback: object) -> list[str]:
-    if isinstance(source, list):
-        return [str(item) for item in source]
-    if isinstance(source, dict):
-        picked = source.get(bucket) or source.get("default")
-        if isinstance(picked, list) and picked:
-            return [str(item) for item in picked]
-    if isinstance(fallback, list):
-        return [str(item) for item in fallback]
-    return []
-
-
-def _stage_bucket(stage: str) -> str:
-    folded = _words(stage)
-    if not folded:
-        return "default"
-    if any(token in folded for token in ("expanding", "expansion", "second location", "scale")):
-        return "expanding"
-    if any(token in folded for token in ("startup", "pre opening", "preopening", "prototype", "beta", "buildout")):
-        return "startup"
-    if any(token in folded for token in ("early revenue", "operating", "open")):
-        return "operating"
-    if any(token in folded for token in ("idea", "concept")):
-        return "idea"
-    return "default"
+            phrases.extend((key, str(item)) for item in values)
+    return [(kind, phrase) for kind, phrase in phrases if phrase.strip()]
 
 
 def _words(value: str) -> str:
