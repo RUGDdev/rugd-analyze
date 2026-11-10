@@ -491,3 +491,10 @@ Owner input required before replacing `billing_hooks`:
 - `app/explore_suggestions.json` is the provided version 0.3 database. Its industry lists and general fallbacks are examples only. The description in that file says the values do not affect engine results or flags.
 - Matching uses the name, aliases, and keywords. Search terms stay in the file and are not used for matching. The longest whole phrase wins. An equal length prefers a name or alias over a keyword. Unmatched text uses the general fallbacks.
 - The catalog does not contain a separate product list for each development stage, so a stage does not invent a narrower list. Selecting a chip still writes user-supplied text only. The official baseline intake stays unchanged.
+
+## Decision: Hover suggestions
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- The example list for development stage, products and services, target customers, and competition is hidden until that field is hovered or focused. It is labeled Examples only. Choosing an example fills the field and closes the list. The field still accepts free text.
+- The list still follows the industry name, aliases, and keywords, or the general fallbacks. It does not change a flag, a recommendation, or investor readiness. The official baseline intake stays unchanged.

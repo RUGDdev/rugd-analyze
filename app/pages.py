@@ -160,7 +160,10 @@ button, .button {{ background: var(--ink); color: var(--ivory); border: 0; paddi
 button:hover, .button:hover {{ background: var(--bronze); color: var(--slate); }}
 button.chip, .chip {{ width: auto; background: white; color: var(--ink); border: 1px solid var(--bronze); font-size: 0.88rem; font-weight: 400; padding: 0.28rem 0.65rem; margin: 0.2rem 0.4rem 0.2rem 0; }}
 button.chip:hover {{ background: var(--gold); color: var(--ink); }}
-.suggest {{ background: white; border: 1px solid var(--stone); border-left: 4px solid var(--bronze); padding: 0.35rem 0.75rem 0.5rem; margin: 0.2rem 0 0.9rem; }}
+.field-suggest {{ position: relative; }}
+.suggest {{ display: none; position: absolute; z-index: 5; left: 0; right: 0; top: 100%; background: white; border: 1px solid var(--stone); border-left: 4px solid var(--bronze); padding: 0.35rem 0.75rem 0.55rem; box-shadow: 0 2px 8px rgba(38, 55, 70, 0.16); }}
+.field-suggest:hover > .suggest, .field-suggest:focus-within > .suggest {{ display: block; }}
+.field-suggest.is-closed > .suggest, .field-suggest.is-closed:hover > .suggest, .field-suggest.is-closed:focus-within > .suggest {{ display: none; }}
 .suggest-note {{ color: #5c6b76; font-size: 0.86rem; margin: 0.35rem 0 0.6rem; }}
 .muted {{ color: #5c6b76; font-size: 0.92rem; }}
 table {{ width: 100%; border-collapse: collapse; background: white; margin: 0.6rem 0 1rem; }}
@@ -1002,11 +1005,12 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
                 )
         listing = "".join(chips)
         return (
-            text(name, label, area=area)
+            '<div class="field-suggest">'
+            + text(name, label, area=area)
             + f'<div class="suggest" data-suggest="{escape(name)}">'
             + '<p class="muted">Examples only.</p>'
             + listing
-            + "</div>"
+            + "</div></div>"
         )
 
     def choice(name: str, label: str) -> str:
@@ -1211,7 +1215,19 @@ _SUGGESTION_SCRIPT = """
     var field = document.querySelector('[name="' + name + '"]');
     if (!field || field.disabled) return;
     field.value = chip.getAttribute("data-example") || "";
+    var wrap = chip.closest ? chip.closest(".field-suggest") : null;
+    if (wrap) wrap.classList.add("is-closed");
+    field.blur();
     if (name === "stage") refresh();
+  });
+  document.addEventListener("mousedown", function (event) {
+    var chip = event.target.closest ? event.target.closest("button.chip") : null;
+    if (chip) event.preventDefault();
+  });
+  document.querySelectorAll(".field-suggest").forEach(function (wrap) {
+    wrap.addEventListener("mouseleave", function () {
+      wrap.classList.remove("is-closed");
+    });
   });
   var industryField = document.querySelector('[name="industry"]');
   var stageField = document.querySelector('[name="stage"]');
