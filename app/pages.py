@@ -27,6 +27,7 @@ from app.market import (
     load_market,
     market_framework,
 )
+from app.suggestions import SUGGESTION_NOTE, suggestions_for
 
 _SURFACE_NOTE = (
     '<div class="banner">Local prototype. Not production security. '
@@ -157,6 +158,10 @@ label {{ display: block; margin: 0.7rem 0 0.2rem; font-size: 0.92rem; }}
 input, select, textarea {{ width: 100%; padding: 0.5rem; border: 1px solid var(--stone); background: white; color: var(--ink); font: inherit; }}
 button, .button {{ background: var(--ink); color: var(--ivory); border: 0; padding: 0.55rem 0.9rem; text-decoration: none; display: inline-block; margin: 0.35rem 0.45rem 0.35rem 0; }}
 button:hover, .button:hover {{ background: var(--bronze); color: var(--slate); }}
+button.chip, .chip {{ width: auto; background: var(--ivory); color: var(--ink); border: 1px solid var(--stone); font-size: 0.82rem; font-weight: 400; padding: 0.18rem 0.55rem; margin: 0.15rem 0.35rem 0.15rem 0; }}
+button.chip:hover {{ background: var(--gold); color: var(--ink); }}
+.suggest {{ margin: 0.1rem 0 0.45rem; }}
+.suggest-note {{ color: #5c6b76; font-size: 0.86rem; margin: 0.35rem 0 0.6rem; }}
 .muted {{ color: #5c6b76; font-size: 0.92rem; }}
 table {{ width: 100%; border-collapse: collapse; background: white; margin: 0.6rem 0 1rem; }}
 th {{ text-align: left; padding: 0.5rem 0.55rem; background: var(--slate); color: var(--ivory); font-weight: 600; }}
@@ -973,6 +978,8 @@ def shared_assessment_page(
 
 
 def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
+    examples = suggestions_for(str(profile.get("industry") or ""), str(profile.get("stage") or ""))
+
     def text(name: str, label: str, *, area: bool = False) -> str:
         value = escape(str(profile.get(name) or ""))
         control = (
@@ -981,6 +988,26 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
             else f'<input name="{name}" value="{value}" {locked}>'
         )
         return f"<label>{escape(label)}</label>{control}"
+
+    def _suggested(name: str, label: str, *, area: bool = False) -> str:
+        chips = []
+        for example in examples.get(name) or []:
+            shown = escape(example)
+            if locked:
+                chips.append(f'<span class="chip">{shown}</span>')
+            else:
+                chips.append(
+                    f'<button type="button" class="chip" data-field="{escape(name)}" '
+                    f'data-example="{shown}">{shown}</button>'
+                )
+        listing = "".join(chips)
+        return (
+            text(name, label, area=area)
+            + f'<div class="suggest" data-suggest="{escape(name)}">'
+            + '<p class="muted">Examples</p>'
+            + listing
+            + "</div>"
+        )
 
     def choice(name: str, label: str) -> str:
         current = str(profile.get(name) or "")
@@ -1067,10 +1094,12 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
 {text("concept", "Business concept", area=True)}
 {text("industry", "Industry")}
 {text("market", "Geographic market")}
-{text("stage", "Development stage")}
-{text("products", "Products and services", area=True)}
-{text("customers", "Target customers", area=True)}
-{text("competition", "Competition", area=True)}
+<p class="suggest-note" id="suggestion-note">{escape(SUGGESTION_NOTE)}</p>
+{_suggested("stage", "Development stage")}
+{_suggested("products", "Products and services", area=True)}
+{_suggested("customers", "Target customers", area=True)}
+{_suggested("competition", "Competition", area=True)}
+{_suggestion_script(locked)}
 </details>
 <details open>
 <summary>Demand evidence</summary>
@@ -1091,6 +1120,24 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
 <label><input type="checkbox" name="inputs_are_measured" value="true" {measured} {locked}> These monthly figures are measured</label>
 </details>
 {text("evidence_notes", "Evidence notes", area=True)}
+"""
+
+
+def _suggestion_script(locked: str) -> str:
+    if locked:
+        return ""
+    return """
+<script>
+document.querySelectorAll("button.chip").forEach(function (chip) {
+  chip.addEventListener("click", function () {
+    var name = chip.getAttribute("data-field");
+    var field = document.querySelector('[name="' + name + '"]');
+    if (!field || field.disabled) return;
+    if (name !== "stage" && name !== "products" && name !== "customers" && name !== "competition") return;
+    field.value = chip.getAttribute("data-example") || "";
+  });
+});
+</script>
 """
 
 

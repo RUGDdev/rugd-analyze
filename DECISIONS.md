@@ -467,3 +467,11 @@ Owner input required before replacing `billing_hooks`:
 - Assessment cards, the Intake to Review progress bar, the results lead, and Advisor Summary use clearer spacing and the existing ivory, charcoal, and bronze colors. A badge repeats the stored gate and band. It does not replace them.
 - The progress bar can mark an earlier stage done. That mark does not change a flag, a recommendation, or `human_review_approved`.
 - The official baseline intake stays unchanged.
+
+## Decision: Explore intake suggestions
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- Explore intake offers local example phrases for development stage, products and services, target customers, and competition. The list narrows from the saved industry and, when present, the development stage. The phrases are labeled examples. Selecting one writes that text into the field as a user-supplied assumption.
+- A suggestion does not fill a financial field, invent a number, clear a recommend-against flag, change demand evidence, or change investor readiness. The demand evidence question is unchanged.
+- The official baseline intake stays unchanged. A customer path still cannot set `human_review_approved`.
