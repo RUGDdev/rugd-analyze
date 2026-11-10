@@ -57,6 +57,7 @@ STARTER_QUESTIONS = (
     "What should I do next?",
     "What should I work on next?",
     "What does the recommendation mean?",
+    "What does this gate mean?",
     "Am I investor-ready?",
 )
 
@@ -302,6 +303,13 @@ def _grounded_reply(
                 "Next, read the recommend-against flags and the evidence checklist on this file. "
                 "This reply does not close them."
             )
+    if "gate" in folded:
+        lines.extend(_indicative_reading(result))
+        lines.append(
+            "In everyday words: a blocked gate means a hard recommend-against flag is still active, "
+            "so the recommendation stays do-not-proceed. An open gate is not investor-ready. "
+            "This reply does not change the gate."
+        )
     if "recommend" in folded:
         lines.append(
             f"The stored recommendation is {result.get('recommendation')}. "

@@ -137,6 +137,16 @@ class TestCustomerHome(unittest.TestCase):
         self.assertIn('class="current" aria-current="step">Review', advisor)
         self.assertEqual(analyzed["result"]["recommendation"], "do-not-proceed")
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", analyzed["result"]["blocking_flags"])
+        self.assertIn('id="results-lead"', shown)
+        self.assertIn("Key engine figures", shown)
+        self.assertIn("In everyday words: a hard gate is still closed", shown)
+        self.assertIn("Draft.", advisor)
+        self.assertIn('id="advisor-sheet"', advisor)
+        self.assertIn('id="market-provenance"', advisor)
+        market = market_page()
+        self.assertIn('id="market-provenance"', market)
+        self.assertIn("Source, period, and limits", market)
+        self.assertIn("do not grant investor-ready status", market)
 
     def test_baseline_file_is_unchanged(self) -> None:
         before = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()

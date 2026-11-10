@@ -161,6 +161,7 @@ summary {{ cursor: pointer; }}
 .journey {{ display: flex; gap: 0.5rem; list-style: none; padding: 0; margin: 0.8rem 0 0.35rem; }}
 .journey li {{ flex: 1; background: white; border: 1px solid var(--stone); border-top: 3px solid var(--stone); padding: 0.45rem 0.6rem; font-weight: 600; }}
 .journey li.current {{ border-top-color: var(--bronze); background: var(--gold); }}
+#results-lead, #advisor-sheet, #market-provenance {{ border-top: 4px solid var(--bronze); }}
 @media (max-width: 800px) {{
   .shell {{ flex-direction: column; }}
   .sidebar {{ width: 100%; flex-basis: auto; }}
@@ -367,7 +368,8 @@ def _gate_line(result: dict[str, Any]) -> str:
     return (
         f"<p><strong>Gate status:</strong> {escape(str(score.get('gate_status') or ''))}. "
         f"<strong>Band:</strong> {escape(str(score.get('band') or ''))}.</p>"
-        "<p class=\"muted\">Indicative assessment — market validity, financial viability, and "
+        + _gate_gloss(str(score.get("gate_status") or ""), str(score.get("band") or ""))
+        + "<p class=\"muted\">Indicative assessment — market validity, financial viability, and "
         "stewardship readiness. Does not override engine flags or human review.</p>"
     )
 
@@ -395,6 +397,36 @@ def _base_dscr_present(result: dict[str, Any]) -> bool:
     base = views.get("base") if isinstance(views, dict) else {}
     value = base.get("dscr") if isinstance(base, dict) else None
     return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _draft_label(record: dict[str, Any] | None) -> str:
+    """A visible draft mark when the file is not an approved review."""
+    if (record or {}).get("human_review_approved") is True:
+        return ""
+    return "Draft. "
+
+
+def _gate_gloss(status: str, band: str) -> str:
+    """Everyday words beside the stored gate and band. They do not change either."""
+    status_words = {
+        "Blocked": "In everyday words: a hard gate is still closed, so the recommendation stays do-not-proceed.",
+        "Open": "In everyday words: no hard recommend-against flag is forcing this gate closed. Open is not investor-ready.",
+    }
+    band_words = {
+        "Blocked": "In everyday words: this band follows the closed gate. The number does not override it.",
+        "Strong": "In everyday words: the indicative number is in the strong range. It does not clear a flag.",
+        "Conditional": "In everyday words: the indicative number is in the middle range. It does not clear a flag.",
+        "Weak": "In everyday words: the indicative number is in the low range. It does not clear a flag.",
+    }
+    status_line = status_words.get(
+        status,
+        "In everyday words: this gate reads the stored result. It does not change it.",
+    )
+    band_line = band_words.get(
+        band,
+        "In everyday words: this band is a label on the indicative number. It does not grant investor-ready status.",
+    )
+    return f'<p class="muted">{escape(status_line)}</p><p class="muted">{escape(band_line)}</p>'
 
 
 def _journey_progress(current: str) -> str:
@@ -889,7 +921,7 @@ def shared_assessment_page(
 <h1>Read-only share for {escape(record['business_name'])}</h1>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
-<div class="banner">Read-only share. This link cannot edit the assessment, request review, or approve it. It does not grant investor-ready status.</div>
+<div class="banner">{_draft_label(record)}Read-only share. This link cannot edit the assessment, request review, or approve it. It does not grant investor-ready status.</div>
 {advisor_link}
 <div class="card">
 {standing}
@@ -1098,14 +1130,21 @@ def results_page(
 {_SURFACE_NOTE}
 {_journey_progress(_journey_stage(record))}
 <div class="banner">{escape(standing)}</div>
-{links}
-<div class="card">
+<div class="card" id="results-lead">
 {_view_summary_block(result)}
+{_indicative_block(result, notes)}
+{_your_next_step(record)}
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
+<h2>Key engine figures</h2>
+<h2>Monthly base and downside</h2>{financial}
+<h2>Sources and uses, scenarios, and DSCR</h2>
+{_plain("sources_and_uses")}
+{_plain("dscr")}
+{projection}
 </div>
+{links}
 {_scenario_comparison(record, result)}
 {_evidence_checklist(record, result, notes, return_to="results")}
-{_indicative_block(result, notes)}
 {_assistant_panel(record)}
 {_analyst_panel(record, result)}
 {_LIMITATIONS}
@@ -1118,11 +1157,6 @@ def results_page(
 <h2>Missing information</h2><ul>{missing}</ul>
 {_guidance_section("explore" if str(record.get("tier")) == "explore" else "analyze", result, notes, record)}
 {_tier_research(record, result)}
-<h2>Monthly base and downside</h2>{financial}
-<h2>Sources and uses, scenarios, and DSCR</h2>
-{_plain("sources_and_uses")}
-{_plain("dscr")}
-{projection}
 {links}
 """
     return layout("Results", body)
@@ -1259,6 +1293,7 @@ def _indicative_block(result: dict[str, Any], notes: list[dict[str, Any]] | None
 {_plain("indicative_score")}
 <p><strong>Gate status:</strong> {escape(score['gate_status'])}</p>
 <p><strong>Band:</strong> {escape(score['band'])}</p>
+{_gate_gloss(str(score['gate_status']), str(score['band']))}
 <p><strong>Gate recommendation:</strong> {escape(score['gate_recommendation'])}</p>
 <ul>{rendered}</ul>
 <p class="muted"><strong>Overall number (indicative only):</strong> {score['score']} of 100</p>
@@ -1756,6 +1791,7 @@ def _synthetic_market_page(
     demonstration="Market Intelligence (demonstration)",
 )}
 {_SURFACE_NOTE}
+{_market_provenance_card(view)}
 <div class="banner">Demonstration only. This page does not load a live market feed. Not live monitoring.</div>
 {_plain("market_snapshot")}
 <form method="get" action="/market">
@@ -1812,6 +1848,7 @@ def _public_market_page(
     "A public extract is shown only when one was requested. The figures do not clear a flag.",
 )}
 {_SURFACE_NOTE}
+{_market_provenance_card(view)}
 <div class="banner">{escape(view['label'])}</div>
 {_plain("market_snapshot")}
 <form method="get" action="/market">
@@ -1855,6 +1892,7 @@ def _fallback_market_page(
     demonstration="Market Intelligence (demonstration)",
 )}
 {_SURFACE_NOTE}
+{_market_provenance_card(view)}
 <div class="banner">{escape(view['label'])}</div>
 {_plain("market_snapshot")}
 <form method="get" action="/market">
@@ -1898,6 +1936,37 @@ def _synthetic_view(snapshot: dict[str, Any]) -> dict[str, Any]:
         "snapshot": snapshot,
         "partial_notes": [],
     }
+
+
+def _market_provenance_card(view: dict[str, Any] | None = None) -> str:
+    """Source, period, and limits sit above the figures. The card does not clear a flag."""
+    view = view or {}
+    observations = [item for item in view.get("observations") or [] if isinstance(item, dict)]
+    first = observations[0] if observations else {}
+    if str(view.get("status") or "") == "public" and first:
+        source = str(first.get("source") or "Public extract")
+        period = str(first.get("measurement_period") or "not recorded")
+        limits = str(
+            first.get("limitations")
+            or "These figures do not clear a recommend-against flag."
+        )
+        extra = " Each figure below repeats its own source, period, and limits."
+    else:
+        source = "Synthetic demonstration. No Census, BLS, or BEA extract is loaded."
+        period = "Not a public measurement period."
+        limits = (
+            "These figures do not clear a recommend-against flag "
+            "and do not grant investor-ready status."
+        )
+        extra = ""
+    return f"""
+<section class="card" id="market-provenance">
+<h2>Source, period, and limits</h2>
+<p><strong>Source:</strong> {escape(source)}</p>
+<p><strong>Period:</strong> {escape(period)}</p>
+<p><strong>Limitations:</strong> {escape(limits)}{escape(extra)}</p>
+</section>
+"""
 
 
 def _market_summary(
@@ -2725,6 +2794,7 @@ def advisor_summary_page(
 <p><strong>{escape(str(indicative.get('label') or ''))}</strong></p>
 <p><strong>Gate status:</strong> {escape(str(indicative.get('gate_status') or ''))}</p>
 <p><strong>Band:</strong> {escape(str(indicative.get('band') or ''))}</p>
+{_gate_gloss(str(indicative.get('gate_status') or ''), str(indicative.get('band') or ''))}
 <p><strong>Gate recommendation:</strong> {escape(str(indicative.get('gate_recommendation') or ''))}</p>
 <ul>{''.join(rows)}</ul>
 <p class="muted"><strong>Overall number (indicative only):</strong> {escape(str(indicative.get('score')))} of 100</p>
@@ -2766,9 +2836,9 @@ def advisor_summary_page(
 {downloads}
 {_SURFACE_NOTE}
 {_journey_progress(_journey_stage(package.get("assessment") or {}, review_requested=review_requested))}
-<div class="banner">{escape(str(package.get('prototype_disclaimer') or ''))}</div>
+<div class="banner">{_draft_label(assessment)}{escape(str(package.get('prototype_disclaimer') or ''))}</div>
 {share_note}
-<div class="card">
+<div class="card" id="advisor-sheet">
 <p><strong>Business:</strong> {escape(str(assessment.get('business_name') or ''))}</p>
 <p><strong>Stored recommendation:</strong> {escape(str(assessment.get('recommendation')))}</p>
 <p><strong>Score:</strong> {escape(str(assessment.get('score_line') or ''))}</p>
@@ -2782,6 +2852,12 @@ def advisor_summary_page(
 <h2>Key flags</h2>
 <ul>{flag_list}</ul>
 <h2>Market snapshot</h2>
+<section class="card" id="market-provenance">
+<h2>Source, period, and limits</h2>
+<p><strong>Source:</strong> {escape(str(provenance.get('source') or 'none'))}</p>
+<p><strong>Period:</strong> {escape(str(provenance.get('measurement_period') or 'not recorded'))}</p>
+<p><strong>Limitations:</strong> {escape(str(provenance.get('limitations') or 'These figures do not clear a recommend-against flag.'))}</p>
+</section>
 <p><strong>Industry:</strong> {escape(str(market.get('industry') or ''))}</p>
 <p><strong>Geography:</strong> {escape(str(market.get('geography') or ''))}</p>
 <p><strong>Stage:</strong> {escape(str(market.get('stage') or ''))}</p>

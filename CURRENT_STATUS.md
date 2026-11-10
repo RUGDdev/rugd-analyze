@@ -420,3 +420,11 @@ Further work on production authentication, real market data, an approved scoring
 - Explore intake, results, and Advisor Summary show an Intake, Analyze, and Review marker. The current stage is highlighted. The marker does not change a flag or a recommendation.
 - My Assessments opens with Welcome to RUGD My Assessments. The other section welcomes stay. Assessment cards link to Ask about this assessment. The Ask panel adds “What should I work on next?” The assistance-only label is unchanged.
 - The unittest suite is 150 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-10 results, advisor, and market clarity
+
+- Results open with the stored recommendation, an everyday reading of the gate and band, the key engine figures, and Your next step. The figures still come only from the stored engine result.
+- Advisor Summary is a single draft sheet when the file is not approved. A read-only share uses the same Draft label. Neither view can approve the assessment.
+- Market Intelligence shows source, period, and limits before the figures. Those figures still cannot clear a flag.
+- The Ask panel adds “What does this gate mean?” The assistance-only label is unchanged.
+- The unittest suite is 150 tests, all passing. The official baseline intake was not edited.

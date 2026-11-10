@@ -450,3 +450,12 @@ Owner input required before replacing `billing_hooks`:
 - Explore intake, the results page, and Advisor Summary show Intake, Analyze, and Review. The highlighted stage follows the stored file: Intake before Analyze, Analyze after a stored result, and Review after a review has been requested. The marker does not change a flag or a recommendation.
 - My Assessments uses the welcome heading Welcome to RUGD My Assessments. Assessment cards link to the Ask panel. The Ask panel adds “What should I work on next?” and still begins every reply with the assistance-only label.
 - The official baseline intake stays unchanged. A customer path still cannot set `human_review_approved`.
+
+## Decision: Results, advisor, and market clarity
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- The results page leads with the stored recommendation, an everyday reading of the gate and band, the stored engine figures, and Your next step. The everyday sentences do not replace the stored gate, band, or recommendation.
+- Advisor Summary and a read-only share say Draft when `human_review_approved` is false. The advisor view still has no form that can edit or approve the assessment.
+- Market Intelligence shows source, period, and limits before any figure. The figures do not clear a recommend-against flag.
+- The Ask panel can explain the gate. Every reply still begins with the assistance-only label. The official baseline intake stays unchanged.
