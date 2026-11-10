@@ -221,12 +221,28 @@ def _plain(key: str) -> str:
     return term_note(key)
 
 
-def dashboard(records: list[dict[str, Any]]) -> str:
+def _welcome_banner() -> str:
+    return """
+<div class="banner" id="welcome-banner">
+<h2>Welcome to RUGD Analyze</h2>
+<p>RUGD Analyze helps you write down a business idea, run it through the assessment engine, and see which evidence is still missing.</p>
+<p>This is a local pilot prototype. It is not a finished production service, and this screen does not grant investor-ready status.</p>
+<p><a class="button" href="/assessments/new">Start a new assessment</a></p>
+<form method="post" action="/welcome/dismiss">
+<button type="submit">Dismiss</button>
+</form>
+</div>
+"""
+
+
+def dashboard(records: list[dict[str, Any]], *, welcome: bool = False) -> str:
     items = "".join(_history_card(item) for item in records)
     if not items:
         items = "<p>No assessments are saved.</p>"
+    welcome_block = _welcome_banner() if welcome else ""
     body = f"""
 <h1>Customer dashboard</h1>
+{welcome_block}
 {_SURFACE_NOTE}
 <p class="muted">Local test profile. Local accounts are not production security.</p>
 <div class="card">
@@ -1555,15 +1571,22 @@ def _assistant_panel(record: dict[str, Any], lines: list[str] | None = None) -> 
     if lines:
         items = "".join(f"<li>{escape(line)}</li>" for line in lines)
         reply = f'<div class="assistant-reply"><ul>{items}</ul></div>'
+    else:
+        reply = (
+            '<p class="muted" id="assistant-empty">No question yet. '
+            "Choose a starter or type a question about this assessment. "
+            "The reply explains what is already stored, and it is not saved.</p>"
+        )
     return f"""
 <section class="card" id="assistant">
 <h2>Ask about this assessment</h2>
+<p>You can ask about this draft. The reply reads what is already stored. It does not change the assessment.</p>
 <p>{escape(ASSISTANCE_LABEL)}</p>
 <form method="post" action="/assessments/{assessment_id}/assistant">
 <label>Your question</label>
 <input name="question" maxlength="500">
 <button type="submit">Ask</button>
-<p class="muted">Suggested questions</p>
+<p class="muted">Start with one of these questions, or type your own.</p>
 {starters}
 </form>
 {reply}

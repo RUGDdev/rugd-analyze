@@ -91,7 +91,9 @@ from app.store import (
     DEFAULT_DB,
     ISOLATION_CUSTOMER,
     connect,
+    count_owned_assessments,
     create_assessment,
+    dismiss_welcome,
     create_linked_assessment,
     get_business_profile,
     label_for_new_assessment,
@@ -112,6 +114,7 @@ from app.store import (
     seed,
 )
 from app.notifications import notify_owner, preferences_from_form
+from app.ratelimit import AUTH_LIMIT_MESSAGE, AttemptLimiter, client_key
 
 
 def _keep_venture_path(profile: dict[str, str], original: dict[str, Any]) -> None:
@@ -143,7 +146,7 @@ class AppHandler(BaseHTTPRequestHandler):
     def _get_routes(self, connection: Any, path: str) -> None:
         seed(connection)
         if path == "/":
-            self._html(dashboard(list_assessments(connection)))
+            self._html(dashboard(list_assessments(connection), welcome=self._show_welcome(connection)))
         elif path == "/explore":
             records = list_assessments(connection)
             notes = {
@@ -209,7 +212,7 @@ class AppHandler(BaseHTTPRequestHandler):
         elif path == "/logout":
             self._html(logout_page(self._account_state(connection)))
         elif path == "/assessments":
-            self._html(dashboard(list_assessments(connection)))
+            self._html(dashboard(list_assessments(connection), welcome=self._show_welcome(connection)))
         elif path == "/assessments/export":
             payload = json.dumps(export_drafts(list_assessments(connection)), indent=2).encode("utf-8")
             self._bytes(
@@ -305,13 +308,28 @@ class AppHandler(BaseHTTPRequestHandler):
                     status=403,
                 )
                 return
-            self._redirect(f"/assessments/{assessment_id}")
+            self._redirect(
+                f"/assessments/{assessment_id}",
+                extra_cookies=[self._welcome_cookie()] if not owner else None,
+            )
             return
         if path in {"/login", "/reviewer/session"}:
+            if not self._auth_attempt_allowed():
+                self._html(
+                    login_page(self._safe_next(form.get("next") or "", "/"), AUTH_LIMIT_MESSAGE),
+                    status=429,
+                )
+                return
             self._account_sign_in(connection, form)
             return
         if path == "/register":
+            if not self._auth_attempt_allowed():
+                self._html(register_page(AUTH_LIMIT_MESSAGE), status=429)
+                return
             self._account_register(connection, form)
+            return
+        if path == "/welcome/dismiss":
+            self._dismiss_welcome(connection)
             return
         if path == "/forgot-password":
             request_password_reset(
@@ -882,6 +900,35 @@ class AppHandler(BaseHTTPRequestHandler):
     def _public_base(self) -> str:
         return public_base_url(self.headers.get("Host") or "")
 
+    def _auth_attempt_allowed(self) -> bool:
+        limiter = getattr(self.server, "auth_limiter", None)
+        if limiter is None:
+            return True
+        peer = str(self.client_address[0]) if self.client_address else ""
+        return limiter.allow(client_key(peer, self.headers.get("X-Forwarded-For")))
+
+    def _show_welcome(self, connection: Any) -> bool:
+        state = self._account_state(connection)
+        user_id = str(state.get("user_id") or "")
+        if state.get("active") and user_id:
+            user = get_user_by_id(connection, user_id)
+            if user is None or user.get("welcome_dismissed"):
+                return False
+            return count_owned_assessments(connection, user_id) == 0
+        return self._cookies().get("rugd_welcome") != "dismissed"
+
+    def _welcome_cookie(self) -> str:
+        return session_cookie("rugd_welcome", "dismissed", 60 * 60 * 24 * 365)
+
+    def _dismiss_welcome(self, connection: Any) -> None:
+        state = self._account_state(connection)
+        user_id = str(state.get("user_id") or "")
+        if state.get("active") and user_id:
+            dismiss_welcome(connection, user_id)
+            self._redirect("/")
+            return
+        self._redirect("/", extra_cookies=[self._welcome_cookie()])
+
     def _account_register(self, connection: Any, form: dict[str, str]) -> None:
         password = form.get("password") or ""
         if password != (form.get("password_confirm") or ""):
@@ -1090,7 +1137,13 @@ class AppHandler(BaseHTTPRequestHandler):
         for name, value in SECURITY_HEADERS:
             self.send_header(name, value)
 
-    def _redirect(self, target: str, session_token: str | None = None, clear_session: bool = False) -> None:
+    def _redirect(
+        self,
+        target: str,
+        session_token: str | None = None,
+        clear_session: bool = False,
+        extra_cookies: list[str] | None = None,
+    ) -> None:
         self.send_response(303)
         self._security_headers()
         self.send_header("Location", target)
@@ -1104,6 +1157,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 "Set-Cookie",
                 session_cookie(SESSION_COOKIE, "", 0),
             )
+        for cookie in extra_cookies or []:
+            self.send_header("Set-Cookie", cookie)
         self.end_headers()
 
     def log_message(self, fmt: str, *args: Any) -> None:
@@ -1143,7 +1198,9 @@ def _download_stamp(record: dict[str, Any], result: dict[str, Any]) -> str:
 
 def make_server(db_path, port: int = 8765, host: str = "127.0.0.1") -> ThreadingHTTPServer:
     AppHandler.db_path = db_path
-    return ThreadingHTTPServer((host, port), AppHandler)
+    server = ThreadingHTTPServer((host, port), AppHandler)
+    server.auth_limiter = AttemptLimiter()  # type: ignore[attr-defined]
+    return server
 
 
 def main() -> None:

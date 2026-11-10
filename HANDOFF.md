@@ -12,7 +12,7 @@ A customer post whose body contains `human_review_approved` returns 403. Durable
 
 Local accounts exist for pilot use. Self-registration creates a customer account only. The first reviewer is created from `RUGD_BOOTSTRAP_REVIEWER_EMAIL` and `RUGD_BOOTSTRAP_REVIEWER_PASSWORD` when no reviewer exists. A signed-in reviewer can create another reviewer. A customer cannot change role or approve. The cookie is HttpOnly and SameSite=Lax. It is marked Secure when `RUGD_ENV=production` or `SECURE_COOKIES=true`. On local HTTP it is not marked Secure. This is not production authentication. The shared prototype passphrase is no longer accepted.
 
-The local app is `python -m app` with the Python 3.12 path in `README.md`. With `RUGD_ENV` unset it binds to 127.0.0.1:8765. `DEPLOYMENT.md` and `render.yaml` prepare the same command for Render at `app.rugdintelligence.com`. The service stays pilot-grade: one SQLite instance, prototype warnings, and no rate limit. The customer shell is the left sidebar, the brand colors, and the cropped wordmark.
+The local app is `python -m app` with the Python 3.12 path in `README.md`. With `RUGD_ENV` unset it binds to 127.0.0.1:8765. `DEPLOYMENT.md` and `render.yaml` prepare the same command for Render at `app.rugdintelligence.com`. The service stays pilot-grade: one SQLite instance and prototype warnings. Sign-in and registration stop after 8 attempts from one network address in 15 minutes. The rest of the app is not limited. The customer shell is the left sidebar, the brand colors, and the cropped wordmark.
 
 Current prototype capabilities:
 
@@ -24,10 +24,10 @@ Current prototype capabilities:
 - The Explore page, the open draft, and the results page show an evidence checklist for verified demand, missing financial inputs, and key Durable Value notes. Checking or completing an item updates guidance only. It does not clear a hard gate.
 - Results can save the current engine result as Base and run one Downside or Upside case from the current inputs. The comparison does not change the official recommendation or a hard gate.
 - Settings stores email preferences for assessment shared, review requested, and review recorded. The notice goes to the assessment owner when that account opted in. With `SMTP_HOST` unset, the server log prints it. Verification and password-reset messages stay available. A notice does not approve an assessment or clear a flag.
-- Dashboard, Explore, the intake, results, and Market Intelligence show a short plain-language sentence beside the precise term. Learn more keeps the tighter definition. Results and the open draft include an assistant panel. The assistant reads the current assessment through `get_analyst()` and does not change numbers, flags, or approval.
+- Dashboard, Explore, the intake, results, and Market Intelligence show a short plain-language sentence beside the precise term. Learn more keeps the tighter definition. Results and the open draft include an assistant panel with five starter questions. The assistant reads the current assessment through `get_analyst()` and does not change numbers, flags, or approval. A signed-in person who has not created a draft sees a dismissible welcome on the dashboard.
 - Optional public extracts: BLS QCEW, ACS, County Business Patterns, BEA Regional, and BLS LAUS. A failed part falls back to the synthetic snapshot. The figures do not clear a flag.
 
-Tests are `python -m unittest discover -s tests` from this directory. The current suite is 140 tests.
+Tests are `python -m unittest discover -s tests` from this directory. The current suite is 146 tests.
 
 ## Ready for pilot users
 
@@ -45,7 +45,7 @@ A pilot user can:
 
 The official RUGD Intelligence baseline stays draft do-not-proceed, blocking flag `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. A pilot draft does not change that file.
 
-Remaining owner decisions: production authentication beyond local email and password; real market data beyond the optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts; an approved scoring methodology, including any feasibility score; billing; investor matchmaking; recurring Partner monitoring, scheduled jobs, and rate limiting; an external AI provider; a LongArc or DVT connection, a Webflow change, or a replacement frontend; official logo artwork; and real completed intakes for Bunny Hive and Small Town Pub, or any investor summary. The same list is below.
+Remaining owner decisions: production authentication beyond local email and password; real market data beyond the optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts; an approved scoring methodology, including any feasibility score; billing; investor matchmaking; recurring Partner monitoring, scheduled jobs, and platform-wide rate limiting; an external AI provider; a LongArc or DVT connection, a Webflow change, or a replacement frontend; official logo artwork; and real completed intakes for Bunny Hive and Small Town Pub, or any investor summary. The same list is below.
 
 ## Owner decisions required before further work
 
@@ -56,7 +56,7 @@ These remain open. The same list is in `ACCEPTANCE.md`. Local accounts, email ve
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing
 - Investor matchmaking, securities solicitation, brokerage, or capital movement
-- Recurring Partner monitoring, scheduled market jobs, and rate limiting
+- Recurring Partner monitoring, scheduled market jobs, and platform-wide rate limiting. Login and registration already stop after 8 attempts from one network address in 15 minutes. That limit does not cover the rest of the app.
 - An external AI provider for the analyst
 - A LongArc or DVT connection, a change to the Webflow site, or a replacement frontend
 - Supplying the official logo artwork. The sidebar uses a cropped wordmark

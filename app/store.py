@@ -140,6 +140,10 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         connection.execute(
             "ALTER TABLE users ADD COLUMN notification_preferences TEXT NOT NULL DEFAULT '{}'"
         )
+    if "welcome_dismissed" not in user_columns:
+        connection.execute(
+            "ALTER TABLE users ADD COLUMN welcome_dismissed INTEGER NOT NULL DEFAULT 0"
+        )
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS account_tokens (
@@ -1252,7 +1256,8 @@ def count_users_with_role(connection: sqlite3.Connection, role: str) -> int:
 def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
-        SELECT id, email, password_hash, role, created_at, email_verified, notification_preferences
+        SELECT id, email, password_hash, role, created_at, email_verified,
+               notification_preferences, welcome_dismissed
         FROM users
         WHERE email = ?
         """,
@@ -1266,7 +1271,8 @@ def get_user_by_email(connection: sqlite3.Connection, email: str) -> dict[str, A
 def get_user_by_id(connection: sqlite3.Connection, user_id: str) -> dict[str, Any] | None:
     row = connection.execute(
         """
-        SELECT id, email, password_hash, role, created_at, email_verified, notification_preferences
+        SELECT id, email, password_hash, role, created_at, email_verified,
+               notification_preferences, welcome_dismissed
         FROM users
         WHERE id = ?
         """,
@@ -1275,6 +1281,24 @@ def get_user_by_id(connection: sqlite3.Connection, user_id: str) -> dict[str, An
     if row is None:
         return None
     return _user_from_row(row)
+
+
+def count_owned_assessments(connection: sqlite3.Connection, user_id: str) -> int:
+    """How many drafts this account created. The official baseline has no owner."""
+    row = connection.execute(
+        "SELECT COUNT(*) AS n FROM assessments WHERE owner_user_id = ?",
+        (user_id,),
+    ).fetchone()
+    return int(row["n"])
+
+
+def dismiss_welcome(connection: sqlite3.Connection, user_id: str) -> None:
+    """Hide the welcome banner for this account. This does not change the role."""
+    connection.execute(
+        "UPDATE users SET welcome_dismissed = 1 WHERE id = ?",
+        (user_id,),
+    )
+    connection.commit()
 
 
 def set_email_verified(connection: sqlite3.Connection, user_id: str) -> None:
@@ -1381,6 +1405,7 @@ def _user_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "created_at": row["created_at"],
         "email_verified": bool(row["email_verified"]),
         "notification_preferences": _stored_preferences(row["notification_preferences"]),
+        "welcome_dismissed": bool(row["welcome_dismissed"]),
     }
 
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from app.accounts import register_account
 from app.analysis import analyze_record
-from app.analyst import ASSISTANCE_LABEL, answer
+from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, answer
 from app.pages import assessment_form, dashboard, explore_page, market_page, results_page
 from app.server import make_server
 from app.store import BASELINE_ID, SAMPLE, connect, get_assessment, get_user_by_id, seed
@@ -94,7 +94,11 @@ class TestPlainLanguageAndAssistant(unittest.TestCase):
         self.assertIn("In everyday words: show proof that people will pay", explore)
         self.assertIn("Ask about this assessment", intake)
         self.assertIn(ASSISTANCE_LABEL, intake)
-        self.assertIn("What does my score mean?", intake)
+        self.assertIn('id="assistant-empty"', intake)
+        self.assertIn("Choose a starter or type a question", intake)
+        self.assertEqual(len(STARTER_QUESTIONS), 5)
+        for question in STARTER_QUESTIONS:
+            self.assertIn(question, intake)
         self.assertIn("What this means", intake)
         self.assertIn("Market snapshot.", market)
         self.assertIn("Indicative assessment — market validity, financial viability, and stewardship readiness.", shown)
@@ -141,6 +145,15 @@ class TestPlainLanguageAndAssistant(unittest.TestCase):
         self.assertEqual(result["blocking_flags"], before_result["blocking_flags"])
         self.assertIn("This reply does not", " ".join(nxt))
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", " ".join(nxt))
+        recommendation = answer(record, result, "What does the recommendation mean?")
+        self.assertEqual(recommendation[0], ASSISTANCE_LABEL)
+        self.assertIn("do-not-proceed", " ".join(recommendation))
+        self.assertIn("does not change the recommendation", " ".join(recommendation))
+        ready = answer(record, result, "Am I investor-ready?")
+        self.assertEqual(ready[0], ASSISTANCE_LABEL)
+        self.assertIn("internal", " ".join(ready))
+        self.assertIn("does not grant investor-ready status", " ".join(ready))
+        self.assertEqual(result, before_result)
         self.assertFalse(result["human_review_approved"])
         self.assertEqual(result["readiness_status"], "internal")
 

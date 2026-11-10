@@ -424,3 +424,11 @@ Owner input required before replacing `billing_hooks`:
 - The evidence checklist leads with an everyday sentence. The precise name and the existing guidance stay. Checking or completing an item still updates guidance only.
 - Results and the open draft include an assistant panel with three starter questions. The panel calls `get_analyst()`. A missing provider or a missing key uses the Demonstration Analyst. An external provider, when configured, receives the question with the same safety prompt. Every reply begins with the assistance-only label.
 - The assistant reads the current assessment, engine result, flags, and any market notes passed with the question. It does not save a result, clear a recommend-against flag, set `human_review_approved`, or grant investor-ready status. The official baseline intake stays unchanged.
+
+## Decision: Auth attempt limit, welcome banner, and assistant starters
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- Sign-in and registration accept 8 attempts from one network address in 15 minutes. The address is the first value in `X-Forwarded-For` when that header is present, and otherwise the connection address. The ninth attempt in the window returns a plain wait message and does not sign anyone in. Explore, Analyze, drafts, and the rest of the app stay available. Password reset and the other screens are not limited. Platform-wide rate limiting and recurring Partner monitoring remain owner decisions.
+- The dashboard shows a welcome banner to a signed-in account that has not created a draft and has not dismissed the banner. Dismissing it stores that choice on the account. Creating a draft hides it. A visitor who is not signed in sees the same banner until they dismiss it in that browser or start a draft. The banner does not approve an assessment or set `human_review_approved`.
+- The Ask panel offers five starter questions and an empty state that says a question can be asked about the current assessment. Every reply still begins with the assistance-only label. The assistant does not save a result, clear a recommend-against flag, set `human_review_approved`, or grant investor-ready status. The official baseline intake stays unchanged.

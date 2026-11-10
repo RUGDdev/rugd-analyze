@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 142 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 146 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -398,3 +398,11 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-10 sidebar hover explanations
 
 - Each sidebar link shows a one-sentence hover explanation. Demonstration labels stay on the link. The links and their destinations are unchanged. The unittest suite is 142 tests, all passing.
+
+## Progress — 2026-11-10 auth limit, welcome, and assistant starters
+
+- Sidebar links already show a one-sentence hover explanation. Demonstration labels stay visible.
+- Sign-in and registration stop after 8 attempts from one network address in 15 minutes. The wait message is plain language, and the rest of the app stays available. Platform-wide rate limiting remains an owner decision.
+- A person who has not created a draft sees a dismissible welcome on the dashboard, with a Start a new assessment button. Dismissing it, or creating a draft, hides it for that account.
+- The Ask panel has five starter questions and an empty state that says a question can be asked about the current assessment. Every reply still starts with the assistance-only label.
+- The unittest suite is 146 tests, all passing. The official baseline intake was not edited.

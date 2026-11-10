@@ -55,6 +55,8 @@ STARTER_QUESTIONS = (
     "What does my score mean?",
     "Why is demand evidence missing?",
     "What should I do next?",
+    "What does the recommendation mean?",
+    "Am I investor-ready?",
 )
 
 
@@ -299,6 +301,17 @@ def _grounded_reply(
                 "Next, read the recommend-against flags and the evidence checklist on this file. "
                 "This reply does not close them."
             )
+    if "recommend" in folded:
+        lines.append(
+            f"The stored recommendation is {result.get('recommendation')}. "
+            "A hard recommend-against flag keeps the gate at do-not-proceed. "
+            "This reply does not change the recommendation."
+        )
+    if "investor" in folded:
+        lines.append(
+            f"Investor readiness on this stored result is {result.get('readiness_status')}. "
+            "Asking a question does not set human_review_approved and does not grant investor-ready status."
+        )
     if "market" in folded:
         notes = [str(item) for item in (market_notes or []) if str(item).strip()]
         if notes:

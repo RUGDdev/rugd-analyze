@@ -91,7 +91,7 @@ Optional variables, left unset unless that provider is wanted: `ANALYST_PROVIDER
 
 The start command is `python -m app`. Responses send `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy: same-origin`. Render terminates HTTPS. Add a CNAME for `app.rugdintelligence.com` to the Render hostname. The apex domain stays on the public website.
 
-This build stays pilot-grade. Prototype warnings stay. There is no rate limit and no public self-service billing. Email verification and password reset use the local account. Without `SMTP_HOST`, the message is written to the server log. Clear the bootstrap password in the dashboard after the first reviewer can log in.
+This build stays pilot-grade. Prototype warnings stay. Sign-in and registration stop after 8 attempts from one network address in 15 minutes. The message asks the person to wait, and the rest of RUGD Analyze stays available. There is no public self-service billing. Email verification and password reset use the local account. Without `SMTP_HOST`, the message is written to the server log. Clear the bootstrap password in the dashboard after the first reviewer can log in.
 
 ## Official baseline
 

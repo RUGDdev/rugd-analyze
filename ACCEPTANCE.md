@@ -41,7 +41,7 @@ The official baseline remains draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENC
 | Named pilots | Met | Bunny Hive and Small Town Pub are empty drafts. Only RUGD Intelligence is the official baseline. |
 | Brand colors and local layout | Partially met | The left sidebar uses the stated brand colors and a cropped wordmark. Official logo artwork is still an owner decision. |
 | Local persistence and tests | Met | Drafts are in gitignored SQLite. The unittest suite covers the prototype path. |
-| Billing, public deployment, live market feed, matchmaking | Not in this prototype | Optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts are available. Render files for `app.rugdintelligence.com` are prepared. Billing, a live feed, matchmaking, and rate limiting remain owner decisions. |
+| Billing, public deployment, live market feed, matchmaking | Not in this prototype | Optional BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS extracts are available. Render files for `app.rugdintelligence.com` are prepared. Billing, a live feed, and matchmaking remain owner decisions. Login and registration stop after 8 attempts from one network address in 15 minutes. Platform-wide rate limiting remains an owner decision. |
 
 ## Capabilities by tier
 
@@ -76,7 +76,7 @@ These remain open. Local accounts, email verification, password reset, the indic
 - An approved scoring methodology, including any feasibility score
 - Billing, payment processing, and subscription pricing
 - Investor matchmaking, securities solicitation, brokerage, or capital movement
-- Recurring Partner monitoring, scheduled market jobs, and rate limiting
+- Recurring Partner monitoring, scheduled market jobs, and platform-wide rate limiting. Login and registration already stop after 8 attempts from one network address in 15 minutes.
 - An external AI provider for the analyst
 - A LongArc or DVT connection, a change to the Webflow site, or a replacement frontend
 - Supplying the official logo artwork. The sidebar uses a cropped wordmark
