@@ -27,7 +27,7 @@ Current prototype capabilities:
 - Dashboard, Explore, the intake, results, and Market Intelligence show a short plain-language sentence beside the precise term. Learn more keeps the tighter definition. Results and the open draft include an assistant panel with five starter questions. The assistant reads the current assessment through `get_analyst()` and does not change numbers, flags, or approval. A signed-in person who has not created a draft sees a dismissible welcome on the dashboard.
 - Optional public extracts: BLS QCEW, ACS, County Business Patterns, BEA Regional, and BLS LAUS. A failed part falls back to the synthetic snapshot. The figures do not clear a flag.
 
-Tests are `python -m unittest discover -s tests` from this directory. The current suite is 146 tests.
+Tests are `python -m unittest discover -s tests` from this directory. The current suite is 149 tests.
 
 ## Ready for pilot users
 

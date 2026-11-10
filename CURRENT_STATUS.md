@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 146 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 149 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -406,3 +406,10 @@ Further work on production authentication, real market data, an approved scoring
 - A person who has not created a draft sees a dismissible welcome on the dashboard, with a Start a new assessment button. Dismissing it, or creating a draft, hides it for that account.
 - The Ask panel has five starter questions and an empty state that says a question can be asked about the current assessment. Every reply still starts with the assistance-only label.
 - The unittest suite is 146 tests, all passing. The official baseline intake was not edited.
+
+## Progress — 2026-11-10 customer dashboard and section welcomes
+
+- A signed-out dashboard shows Welcome to RUGD Intelligence, Log in, and Register. It does not list assessment data.
+- A signed-in dashboard lists only that account's assessments, with stage, last updated, the indicative gate and band when Analyze has been run, and Continue or View results. A status line uses a stored engine flag or a stored DSCR. An account with no assessments is pointed to Start a new assessment.
+- Explore, Analyze, Validate, Partner, Market Intelligence, Market Pulse, and Reports each open with a welcome heading and a short explanation. Demonstration labels and the prototype warning stay.
+- The unittest suite is 149 tests, all passing. The official baseline intake was not edited.

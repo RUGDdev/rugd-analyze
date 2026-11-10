@@ -121,10 +121,14 @@ class TestBrandShell(unittest.TestCase):
 
     def test_new_surfaces_use_the_sidebar_and_brand_cards(self) -> None:
         home = dashboard([])
-        self.assertIn("What's new", home)
-        self.assertIn("indicative assessment", home)
-        self.assertIn("read-only share", home)
+        self.assertIn("Welcome to RUGD Intelligence", home)
         self.assertIn("No feasibility score is calculated.", home)
+        self.assertIn('href="/login"', home)
+        self.assertIn('href="/register"', home)
+        signed_home = dashboard([], signed_in=True, viewer_id="brand-reader")
+        self.assertIn("indicative assessment", signed_home)
+        self.assertIn("read-only share", signed_home)
+        self.assertIn("No feasibility score is calculated.", signed_home)
         self.assertIn('class="sidebar"', home)
         noticed = home.replace("<main>", "<main>\n" + verification_banner(), 1)
         self.assertLess(noticed.index('class="sidebar"'), noticed.index('id="email-unverified"'))

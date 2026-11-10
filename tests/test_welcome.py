@@ -18,18 +18,32 @@ PASSWORD = "welcome-pass-1"
 
 
 class TestWelcomeBanner(unittest.TestCase):
-    def test_banner_is_optional_on_the_dashboard(self) -> None:
-        shown = dashboard([], welcome=True)
-        self.assertIn('id="welcome-banner"', shown)
-        self.assertIn("RUGD Analyze helps you write down a business idea", shown)
-        self.assertIn("local pilot prototype", shown)
-        self.assertIn('class="button" href="/assessments/new"', shown)
-        self.assertIn("Start a new assessment", shown)
-        self.assertIn('action="/welcome/dismiss"', shown)
-        hidden = dashboard([], welcome=False)
-        self.assertNotIn('id="welcome-banner"', hidden)
+    def test_signed_out_dashboard_hides_assessment_data(self) -> None:
+        page = dashboard(
+            [
+                {
+                    "id": "rugd-intelligence-baseline",
+                    "business_name": "RUGD Intelligence",
+                    "owner_user_id": None,
+                    "updated_at": "2026-11-10",
+                    "profile": {},
+                    "result": {
+                        "engine_ran": True,
+                        "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+                        "recommendation": "do-not-proceed",
+                    },
+                }
+            ]
+        )
+        self.assertIn("Welcome to RUGD Intelligence", page)
+        self.assertIn('class="button" href="/login"', page)
+        self.assertIn('class="button" href="/register"', page)
+        self.assertNotIn("Official baseline", page)
+        self.assertNotIn("INSUFFICIENT_DEMAND_EVIDENCE", page)
+        self.assertNotIn("rugd-intelligence-baseline", page)
+        self.assertNotIn("Your assessments", page)
 
-    def test_banner_hides_after_dismiss_or_the_first_draft(self) -> None:
+    def test_signed_in_dashboard_lists_only_that_account(self) -> None:
         directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         db = Path(directory.name) / "analyze.sqlite"
         connection = connect(db)
@@ -41,13 +55,11 @@ class TestWelcomeBanner(unittest.TestCase):
         base = f"http://127.0.0.1:{server.server_address[1]}"
         try:
             home = self._get(base + "/")
-            self.assertIn('id="welcome-banner"', home[1])
-            dismissed = self._post(base + "/welcome/dismiss", {})
-            self.assertEqual(dismissed[0], 303)
-            cookie = self._cookie(dismissed[2], "rugd_welcome")
-            self.assertIn("dismissed", cookie)
-            quiet = self._get(base + "/", cookie)
-            self.assertNotIn('id="welcome-banner"', quiet[1])
+            self.assertIn("Welcome to RUGD Intelligence", home[1])
+            self.assertIn('href="/login"', home[1])
+            self.assertIn('href="/register"', home[1])
+            self.assertNotIn("Official baseline", home[1])
+            self.assertNotIn("rugd-intelligence-baseline", home[1])
 
             registered = self._post(
                 base + "/register",
@@ -60,17 +72,17 @@ class TestWelcomeBanner(unittest.TestCase):
             self.assertEqual(registered[0], 303, registered[1])
             session = self._cookie(registered[2], "rugd_session")
             signed_in = self._get(base + "/", session)
-            self.assertIn('id="welcome-banner"', signed_in[1])
-            self.assertEqual(self._post(base + "/welcome/dismiss", {}, session)[0], 303)
-            after_dismiss = self._get(base + "/", session)
-            self.assertNotIn('id="welcome-banner"', after_dismiss[1])
+            self.assertIn("Your assessments", signed_in[1])
+            self.assertIn("No assessments yet", signed_in[1])
+            self.assertIn("Start a new assessment", signed_in[1])
+            self.assertNotIn('id="guest-welcome"', signed_in[1])
+            self.assertNotIn("Official baseline", signed_in[1])
             user = connection.execute(
-                "SELECT id, role, welcome_dismissed FROM users WHERE email = ?",
+                "SELECT id, role FROM users WHERE email = ?",
                 (EMAIL,),
             ).fetchone()
             assert user is not None
             self.assertEqual(user["role"], "customer")
-            self.assertEqual(user["welcome_dismissed"], 1)
             self.assertEqual(get_user_by_id(connection, user["id"])["role"], "customer")
 
             second = self._post(
@@ -89,7 +101,11 @@ class TestWelcomeBanner(unittest.TestCase):
             )
             self.assertEqual(created[0], 303, created[1])
             started = self._get(base + "/", second_session)
-            self.assertNotIn('id="welcome-banner"', started[1])
+            self.assertIn("Welcome Shop", started[1])
+            self.assertIn("Continue", started[1])
+            self.assertIn("Existing or expanding business", started[1])
+            self.assertNotIn("Official baseline", started[1])
+            self.assertNotIn("rugd-intelligence-baseline", started[1])
             baseline = get_assessment(connection, BASELINE_ID)
             assert baseline is not None
             self.assertFalse(baseline["human_review_approved"])

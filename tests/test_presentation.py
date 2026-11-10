@@ -37,14 +37,33 @@ class TestPresentation(unittest.TestCase):
         self.connection.close()
         self.directory.cleanup()
 
-    def test_dashboard_distinguishes_baseline_and_offers_actions(self) -> None:
-        page = dashboard(list_assessments(self.connection))
-        self.assertIn("Official baseline", page)
-        self.assertIn("RUGD Intelligence", page)
+    def test_dashboard_lists_only_the_signed_in_account(self) -> None:
+        guest = dashboard(list_assessments(self.connection))
+        self.assertIn("Welcome to RUGD Intelligence", guest)
+        self.assertIn('href="/login"', guest)
+        self.assertIn('href="/register"', guest)
+        self.assertNotIn("Official baseline", guest)
+        self.assertNotIn("Hypothetical Restaurant", guest)
+        create_assessment(
+            self.connection,
+            business_name="Owned Cafe",
+            purpose="startup_feasibility",
+            tier="explore",
+            owner_user_id="owner-1",
+        )
+        create_assessment(
+            self.connection,
+            business_name="Other Cafe",
+            purpose="startup_feasibility",
+            tier="explore",
+            owner_user_id="owner-2",
+        )
+        page = dashboard(list_assessments(self.connection), signed_in=True, viewer_id="owner-1")
+        self.assertIn("Your assessments", page)
+        self.assertIn("Owned Cafe", page)
         self.assertIn("Continue", page)
-        self.assertIn("View results", page)
-        self.assertIn("Human review status:</strong> pending", page)
-        self.assertIn("Investor readiness:</strong> not run", page)
+        self.assertNotIn("Other Cafe", page)
+        self.assertNotIn("Official baseline", page)
         self.assertNotIn("Investor readiness:</strong> investor-ready", page)
         self.assertNotIn("Record reviewer approval", page)
 
@@ -93,13 +112,20 @@ class TestPresentation(unittest.TestCase):
             business_name="Step Cafe",
             purpose="startup_feasibility",
             tier="explore",
+            owner_user_id="step-owner",
         )
         current = get_assessment(self.connection, assessment_id)
         assert current is not None
         result = analyze_record(current)
         save_result(self.connection, assessment_id, result.get("intake"), result)
-        page = dashboard(list_assessments(self.connection))
+        page = dashboard(
+            list_assessments(self.connection),
+            signed_in=True,
+            viewer_id="step-owner",
+        )
         self.assertIn("Next recommended step:", page)
+        self.assertIn("Demand evidence missing.", page)
+        self.assertIn("Gate status:</strong> Blocked", page)
         self.assertIn("Continue Step Cafe", page)
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE is present", page)
         self.assertIn("does not clear the flag", page)
@@ -127,7 +153,8 @@ class TestPresentation(unittest.TestCase):
             self.assertEqual(caught.exception.code, 403)
             with urllib.request.urlopen(base + "/") as response:
                 page = response.read().decode("utf-8")
-            self.assertIn("Official baseline", page)
+            self.assertIn("Welcome to RUGD Intelligence", page)
+            self.assertNotIn("Official baseline", page)
             self.assertIn("Dashboard", page)
             self.assertIn("Explore", page)
             self.assertIn("Analyze", page)
@@ -405,9 +432,13 @@ class TestPresentation(unittest.TestCase):
                 self.assertIn('name="demand_evidence"', page)
             with urllib.request.urlopen(base + "/") as response:
                 home = response.read().decode("utf-8")
-            self.assertEqual(home.count("Empty named-pilot draft"), 2)
-            self.assertIn("Official baseline", home)
-            self.assertIn("Only the RUGD Intelligence assessment is the official baseline.", home)
+            self.assertIn("Welcome to RUGD Intelligence", home)
+            self.assertNotIn("Empty named-pilot draft", home)
+            self.assertNotIn("Official baseline", home)
+            for assessment_id in created_ids:
+                with urllib.request.urlopen(base + f"/assessments/{assessment_id}") as response:
+                    draft_page = response.read().decode("utf-8")
+                self.assertIn("Empty named-pilot draft", draft_page)
             baseline = get_assessment(self.connection, "rugd-intelligence-baseline")
             assert baseline is not None
             self.assertTrue(baseline["read_only"])

@@ -432,3 +432,12 @@ Owner input required before replacing `billing_hooks`:
 - Sign-in and registration accept 8 attempts from one network address in 15 minutes. The address is the first value in `X-Forwarded-For` when that header is present, and otherwise the connection address. The ninth attempt in the window returns a plain wait message and does not sign anyone in. Explore, Analyze, drafts, and the rest of the app stay available. Password reset and the other screens are not limited. Platform-wide rate limiting and recurring Partner monitoring remain owner decisions.
 - The dashboard shows a welcome banner to a signed-in account that has not created a draft and has not dismissed the banner. Dismissing it stores that choice on the account. Creating a draft hides it. A visitor who is not signed in sees the same banner until they dismiss it in that browser or start a draft. The banner does not approve an assessment or set `human_review_approved`.
 - The Ask panel offers five starter questions and an empty state that says a question can be asked about the current assessment. Every reply still begins with the assistance-only label. The assistant does not save a result, clear a recommend-against flag, set `human_review_approved`, or grant investor-ready status. The official baseline intake stays unchanged.
+
+## Decision: Customer dashboard and section welcomes
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, the indicative weights, or the Investor Readiness Gate.
+- The signed-out dashboard shows Welcome to RUGD Intelligence, a short explanation, and Log in and Register. It does not list assessments.
+- The signed-in dashboard lists only assessments owned by that account. Each card shows the name, business stage, last updated time, Continue or View results, and, after Analyze, the indicative gate status and band. A status line repeats a stored engine flag, a stored base-case DSCR when the engine calculated one, or the stored recommendation. It does not invent a figure. An account with no assessments is pointed to Start a new assessment.
+- Explore, Analyze, Validate, Partner, Market Intelligence, Market Pulse, and Reports each show a welcome heading and one or two plain-language sentences. Demonstration labels and the prototype warning stay on those pages.
+- The official baseline intake stays unchanged. A customer path still cannot set `human_review_approved`.

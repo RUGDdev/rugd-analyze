@@ -43,14 +43,18 @@ class TestEmptyStatesAndExport(unittest.TestCase):
         self.directory.cleanup()
 
     def test_empty_states_do_not_invent_values(self) -> None:
-        self.assertIn("No drafts yet", dashboard([]))
-        self.assertIn("Blank fields stay blank", dashboard([]))
+        guest = dashboard([])
+        self.assertIn("Welcome to RUGD Intelligence", guest)
+        self.assertNotIn("No assessments yet", guest)
+        signed_empty = dashboard([], signed_in=True, viewer_id="export-reader")
+        self.assertIn("No assessments yet", signed_empty)
+        self.assertIn("Blank fields stay blank", signed_empty)
         baseline = get_assessment(self.connection, BASELINE_ID)
         assert baseline is not None
-        only_baseline = dashboard([baseline])
-        self.assertIn("No customer drafts are saved", only_baseline)
-        self.assertIn("Official baseline", only_baseline)
-        self.assertIn("does not copy baseline figures", only_baseline)
+        only_baseline = dashboard([baseline], signed_in=True, viewer_id="export-reader")
+        self.assertIn("No assessments yet", only_baseline)
+        self.assertIn("Nothing is copied from the official baseline", only_baseline)
+        self.assertNotIn("Official baseline. Not a completed customer study.", only_baseline)
         draft_id = create_assessment(
             self.connection,
             business_name="Empty Cafe",

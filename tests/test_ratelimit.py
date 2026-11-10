@@ -61,7 +61,7 @@ class TestAuthEndpointLimit(unittest.TestCase):
             with urllib.request.urlopen(base + "/") as response:
                 home = response.read().decode("utf-8")
             self.assertEqual(response.status, 200)
-            self.assertIn("Customer dashboard", home)
+            self.assertIn("Welcome to RUGD Intelligence", home)
             created, _created_body, _headers = self._post(
                 base + "/assessments",
                 {"business_name": "Limit Check", "venture_path": "startup"},

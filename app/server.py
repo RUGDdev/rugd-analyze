@@ -91,7 +91,6 @@ from app.store import (
     DEFAULT_DB,
     ISOLATION_CUSTOMER,
     connect,
-    count_owned_assessments,
     create_assessment,
     dismiss_welcome,
     create_linked_assessment,
@@ -146,7 +145,7 @@ class AppHandler(BaseHTTPRequestHandler):
     def _get_routes(self, connection: Any, path: str) -> None:
         seed(connection)
         if path == "/":
-            self._html(dashboard(list_assessments(connection), welcome=self._show_welcome(connection)))
+            self._html(self._dashboard_page(connection))
         elif path == "/explore":
             records = list_assessments(connection)
             notes = {
@@ -212,7 +211,7 @@ class AppHandler(BaseHTTPRequestHandler):
         elif path == "/logout":
             self._html(logout_page(self._account_state(connection)))
         elif path == "/assessments":
-            self._html(dashboard(list_assessments(connection), welcome=self._show_welcome(connection)))
+            self._html(self._dashboard_page(connection))
         elif path == "/assessments/export":
             payload = json.dumps(export_drafts(list_assessments(connection)), indent=2).encode("utf-8")
             self._bytes(
@@ -907,15 +906,17 @@ class AppHandler(BaseHTTPRequestHandler):
         peer = str(self.client_address[0]) if self.client_address else ""
         return limiter.allow(client_key(peer, self.headers.get("X-Forwarded-For")))
 
-    def _show_welcome(self, connection: Any) -> bool:
+    def _dashboard_page(self, connection: Any) -> str:
         state = self._account_state(connection)
         user_id = str(state.get("user_id") or "")
-        if state.get("active") and user_id:
-            user = get_user_by_id(connection, user_id)
-            if user is None or user.get("welcome_dismissed"):
-                return False
-            return count_owned_assessments(connection, user_id) == 0
-        return self._cookies().get("rugd_welcome") != "dismissed"
+        if not state.get("active") or not user_id:
+            return dashboard([])
+        owned = [
+            item
+            for item in list_assessments(connection)
+            if str(item.get("owner_user_id") or "") == user_id
+        ]
+        return dashboard(owned, signed_in=True, viewer_id=user_id)
 
     def _welcome_cookie(self) -> str:
         return session_cookie("rugd_welcome", "dismissed", 60 * 60 * 24 * 365)

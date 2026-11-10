@@ -70,7 +70,7 @@ class TestPlainLanguageAndAssistant(unittest.TestCase):
         record = get_assessment(connection, BASELINE_ID)
         assert record is not None
         result = analyze_record(record)
-        home = dashboard([])
+        home = dashboard([], signed_in=True, viewer_id="plain-reader")
         explore = explore_page([record])
         intake = assessment_form(record)
         market = market_page()
@@ -84,8 +84,8 @@ class TestPlainLanguageAndAssistant(unittest.TestCase):
         }.items():
             self.assertIn(NOTE, page, name)
             self.assertIn('class="sidebar"', page, name)
-        self.assertIn("No drafts yet", home)
-        self.assertIn("No assessments are saved", home)
+        self.assertIn("No assessments yet", home)
+        self.assertIn("You have not created an assessment", home)
         self.assertIn("What to do first:", home)
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE.", home)
         self.assertIn("Learn more", home)

@@ -148,7 +148,8 @@ class TestOnboardingPaths(unittest.TestCase):
         self.assertNotIn("The next missing required item is Construction cost", saved)
         with urllib.request.urlopen(self.base + "/") as response:
             dashboard = response.read().decode("utf-8")
-        self.assertIn("Required monthly fields filled: 4 of 4", dashboard)
+        self.assertIn("Welcome to RUGD Intelligence", dashboard)
+        self.assertNotIn("Main Street Shop", dashboard)
         stored = get_assessment(self.connection, existing_id)
         assert stored is not None
         self.assertEqual(stored["profile"]["venture_path"], "existing")

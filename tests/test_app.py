@@ -341,8 +341,11 @@ class TestAnalyzeApp(unittest.TestCase):
         try:
             with urllib.request.urlopen(base + "/") as response:
                 page = response.read().decode("utf-8")
-            self.assertIn("RUGD", page)
-            self.assertIn("Hypothetical Restaurant Startup", page)
+            self.assertIn("Welcome to RUGD Intelligence", page)
+            self.assertNotIn("Hypothetical Restaurant Startup", page)
+            with urllib.request.urlopen(base + f"/assessments/{RESTAURANT_ID}") as response:
+                restaurant = response.read().decode("utf-8")
+            self.assertIn("Hypothetical Restaurant Startup", restaurant)
             saved_market = {
                 key: os.environ.pop(key, None)
                 for key in (

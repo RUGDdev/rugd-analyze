@@ -95,7 +95,8 @@ class TestDeploymentConfig(unittest.TestCase):
                 for name, value in SECURITY_HEADERS:
                     self.assertEqual(response.headers.get(name), value)
             self.assertIn("This screen does not grant investor-ready status.", page)
-            self.assertIn("Official baseline", page)
+            self.assertIn("Welcome to RUGD Intelligence", page)
+            self.assertNotIn("Official baseline", page)
             request = urllib.request.Request(
                 base + "/login",
                 data=urllib.parse.urlencode(
