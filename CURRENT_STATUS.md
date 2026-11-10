@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 157 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 158 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -484,3 +484,10 @@ Further work on production authentication, real market data, an approved scoring
 - The intake and results pages show an assistance workflow: Intake guidance, Gap identification, Results explanation, and Next-step recommendation. The current stage and a suggested next action come from the stored file.
 - Two questions and one link follow that stage. Every reply still starts with the assistance-only label. The reply does not change a number, a flag, readiness, or approval.
 - The unittest suite is 157 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.
+
+## Progress — 2026-11-10 AI Business Adviser
+
+- The intake and results pages open with an AI Business Adviser. It welcomes the reader, names the current assistance stage, and offers three questions for that stage. Every reply stays assistance only.
+- One dismissible suggestion appears when demand evidence is missing, monthly fields are blank, or Analyze has not been run. Dismissing it does not clear a flag or change a figure.
+- The signed-in dashboard explains which modules are available and which are demonstration only. Key engine figures keep their stored numbers and add a plain-language sentence.
+- The unittest suite is 158 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.

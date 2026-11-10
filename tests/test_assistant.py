@@ -14,7 +14,14 @@ from pathlib import Path
 from app.accounts import register_account
 from app.analysis import analyze_record
 from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, answer
-from app.pages import assessment_form, dashboard, explore_page, market_page, results_page
+from app.pages import (
+    _financial_table,
+    assessment_form,
+    dashboard,
+    explore_page,
+    market_page,
+    results_page,
+)
 from app.server import make_server
 from app.store import BASELINE_ID, SAMPLE, connect, get_assessment, get_user_by_id, seed
 
@@ -277,6 +284,71 @@ class TestPlainLanguageAndAssistant(unittest.TestCase):
         self.assertIn("Suggested next action:", shown)
         self.assertIn("does not clear it", shown)
         self.assertEqual(analyzed["result"], before_result)
+
+    def test_adviser_notes_do_not_change_figures_or_flags(self) -> None:
+        draft = {
+            "id": "advise-1",
+            "business_name": "Advise Cafe",
+            "tier": "explore",
+            "read_only": False,
+            "hypothetical": False,
+            "pilot_label": "Customer draft. Not a completed assessment.",
+            "purpose": "startup_feasibility",
+            "profile": {
+                "business_name": "Advise Cafe",
+                "purpose": "startup_feasibility",
+                "tier": "explore",
+                "venture_path": "startup",
+            },
+            "result": None,
+            "human_review_approved": False,
+        }
+        page = assessment_form(draft)
+        self.assertIn("AI Business Adviser", page)
+        self.assertIn("Welcome. This adviser is reading Advise Cafe.", page)
+        self.assertIn("Monthly fields still blank", page)
+        self.assertIn("does not invent a number", page)
+        self.assertIn('id="dismiss-nudge"', page)
+        self.assertIn('href="#monthly-engine"', page)
+        self.assertFalse(draft["human_review_approved"])
+        analyzed = {
+            **draft,
+            "result": {
+                "engine_ran": True,
+                "recommendation": "do-not-proceed",
+                "blocking_flags": ["INSUFFICIENT_DEMAND_EVIDENCE"],
+                "readiness_status": "internal",
+                "human_review_approved": False,
+                "score_line": "Not calculated — methodology pending approval.",
+            },
+        }
+        before = copy.deepcopy(analyzed["result"])
+        shown = results_page(analyzed, analyzed["result"])
+        self.assertEqual(analyzed["result"], before)
+        self.assertIn("Demand evidence is still missing", shown)
+        self.assertIn("does not clear the flag", shown)
+        self.assertIn('href="/assessments/advise-1#verified-demand"', shown)
+        self.assertEqual(analyzed["result"]["recommendation"], "do-not-proceed")
+        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", analyzed["result"]["blocking_flags"])
+        figures = {
+            "base_monthly_contribution": 20,
+            "base_monthly_cash_flow": 10,
+            "downside_monthly_cash_flow": 4,
+            "break_even_monthly_revenue": 30,
+            "months_to_break_even_base": 6,
+        }
+        figure_before = copy.deepcopy(figures)
+        table = _financial_table(figures)
+        self.assertEqual(figures, figure_before)
+        self.assertIn("base_monthly_cash_flow", table)
+        self.assertIn(">10<", table)
+        self.assertIn("This sentence does not change the figure.", table)
+        home = dashboard([analyzed], signed_in=True, viewer_id="someone-else")
+        self.assertIn('id="what-rugd-helps"', home)
+        self.assertIn("Available in this prototype", home)
+        self.assertIn("Demonstration only", home)
+        self.assertIn("Monitoring is not active.", home)
+        self.assertNotIn("Advise Cafe", home)
 
     def _login(self, base: str) -> str:
         status, _body, headers = self._raw(base + "/login", {"email": EMAIL, "password": PASSWORD})

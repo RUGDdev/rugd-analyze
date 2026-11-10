@@ -176,8 +176,9 @@ details {{ margin: 0.8rem 0; }}
 summary {{ cursor: pointer; }}
 .bar-track {{ background: var(--stone); height: 0.7rem; margin: 0.25rem 0 0.7rem; }}
 .bar {{ background: var(--bronze); height: 0.7rem; }}
-.journey {{ display: flex; gap: 0.4rem; list-style: none; padding: 0; margin: 0.9rem 0 0.35rem; }}
+.journey {{ display: flex; gap: 0.4rem; list-style: none; padding: 0; margin: 0.9rem 0 0.35rem; counter-reset: rugd-step; }}
 .journey li {{ flex: 1; background: white; border: 1px solid var(--stone); border-top: 4px solid var(--stone); padding: 0.55rem 0.6rem; font-weight: 600; text-align: center; }}
+.journey li::before {{ counter-increment: rugd-step; content: counter(rugd-step) ". "; color: var(--bronze); }}
 .journey li.done {{ border-top-color: var(--bronze); color: var(--slate); }}
 .journey li.current {{ border-top-color: var(--bronze); background: var(--gold); color: var(--ink); }}
 .agent-flow {{ display: flex; gap: 0.4rem; list-style: none; padding: 0; margin: 0.6rem 0; flex-wrap: wrap; }}
@@ -190,6 +191,9 @@ summary {{ cursor: pointer; }}
 .glance p {{ background: white; border: 1px solid var(--stone); border-top: 4px solid var(--bronze); margin: 0; padding: 0.65rem 0.75rem; }}
 .start-here {{ margin: 0.4rem 0 1rem; padding-left: 1.2rem; }}
 .start-here li {{ margin: 0.35rem 0; }}
+.nudge {{ border-left: 4px solid var(--bronze); }}
+.nudge[hidden] {{ display: none; }}
+.figure-notes {{ margin-top: 0; }}
 #results-lead, #advisor-sheet, #market-provenance {{ border-top: 4px solid var(--bronze); }}
 #results-lead {{ padding: 1.25rem 1.4rem 1.4rem; }}
 .figure-block {{ background: var(--ivory); border: 1px solid var(--stone); padding: 0.15rem 1rem 0.4rem; margin-top: 1rem; }}
@@ -357,6 +361,7 @@ def dashboard(
         title = "Dashboard"
     body = f"""
 {heading}
+<p>This page is the home for this account. Each card shows the stage, the stored status, and one primary action.</p>
 {_SURFACE_NOTE}
 {_pilot_purpose()}
 <p class="muted">These are the assessments this account created. This list does not grant investor-ready status. An indicative assessment is shown after Analyze. It does not override engine flags or human review. No feasibility score is calculated. An owner can create a read-only share. The shared page cannot edit or approve the assessment.</p>
@@ -371,6 +376,7 @@ def dashboard(
 {_plain("insufficient_demand_evidence")}
 {_plain("investor_readiness")}
 </div>
+{_module_guide()}
 """
     return layout(title, body)
 
@@ -932,6 +938,7 @@ def assessment_form(
 {_SURFACE_NOTE}
 {banner}
 {_journey_progress(_journey_stage(record))}
+{_adviser_nudge(record, "intake")}
 {_your_next_step(record)}
 {_continue_intake(record)}
 <div class="card">
@@ -1205,7 +1212,7 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
 {_suggested("competition", "Competition", area=True)}
 {_suggestion_script(locked)}
 </details>
-<details open>
+<details id="demand-evidence" open>
 <summary>Demand evidence</summary>
 {choice("demand_evidence", "Is there demand evidence? A yes here is still only a user-supplied assumption.")}
 {_verified_demand_fields(profile, locked)}
@@ -1214,7 +1221,7 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
 {choice("extraction_without_reinvestment", "Do stewardship indicators show extraction without reinvestment?")}
 </details>
 {capital}
-<details>
+<details id="monthly-engine">
 <summary>Monthly engine</summary>
 <p class="muted">All four monthly fields are required before the monthly engine calculates. Unchecked measured status keeps the figures unmeasured.</p>
 {text("initial_capital", "Initial capital")}
@@ -1373,7 +1380,7 @@ def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:
     revenue = escape(str(profile.get("verified_revenue_trailing_12m") or ""))
     rationale = escape(str(profile.get("verified_demand_rationale") or ""))
     return f"""
-<h2>Verified demand record</h2>
+<h2 id="verified-demand">Verified demand record</h2>
 <p class="muted">Separate from the customer question above. These fields are applied only when the source is verified and a rationale is present. A customer yes, a hypothetical demonstration, and an AI interpretation cannot clear INSUFFICIENT_DEMAND_EVIDENCE. This record does not approve the assessment.</p>
 <label>Source for this record</label>
 <select name="verified_record_source" {locked}>{options(source, source_options)}</select>
@@ -1416,6 +1423,7 @@ def results_page(
 {_pilot_purpose()}
 {_journey_progress(_journey_stage(record))}
 <div class="banner">{escape(standing)}</div>
+{_adviser_nudge(record, "results")}
 <div class="card" id="results-lead">
 {_at_a_glance(record, result)}
 {_view_summary_block(result)}
@@ -1424,6 +1432,7 @@ def results_page(
 <p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
 <div class="figure-block">
 <h2>Key engine figures</h2>
+<p>These are the stored engine figures. The sentence under a name explains it. The sentence does not change the number.</p>
 <h2>Monthly base and downside</h2>{financial}
 <h2>Sources and uses, scenarios, and DSCR</h2>
 {_plain("sources_and_uses")}
@@ -1520,6 +1529,7 @@ def _results_not_run(
 {_pilot_purpose()}
 {_draft_market_context(record)}
 {_journey_progress("intake")}
+{_adviser_nudge(record, "results")}
 <div class="banner">{escape(message)} This page did not run the engine and did not fill any blank fields.</div>
 {details}
 {baseline}
@@ -1809,6 +1819,7 @@ def _projection_view(result: dict[str, Any]) -> str:
 <tr><td>Downside</td><td>{escape(_plain_number(downside.get('revenue')))}</td><td>{escape(_plain_number(downside.get('cash_flow_before_debt_service')))}</td><td>{escape(_dscr_label(downside.get('dscr')))}</td></tr>
 </table>
 <p>Break-even revenue from the engine: {escape(_plain_number(break_even.get('revenue')))}</p>
+<p class="muted">In everyday words: DSCR compares cash flow with debt service for that case. The number, when one is shown, comes from the engine. This sentence does not change it.</p>
 {_revenue_bars(base.get('revenue'), downside.get('revenue'))}
 """
     return f"""
@@ -1952,7 +1963,18 @@ def _financial_table(financial: dict[str, Any] | None) -> str:
         "months_to_break_even_base",
     ):
         rows += f"<tr><td>{escape(key)}</td><td>{escape(str(financial.get(key)))}</td></tr>"
-    return f"<table>{rows}</table>"
+    notes = {
+        "base_monthly_contribution": "Money left in a typical month after the cost of what was sold, before fixed costs.",
+        "base_monthly_cash_flow": "Cash left in a typical month after fixed costs.",
+        "downside_monthly_cash_flow": "Cash left in a weaker month.",
+        "break_even_monthly_revenue": "Monthly revenue the engine uses before that month covers its costs.",
+        "months_to_break_even_base": "How many months the engine counts before the base case covers its costs.",
+    }
+    explained = "".join(
+        f"<li><strong>{escape(key)}.</strong> {escape(sentence)} This sentence does not change the figure.</li>"
+        for key, sentence in notes.items()
+    )
+    return f"<table>{rows}</table><ul class=\"figure-notes\">{explained}</ul>"
 
 
 def assistant_page(record: dict[str, Any], lines: list[str], question: str = "") -> str:
@@ -1965,6 +1987,85 @@ def assistant_page(record: dict[str, Any], lines: list[str], question: str = "")
 <a class="button" href="/assessments/{escape(record['id'])}/results">Return to results</a></p>
 """
     return layout("Assistant", body)
+
+
+def _module_guide() -> str:
+    """Name the modules a customer can open. It does not change a stored result."""
+    return """
+<details class="card" id="what-rugd-helps">
+<summary>What can RUGD help with?</summary>
+<h2>Available in this prototype</h2>
+<ul>
+<li>Explore intake for a startup idea or an existing business, including example phrases for the industry you type.</li>
+<li>Analyze, which runs the deterministic engine. A hard recommend-against flag stays do-not-proceed.</li>
+<li>An AI Business Adviser that explains the stored file. It cannot change a number, a flag, or an approval.</li>
+<li>Advisor Summary, a read-only share, and optional public market extracts when one is requested. The source and the period stay visible.</li>
+</ul>
+<h2>Demonstration only</h2>
+<ul>
+<li>Validate can record a review request. It cannot approve an assessment.</li>
+<li>Partner and Market Pulse are labeled demonstrations. Monitoring is not active.</li>
+</ul>
+<p class="muted">This guide does not grant investor-ready status.</p>
+</details>
+"""
+
+
+def _adviser_nudge(record: dict[str, Any], surface: str) -> str:
+    """One gap note. Dismissing it in the browser does not write the assessment."""
+    profile = record.get("profile") if isinstance(record.get("profile"), dict) else {}
+    result = record.get("result") if isinstance(record.get("result"), dict) else {}
+    flags = [str(flag) for flag in (result or {}).get("blocking_flags") or []]
+    assessment_id = str(record.get("id") or "")
+    if surface == "results":
+        demand_href = f"/assessments/{assessment_id}#verified-demand"
+        monthly_href = f"/assessments/{assessment_id}#monthly-engine"
+        intake_href = f"/assessments/{assessment_id}#intake"
+    else:
+        demand_href = "#verified-demand"
+        monthly_href = "#monthly-engine"
+        intake_href = "#intake"
+    if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
+        text = "Demand evidence is still missing on this stored result. This note does not clear the flag."
+        href, label = demand_href, "Open the verified demand record"
+    else:
+        monthly = _missing_labels(profile or {}, _MONTHLY_REQUIRED)
+        if monthly:
+            shown = ", ".join(monthly[:4])
+            text = f"Monthly fields still blank: {shown}. This note does not invent a number."
+            href, label = monthly_href, "Open the monthly fields"
+        elif not (result or {}).get("engine_ran"):
+            text = "Analyze has not been run. This note does not run the engine or fill a blank field."
+            href, label = intake_href, "Open the intake"
+        else:
+            return ""
+    key = escape(f"{assessment_id}:{surface}")
+    return f"""
+<aside class="card nudge" id="adviser-nudge" data-key="{key}">
+<p><strong>A suggestion from the adviser.</strong> {escape(text)}</p>
+<p><a class="button" href="{escape(href)}">{escape(label)}</a>
+<button type="button" id="dismiss-nudge">Dismiss</button></p>
+<p class="muted">Dismissing this note does not clear a flag or change a result.</p>
+</aside>
+<script>
+(function () {{
+  var node = document.getElementById("adviser-nudge");
+  if (!node) return;
+  var key = "rugd-nudge-" + (node.getAttribute("data-key") || "");
+  try {{
+    if (window.sessionStorage && sessionStorage.getItem(key) === "1") node.hidden = true;
+  }} catch (err) {{}}
+  var button = document.getElementById("dismiss-nudge");
+  if (!button) return;
+  button.addEventListener("click", function () {{
+    node.hidden = true;
+    try {{
+      if (window.sessionStorage) sessionStorage.setItem(key, "1");
+    }} catch (err) {{}}
+  }});
+}})();
+</script>
+"""
 
 
 def _agent_workflow_card(record: dict[str, Any], surface: str) -> str:
@@ -1988,7 +2089,8 @@ def _agent_workflow_card(record: dict[str, Any], surface: str) -> str:
     )
     return f"""
 <section class="card" id="agent-workflow">
-<h2>Assistance workflow</h2>
+<h2>AI Business Adviser</h2>
+<p>{escape(str(flow.get("welcome") or ""))}</p>
 <p>Intake guidance, gap identification, results explanation, then a next-step recommendation. This workflow reads the stored file. It does not change a number, a flag, or an approval.</p>
 <ol class="agent-flow">{''.join(items)}</ol>
 <p><strong>Suggested next action:</strong> {escape(str(flow["action"]))}</p>

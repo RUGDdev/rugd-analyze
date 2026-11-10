@@ -520,3 +520,11 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not change the 0.1 engine, a recommend-against flag, or the official baseline.
 - The intake and results pages show four assistance stages: Intake guidance, Gap identification, Results explanation, and Next-step recommendation. The current stage is read from the stored file. A suggested next action links to the intake, the evidence checklist, or the stored result.
 - The same panel offers two questions for that stage. `get_analyst()` still answers them. If Analyze has not been run, the reply says so and points back to the intake. The reply does not invent a figure, clear a flag, or set `human_review_approved`.
+
+## Decision: AI Business Adviser
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, a recommend-against flag, or the official baseline.
+- The intake and results pages address the reader as an AI Business Adviser. The welcome names the draft. Three questions follow the current stage. The reply remains assistance only.
+- One suggestion appears for a stored gap: missing demand evidence, blank monthly fields, or Analyze not yet run. The browser can hide that note. Hiding it does not write the assessment.
+- The signed-in dashboard lists available modules and demonstration modules. Engine figures keep the calculated number and add a plain-language sentence.

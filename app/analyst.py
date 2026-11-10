@@ -220,7 +220,11 @@ def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[s
         action = "Save the draft, then run Analyze. This suggestion does not run the engine."
         href = f"/assessments/{assessment_id}#intake" if surface == "results" else "#intake"
         link_label = "Open the intake fields"
-        questions = ("What should I do next?", "What evidence is still missing?")
+        questions = (
+            "What should I do next?",
+            "What evidence is still missing?",
+            "What should I work on next?",
+        )
     elif surface == "results":
         current = "results"
         if flags:
@@ -232,7 +236,11 @@ def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[s
             action = "Read the stored recommendation. This suggestion does not change it."
         href = "#results-lead"
         link_label = "Read the stored result"
-        questions = ("Explain this result", "What should I do next?")
+        questions = (
+            "Explain this result",
+            "What should I do next?",
+            "What does this gate mean?",
+        )
     else:
         current = "gaps"
         if missing:
@@ -249,10 +257,20 @@ def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[s
             action = "Read the stored result. This suggestion does not change it."
         href = f"#evidence-checklist-{assessment_id}"
         link_label = "Open the evidence checklist"
-        questions = ("What evidence is still missing?", "Explain this result")
+        questions = (
+            "What evidence is still missing?",
+            "Explain this result",
+            "What should I do next?",
+        )
+    name = str(record.get("business_name") or "this draft")
     return {
         "stages": AGENT_WORKFLOW,
         "current": current,
+        "welcome": (
+            f"Welcome. This adviser is reading {name}. "
+            "It can point to a gap, explain a stored result, and suggest a next step. "
+            "It cannot change a number, a flag, or an approval."
+        ),
         "action": action,
         "href": href,
         "link_label": link_label,
