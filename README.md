@@ -73,6 +73,12 @@ From `c:\Projects\RUGD`:
 
 The suite must stay green. Tests do not need the browser server.
 
+## Database recovery
+
+Each request uses one SQLite connection, commits when the request finishes, and closes it. A failed request rolls that transaction back. Two requests in one process wait up to five seconds for a lock. One SQLite file supports one application process.
+
+`app.reliability` copies a database to another file and checks integrity. Restore refuses `data/analyze.sqlite`. Backups for a later Render deploy are a copy of `/var/data/analyze.sqlite` taken by the owner. The application does not restore that disk by itself.
+
 ## Production (Render)
 
 The pilot host is `app.rugdintelligence.com`. Steps, DNS, and the one-instance SQLite disk are in `DEPLOYMENT.md`. The app reads environment variables. It does not load a `.env` file. Local `.env` files stay gitignored.

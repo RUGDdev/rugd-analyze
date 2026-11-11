@@ -80,6 +80,14 @@ The session cookie is marked Secure in this environment, so the browser sends it
 - `app/future.py` stays disabled. Render settings are read from `app/config.py`. The deployment seam does not turn on billing or scoring.
 - One SQLite file is the database. An external database is a later decision. `RUGD_DATABASE` is the path seam for that file.
 
+## SQLite limits and backup
+
+One SQLite file supports one application process. A second process can fail a write or see a stale page. Keep the service at one instance.
+
+Each HTTP request opens one connection, commits when the request finishes, and closes the connection. A failed request rolls the open transaction back. `PRAGMA busy_timeout` waits five seconds for a lock held by another request in that same process. That wait does not make two application processes safe.
+
+A local backup copies one database file to a different file with the SQLite backup API, then checks `PRAGMA integrity_check`. Restore writes that copy onto a destination and refuses `data/analyze.sqlite`. It does not restore the Render disk. Take a copy of `/var/data/analyze.sqlite` before an owner deploy that changes stored data, and keep that copy outside the application directory. Restoring the disk copy is a separate owner decision.
+
 ## Rollback
 
 This document does not deploy the service and does not turn on Render Auto-Deploy.

@@ -642,3 +642,11 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not deploy, does not enable Render Auto-Deploy, and does not change the 0.1 engine formulas or the official baseline.
 - `PRODUCTION_READINESS.md` separates checks that passed, checks that failed, and checks that were not run. A local browser walk and the unittest suite do not verify the Render process, SMTP delivery, load, or a second SQLite instance.
 - Rollback, when an owner later chooses to deploy, is a manual Render deploy of an earlier commit. The persistent SQLite file is not reverted by that code deploy. Do not force-push.
+
+## Decision: SQLite recovery stays in-process
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline. It does not migrate the database to another engine.
+- One request opens one connection, commits on success, rolls back on failure, and closes the connection. Schema changes commit before the request uses the connection. A second request in the same process waits five seconds for a lock.
+- Backup writes a different file and checks integrity. Restore refuses the default `data/analyze.sqlite` path. A partial file is removed when the copy fails. The Render disk is not restored by the application.
+- One SQLite file supports one application process. A second process is not a supported deployment. Moving to a server database would be a separate owner decision.

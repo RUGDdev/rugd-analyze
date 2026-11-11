@@ -4,7 +4,7 @@ Updated: 2026-11-11
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 199 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 208 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -588,3 +588,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Production-readiness preparation
 
 - `PRODUCTION_READINESS.md` records PASS, FAIL, and NOT VERIFIED checks. The unittest suite was run again and remains 199 tests, all passing. An authenticated local browser walk opened Explore, Research, Analyze, Business plan, Pitch deck, Reports, Action Center, Adviser, and Market Pulse on a temporary database. Each page showed the workflow navigation. Opening those pages did not run Analyze. `DEPLOYMENT.md` now names `python-pptx` and `fpdf2` and describes a manual rollback. Render was not deployed, and Auto-Deploy was not enabled. The official sample hash is unchanged.
+
+## Progress — 2026-11-11 Reliability and recovery
+
+- A request commits its SQLite transaction and closes the connection. Schema setup commits before the request work, and a duplicate column add from a concurrent opener is ignored. `PRAGMA busy_timeout` is five seconds. Backup and restore use the SQLite backup API on temporary files and refuse `data/analyze.sqlite`. A failed copy deletes its partial file. The unittest suite is 208 tests, all passing. Discarded HTTP responses close their socket object. A few client sockets can still be reported by the interpreter during garbage collection. This work has not been deployed.

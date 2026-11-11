@@ -245,6 +245,18 @@ analyst_transport = None
 class AppHandler(BaseHTTPRequestHandler):
     db_path = None
 
+    def finish(self) -> None:
+        connection = getattr(self, "connection", None)
+        if connection is not None:
+            try:
+                connection.close()
+            except OSError:
+                pass
+        try:
+            super().finish()
+        except OSError:
+            return
+
     def do_GET(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         if path == "/static/rugd-logo.png":
@@ -2699,6 +2711,7 @@ def _download_stamp(record: dict[str, Any], result: dict[str, Any]) -> str:
 def make_server(db_path, port: int = 8765, host: str = "127.0.0.1") -> ThreadingHTTPServer:
     AppHandler.db_path = db_path
     server = ThreadingHTTPServer((host, port), AppHandler)
+    server.daemon_threads = True  # type: ignore[attr-defined]
     server.auth_limiter = AttemptLimiter()  # type: ignore[attr-defined]
     return server
 

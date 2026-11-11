@@ -77,10 +77,46 @@ FORBIDDEN_PROFILE_KEYS = frozenset(
 )
 
 
+BUSY_TIMEOUT_MS = 5000
+
+
+class ManagedConnection(sqlite3.Connection):
+    """Commit or roll back with the request, then close the file."""
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        try:
+            super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
+
+def _ensure_column(connection: sqlite3.Connection, statement: str) -> None:
+    """Add a column. A concurrent opener may have added it already."""
+    try:
+        connection.execute(statement)
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
+
+
 def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(path)
+    connection = sqlite3.connect(
+        path,
+        timeout=BUSY_TIMEOUT_MS / 1000,
+        factory=ManagedConnection,
+    )
+    try:
+        _open_schema(connection)
+    except Exception:
+        connection.close()
+        raise
+    return connection
+
+
+def _open_schema(connection: sqlite3.Connection) -> None:
     connection.row_factory = sqlite3.Row
+    connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS assessments (
@@ -116,7 +152,7 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         row[1] for row in connection.execute("PRAGMA table_info(review_approvals)")
     }
     if "authentication_method" not in approval_columns:
-        connection.execute(
+        _ensure_column(connection, 
             "ALTER TABLE review_approvals ADD COLUMN authentication_method TEXT NOT NULL DEFAULT 'local-prototype-gate'"
         )
     connection.execute(
@@ -132,16 +168,16 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
     )
     user_columns = {row[1] for row in connection.execute("PRAGMA table_info(users)")}
     if "email_verified" not in user_columns:
-        connection.execute(
+        _ensure_column(connection, 
             "ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0"
         )
         connection.execute("UPDATE users SET email_verified = 1")
     if "notification_preferences" not in user_columns:
-        connection.execute(
+        _ensure_column(connection, 
             "ALTER TABLE users ADD COLUMN notification_preferences TEXT NOT NULL DEFAULT '{}'"
         )
     if "welcome_dismissed" not in user_columns:
-        connection.execute(
+        _ensure_column(connection, 
             "ALTER TABLE users ADD COLUMN welcome_dismissed INTEGER NOT NULL DEFAULT 0"
         )
     connection.execute(
@@ -173,12 +209,12 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         row[1] for row in connection.execute("PRAGMA table_info(reviewer_sessions)")
     }
     if "expires_at" not in session_columns:
-        connection.execute("ALTER TABLE reviewer_sessions ADD COLUMN expires_at TEXT")
+        _ensure_column(connection, "ALTER TABLE reviewer_sessions ADD COLUMN expires_at TEXT")
         connection.execute(
             "UPDATE reviewer_sessions SET expires_at = created_at WHERE expires_at IS NULL"
         )
     if "user_id" not in session_columns:
-        connection.execute("ALTER TABLE reviewer_sessions ADD COLUMN user_id TEXT")
+        _ensure_column(connection, "ALTER TABLE reviewer_sessions ADD COLUMN user_id TEXT")
     connection.execute(
         """
         CREATE TABLE IF NOT EXISTS reviewer_events (
@@ -208,15 +244,15 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         row[1] for row in connection.execute("PRAGMA table_info(assessments)")
     }
     if "business_profile_id" not in assessment_columns:
-        connection.execute("ALTER TABLE assessments ADD COLUMN business_profile_id TEXT")
+        _ensure_column(connection, "ALTER TABLE assessments ADD COLUMN business_profile_id TEXT")
     if "owner_user_id" not in assessment_columns:
-        connection.execute("ALTER TABLE assessments ADD COLUMN owner_user_id TEXT")
+        _ensure_column(connection, "ALTER TABLE assessments ADD COLUMN owner_user_id TEXT")
     if "checklist_json" not in assessment_columns:
-        connection.execute(
+        _ensure_column(connection, 
             "ALTER TABLE assessments ADD COLUMN checklist_json TEXT NOT NULL DEFAULT '{}'"
         )
     if "scenarios_json" not in assessment_columns:
-        connection.execute(
+        _ensure_column(connection, 
             "ALTER TABLE assessments ADD COLUMN scenarios_json TEXT NOT NULL DEFAULT '{}'"
         )
     connection.execute(
@@ -250,7 +286,7 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         row[1] for row in connection.execute("PRAGMA table_info(business_profiles)")
     }
     if "venture_path" not in profile_columns:
-        connection.execute(
+        _ensure_column(connection, 
             "ALTER TABLE business_profiles ADD COLUMN venture_path TEXT NOT NULL DEFAULT 'startup'"
         )
     connection.execute(
@@ -396,7 +432,7 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
-    return connection
+    connection.commit()
 
 
 def seed(connection: sqlite3.Connection) -> None:

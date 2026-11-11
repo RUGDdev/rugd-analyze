@@ -47,6 +47,10 @@ class PublicRetrievalError(RuntimeError):
 
 class _RejectRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ARG002
+        try:
+            fp.close()
+        except Exception:
+            pass
         raise PublicRetrievalError("redirect")
 
 
@@ -134,7 +138,9 @@ def open_public(url: str) -> str:
     except TimeoutError:
         raise PublicRetrievalError("timeout") from None
     except urllib.error.HTTPError as exc:
-        raise PublicRetrievalError(_http_category(exc)) from None
+        category = _http_category(exc)
+        exc.close()
+        raise PublicRetrievalError(category) from None
     except urllib.error.URLError as exc:
         raise PublicRetrievalError(_url_category(exc)) from None
     if len(payload) > MAX_BODY:
