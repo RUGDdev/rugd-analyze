@@ -569,3 +569,10 @@ Owner input required before replacing `billing_hooks`:
 - A preview calls `run_financials` and, when the required startup fields are finite, the existing startup projection. It does not save the assessment and it does not create an official recommendation. Run Analyze remains the step that stores the authoritative result.
 - A business plan copies stored profile fields, the stored engine result, and the stored startup projection. Narrative sections can be edited. Those edits do not replace the copied figures, clear a flag, or set `human_review_approved`. Generating another plan does not replace the earlier plan.
 - Graphics use those copied figures. They do not invent an expense total, a capital category, or a period-by-period forecast. An existing or expanding business does not receive startup capital or startup funding sections. A live adviser proposal is stored for review and does not become plan text until the customer saves it. With no live adviser configured, the plan says so and stays on the saved assessment. Markdown and the print view are the exports. Completing a plan does not grant investor-ready status.
+
+## Decision: Pitch decks
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline.
+- A pitch deck is a new copy of one saved business plan. The audience chooses which slides start included. Optional slides can be restored. Narrative edits, order, and inclusion do not replace the copied figures.
+- PowerPoint and PDF are produced locally with `python-pptx` and `fpdf2`. No paid document service is used. A missing figure stays missing. A deck does not grant financing approval, investor readiness, or verified demand.

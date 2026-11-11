@@ -1,3 +1,5 @@
-# RUGD Analyze uses the Python 3.12 standard library.
+# RUGD Analyze uses the Python 3.12 standard library for the assessment service.
 # Render runs: pip install -r requirements.txt
-# No third-party packages are required for the pilot service.
+# Pitch deck export uses these local open-source libraries. No paid document service is used.
+python-pptx==1.0.2
+fpdf2==2.9.0

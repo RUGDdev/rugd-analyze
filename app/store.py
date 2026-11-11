@@ -294,6 +294,19 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pitch_decks (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            title TEXT NOT NULL,
+            document_json TEXT NOT NULL
+        )
+        """
+    )
     return connection
 
 
@@ -2064,6 +2077,145 @@ def _plan_row_from_values(
 ) -> dict[str, Any]:
     return {
         "id": plan_id,
+        "assessment_id": assessment_id,
+        "created_by": created_by,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "title": title,
+        "document": document,
+    }
+
+
+def insert_pitch_deck(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    created_by: str,
+    title: str,
+    document: dict[str, Any],
+) -> dict[str, Any]:
+    deck_id = str(uuid.uuid4())
+    created_at = _now()
+    connection.execute(
+        """
+        INSERT INTO pitch_decks (
+            id, assessment_id, created_by, created_at, updated_at, title, document_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (deck_id, assessment_id, created_by, created_at, created_at, title, json.dumps(document)),
+    )
+    connection.commit()
+    return _deck_row_from_values(deck_id, assessment_id, created_by, created_at, created_at, title, document)
+
+
+def update_pitch_deck(
+    connection: sqlite3.Connection,
+    deck_id: str,
+    *,
+    slides: list[dict[str, Any]],
+) -> None:
+    row = connection.execute(
+        "SELECT document_json FROM pitch_decks WHERE id = ?",
+        (deck_id,),
+    ).fetchone()
+    if row is None:
+        return
+    try:
+        document = json.loads(row["document_json"])
+    except json.JSONDecodeError:
+        document = {}
+    if not isinstance(document, dict):
+        document = {}
+    document["slides"] = slides
+    connection.execute(
+        "UPDATE pitch_decks SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), deck_id),
+    )
+    connection.commit()
+
+
+def set_deck_proposal(
+    connection: sqlite3.Connection,
+    deck_id: str,
+    proposal: dict[str, Any],
+) -> None:
+    """Store a narrative proposal for review. Saved slides stay unchanged."""
+    row = connection.execute(
+        "SELECT document_json FROM pitch_decks WHERE id = ?",
+        (deck_id,),
+    ).fetchone()
+    if row is None:
+        return
+    try:
+        document = json.loads(row["document_json"])
+    except json.JSONDecodeError:
+        document = {}
+    if not isinstance(document, dict):
+        document = {}
+    document["proposal"] = proposal
+    connection.execute(
+        "UPDATE pitch_decks SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), deck_id),
+    )
+    connection.commit()
+
+
+def list_pitch_decks(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, title, document_json
+        FROM pitch_decks
+        WHERE assessment_id = ?
+        ORDER BY created_at, id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_deck_row(row) for row in rows]
+
+
+def get_pitch_deck(connection: sqlite3.Connection, deck_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, title, document_json
+        FROM pitch_decks
+        WHERE id = ?
+        """,
+        (deck_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _deck_row(row)
+
+
+def _deck_row(row: sqlite3.Row) -> dict[str, Any]:
+    try:
+        document = json.loads(row["document_json"])
+    except json.JSONDecodeError:
+        document = None
+    if not isinstance(document, dict):
+        document = None
+    return _deck_row_from_values(
+        row["id"],
+        row["assessment_id"],
+        row["created_by"],
+        row["created_at"],
+        row["updated_at"],
+        row["title"],
+        document,
+    )
+
+
+def _deck_row_from_values(
+    deck_id: str,
+    assessment_id: str,
+    created_by: str,
+    created_at: str,
+    updated_at: str,
+    title: str,
+    document: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "id": deck_id,
         "assessment_id": assessment_id,
         "created_by": created_by,
         "created_at": created_at,

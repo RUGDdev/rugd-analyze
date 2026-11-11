@@ -67,6 +67,7 @@ NAV = (
     ),
     ("/reports", "Reports", "Generate a report from a saved assessment and open it later."),
     ("/plans", "Business plan", "Write a plan from a saved assessment and export it."),
+    ("/decks", "Pitch deck", "Build a presentation from a saved business plan and export it."),
     ("/actions", "Action Center", "Save follow-up items for an assessment you can change."),
     ("/history", "History", "See saved assessments, reports, and action status."),
     ("/login", "Login", "Sign in with a local email and password."),
@@ -90,6 +91,8 @@ _TITLE_ACTIVE = {
     "Saved report": "/reports",
     "Business plan": "/plans",
     "Saved plan": "/plans",
+    "Pitch deck": "/decks",
+    "Saved deck": "/decks",
     "Action Center": "/actions",
     "History": "/history",
     "Research Brief": "/reports",
@@ -217,6 +220,9 @@ summary {{ cursor: pointer; }}
 .finance-workspace {{ display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1.1fr); gap: 1rem; align-items: start; }}
 .plan-nav {{ display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0 1rem; }}
 .plan-nav a {{ background: white; border: 1px solid var(--stone); padding: 0.25rem 0.45rem; }}
+.slide {{ aspect-ratio: 16 / 9; background: var(--ivory); color: var(--ink); border: 1px solid var(--stone); border-top: 8px solid var(--bronze); padding: 1rem 1.15rem; margin: 0.8rem 0; overflow: auto; }}
+.slide h2 {{ margin-top: 0; }}
+.slide-actions {{ display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }}
 .plan-section {{ scroll-margin-top: 0.75rem; }}
 .finance-preview {{ margin: 0; }}
 .chart-grid {{ display: grid; gap: 0.8rem; }}
@@ -327,7 +333,7 @@ def _pilot_purpose() -> str:
 <h2>What this review is for</h2>
 <p>This screen is for a pilot review of a draft. It shows the hard evidence gate, the stored engine result when one exists, and where a market figure comes from.</p>
 <p>A hard recommend-against flag keeps the recommendation at do-not-proceed. An indicative number, a market figure, and an assistant reply cannot clear that flag or grant investor-ready status.</p>
-<p class="muted">This local prototype is not a billing system, a live market feed, or a pitch deck.</p>
+<p class="muted">This local prototype is not a billing system or a live market feed. A pitch deck copies a saved plan and does not grant investor-ready status.</p>
 </section>
 """
 
@@ -3981,6 +3987,12 @@ def history_page(entries: list[dict[str, Any]]) -> str:
                 f"{escape(str(item.get('title') or 'Business plan'))}</a> · {escape(str(item.get('created_at') or ''))}</li>"
                 for item in plans
             ) or "<li>No business plan is saved.</li>"
+            decks = entry.get("decks") or []
+            deck_lines = "".join(
+                f"<li><a href=\"/assessments/{escape(str(record['id']))}/decks/{escape(str(item.get('id') or ''))}\">"
+                f"{escape(str(item.get('title') or 'Pitch deck'))}</a> · {escape(str(item.get('created_at') or ''))}</li>"
+                for item in decks
+            ) or "<li>No pitch deck is saved.</li>"
             actions = entry.get("actions") or []
             if actions:
                 action_lines = "".join(
@@ -3998,13 +4010,14 @@ def history_page(entries: list[dict[str, Any]]) -> str:
                 f"<p>{financial}</p>"
                 f"<h3>Reports</h3><ul>{report_lines}</ul>"
                 f"<h3>Business plans</h3><ul>{plan_lines}</ul>"
+                f"<h3>Pitch decks</h3><ul>{deck_lines}</ul>"
                 f"<h3>Actions</h3><ul>{action_lines}</ul>"
                 "</section>"
             )
         rows = "".join(blocks)
     return layout(
         "History",
-        f"{_section_welcome('Welcome to RUGD History', 'This page lists saved assessments, stored results, reports, business plans, and action status.', 'An older report or plan snapshot stays here after Analyze is run again.')}{_SURFACE_NOTE}"
+        f"{_section_welcome('Welcome to RUGD History', 'This page lists saved assessments, stored results, reports, business plans, pitch decks, and action status.', 'An older report, plan, or deck stays here after Analyze is run again.')}{_SURFACE_NOTE}"
         f"<div id=\"history\">{rows}</div>",
     )
 
@@ -4182,7 +4195,8 @@ def business_plan_page(
         )
         tools = (
             f'<p class="no-print"><a class="button" href="/assessments/{assessment_id}/plans/{plan_id}/print">Print</a> '
-            f'<a class="button" href="/assessments/{assessment_id}/plans/{plan_id}/export">Export</a></p>'
+            f'<a class="button" href="/assessments/{assessment_id}/plans/{plan_id}/export">Export</a> '
+            f'<a class="button" href="/assessments/{assessment_id}/decks?plan={plan_id}">Pitch deck</a></p>'
         )
         status = (
             '<p id="save-status">Business plan saved.</p>'
@@ -4214,6 +4228,188 @@ def business_plan_page(
 {rendered_html}
 """
     return layout("Saved plan", body, printable=printable)
+
+
+def decks_page(
+    records: list[dict[str, Any]],
+    decks_by_assessment: dict[str, list[dict[str, Any]]] | None = None,
+    *,
+    signed_in: bool = False,
+) -> str:
+    decks_by_assessment = decks_by_assessment or {}
+    if not records:
+        items = "<li>No authorized assessment is available. Sign in, then save a business plan.</li>"
+    else:
+        rows = []
+        for item in records:
+            assessment_id = str(item.get("id") or "")
+            decks = decks_by_assessment.get(assessment_id) or []
+            if decks:
+                summary = "".join(
+                    f"<li><a href=\"/assessments/{escape(assessment_id)}/decks/{escape(str(deck.get('id') or ''))}\">"
+                    f"{escape(str(deck.get('title') or 'Pitch deck'))}</a></li>"
+                    for deck in decks
+                )
+            else:
+                summary = "<li>No pitch deck is saved yet.</li>"
+            rows.append(
+                "<li>"
+                f"<a href=\"/assessments/{escape(assessment_id)}/decks\">"
+                f"{escape(str(item.get('business_name') or 'Assessment'))}</a>"
+                f"<ul>{summary}</ul></li>"
+            )
+        items = "".join(rows)
+    sign_in = "" if signed_in else "<p>Sign in to generate a pitch deck.</p>"
+    body = f"""
+<h1>Pitch decks</h1>
+{_section_welcome("Welcome to RUGD Pitch Decks", "A pitch deck copies a saved business plan. It does not run a new calculation.", "Generating a deck does not grant investor-ready status.")}
+{_SURFACE_NOTE}
+{sign_in}
+<ul>{items}</ul>
+"""
+    return layout("Pitch deck", body)
+
+
+def assessment_decks_page(
+    record: dict[str, Any],
+    plans: list[dict[str, Any]],
+    decks: list[dict[str, Any]],
+    *,
+    selected_plan: str = "",
+    signed_in: bool = False,
+    notice: str = "",
+) -> str:
+    from app.deck import AUDIENCES
+
+    banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
+    assessment_id = escape(str(record.get("id") or ""))
+    if plans and signed_in:
+        options = []
+        for plan in plans:
+            plan_id = str(plan.get("id") or "")
+            selected = " selected" if plan_id == selected_plan else ""
+            options.append(
+                f'<option value="{escape(plan_id)}"{selected}>{escape(str(plan.get("title") or "Business plan"))}</option>'
+            )
+        audiences = "".join(
+            f'<option value="{escape(key)}">{escape(label)}</option>' for key, label in AUDIENCES.items()
+        )
+        generator = (
+            f'<form method="post" action="/assessments/{assessment_id}/decks">'
+            f'<label for="plan_id">Saved business plan</label>'
+            f'<select id="plan_id" name="plan_id">{"".join(options)}</select>'
+            f'<label for="audience">Audience</label>'
+            f'<select id="audience" name="audience">{audiences}</select>'
+            f'<button type="submit">Generate pitch deck</button></form>'
+        )
+    elif signed_in:
+        generator = "<p>Save a business plan before generating a pitch deck.</p>"
+    else:
+        generator = "<p>Sign in to generate a pitch deck.</p>"
+    if decks:
+        listing = "".join(
+            f'<li><a href="/assessments/{assessment_id}/decks/{escape(str(item.get("id") or ""))}">'
+            f'{escape(str(item.get("title") or "Pitch deck"))}</a> · {escape(str(item.get("created_at") or ""))}</li>'
+            for item in decks
+        )
+    else:
+        listing = "<li>No pitch deck is saved yet.</li>"
+    body = f"""
+<h1>Pitch decks for {escape(str(record.get("business_name") or "Assessment"))}</h1>
+{banner}
+<p>Each generated deck keeps its own copy of the plan figures. A later Analyze run does not change an earlier deck.</p>
+{generator}
+<ul>{listing}</ul>
+"""
+    return layout("Pitch deck", body)
+
+
+def pitch_deck_page(
+    record: dict[str, Any],
+    deck: dict[str, Any],
+    *,
+    notice: str = "",
+    narrative_draft: dict[str, str] | None = None,
+) -> str:
+    from app.deck import ASSEMBLED, DISCLAIMER
+
+    document = deck.get("document") if isinstance(deck.get("document"), dict) else {}
+    slides = document.get("slides") if isinstance(document.get("slides"), list) else []
+    graphics = document.get("graphics") if isinstance(document.get("graphics"), dict) else {}
+    draft = narrative_draft or {}
+    banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
+    assessment_id = escape(str(record.get("id") or ""))
+    deck_id = escape(str(deck.get("id") or ""))
+    cards = []
+    for slide in slides:
+        if not isinstance(slide, dict):
+            continue
+        slide_id = str(slide.get("id") or "")
+        narrative = str(draft.get(slide_id) or slide.get("narrative") or "")
+        included = " checked" if slide.get("included") else ""
+        include_control = ""
+        if slide.get("optional"):
+            include_control = (
+                f'<label><input type="checkbox" name="include_{escape(slide_id)}" value="1"{included}> Include this slide</label>'
+            )
+        else:
+            include_control = "<p>This slide stays in the presentation.</p>"
+        chart = str(slide.get("chart") or "")
+        graphic = ""
+        if chart == "cash":
+            graphic = str(graphics.get("revenue") or "") + str(graphics.get("trend") or "")
+        elif chart == "break_even":
+            graphic = str(graphics.get("break_even") or "")
+        elif chart == "comparison":
+            graphic = str(graphics.get("comparison") or "")
+        elif chart == "allocation":
+            graphic = str(graphics.get("allocation") or "")
+        facts = "".join(f"<li>{escape(str(item))}</li>" for item in (slide.get("facts") or []))
+        cards.append(
+            f'<article class="slide" id="slide-{escape(slide_id)}">'
+            f"<h2>{escape(str(slide.get('title') or 'Slide'))}</h2>"
+            f'<label for="narrative_{escape(slide_id)}">Narrative</label>'
+            f'<textarea id="narrative_{escape(slide_id)}" name="narrative_{escape(slide_id)}">{escape(narrative)}</textarea>'
+            f"{include_control}"
+            f'<div class="slide-actions">'
+            f'<button type="submit" name="move" value="{escape(slide_id)}:earlier">Move earlier</button>'
+            f'<button type="submit" name="move" value="{escape(slide_id)}:later">Move later</button>'
+            f"</div>"
+            f"<ul>{facts}</ul>{graphic}</article>"
+        )
+    status = (
+        '<p id="save-status">Pitch deck saved.</p>'
+        if notice == "Pitch deck saved."
+        else '<p id="save-status">Narrative changes stay unsaved until you choose Save deck.</p>'
+    )
+    proposal = document.get("proposal") if isinstance(document.get("proposal"), dict) else None
+    proposal_block = ""
+    if proposal and str(proposal.get("text") or "").strip():
+        proposal_block = (
+            '<section class="card" id="adviser-proposal"><h2>Adviser proposal</h2>'
+            "<p>Live adviser proposal. This text is not part of the saved deck until you save it. "
+            "It cannot change calculated figures.</p>"
+            f"<p>{escape(str(proposal.get('text') or ''))}</p></section>"
+        )
+    body = f"""
+<h1>{escape(str(deck.get('title') or 'Pitch deck'))}</h1>
+{banner}
+<p id="deck-source">{escape(str(document.get('narrative_source') or ASSEMBLED))}</p>
+<p>{escape(str(document.get('disclaimer') or DISCLAIMER))}</p>
+<p>Saved {escape(str(deck.get('created_at') or ''))}. Updated {escape(str(deck.get('updated_at') or ''))}. Audience: {escape(str(document.get('audience_label') or ''))}.</p>
+{status}
+<p class="no-print"><a class="button" href="/assessments/{assessment_id}/decks/{deck_id}/pptx">Export PowerPoint</a>
+<a class="button" href="/assessments/{assessment_id}/decks/{deck_id}/pdf">Export PDF</a></p>
+{proposal_block}
+<form method="post" action="/assessments/{assessment_id}/decks/{deck_id}">
+{''.join(cards)}
+<button type="submit">Save deck</button>
+</form>
+<form method="post" action="/assessments/{assessment_id}/decks/{deck_id}/propose">
+<button type="submit">Propose narrative</button>
+</form>
+"""
+    return layout("Saved deck", body)
 
 
 def _narrative_block(key: str, label: str, text: str, *, printable: bool) -> str:

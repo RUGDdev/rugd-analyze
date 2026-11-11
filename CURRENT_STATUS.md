@@ -1,10 +1,10 @@
 # Current status
 
-Updated: 2026-11-09
+Updated: 2026-11-11
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 173 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 178 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -536,3 +536,11 @@ Further work on production authentication, real market data, an approved scoring
 - A business plan has the sixteen customer sections. An existing or expanding business omits startup capital and startup funding. Narrative text is assembled from the saved assessment. With no live adviser configured, Propose narrative says so and does not change the plan. A configured adviser can only propose text for review. Saving the plan is what stores that text. The copied figures stay with that plan.
 - Supported exports are Markdown and the print view. No PDF library is included.
 - The unittest suite is 173 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.
+
+## Progress — 2026-11-11 Pitch decks
+
+- A signed-in customer can generate a pitch deck from a saved business plan for an investor, a lender, a strategic partner, or a general overview. The deck copies that plan's figures. A later Analyze run leaves the earlier deck in place.
+- The customer can edit slide narratives, include or restore optional slides, reorder slides, save, and reopen the deck. Generating another deck does not replace the earlier one.
+- PowerPoint and PDF exports use the local open-source libraries `python-pptx` and `fpdf2`. Charts and numbers come from the copied snapshot. No expense total or period-by-period trend is invented.
+- With no live adviser configured, Propose narrative says so and does not change the deck. A deck does not grant financing approval, investor readiness, or verified demand.
+- The unittest suite is 178 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.

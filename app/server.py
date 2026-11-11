@@ -67,6 +67,9 @@ from app.pages import (
     plans_page,
     assessment_plans_page,
     business_plan_page,
+    decks_page,
+    assessment_decks_page,
+    pitch_deck_page,
     actions_page,
     assessment_actions_page,
     history_page,
@@ -100,6 +103,8 @@ from app.access import (
     may_write,
     visible_records,
 )
+from app.deck import AUDIENCES, build_deck_document, edited_deck
+from app.deck_export import pdf_bytes, powerpoint_bytes
 from app.plan import build_plan_document, edited_sections, plan_markdown
 from app.preview import preview_markup
 from app.report_snapshot import build_report_snapshot, snapshot_markdown
@@ -129,15 +134,20 @@ from app.store import (
     get_assessment,
     get_action_item,
     get_business_plan,
+    get_pitch_deck,
     get_saved_report,
     insert_action_item,
     insert_business_plan,
+    insert_pitch_deck,
     insert_saved_report,
     list_action_items,
     list_business_plans,
+    list_pitch_decks,
     list_saved_reports,
+    set_deck_proposal,
     set_plan_proposal,
     update_business_plan,
+    update_pitch_deck,
     update_action_item,
     list_approvals,
     list_assessments,
@@ -236,6 +246,8 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(self._reports_index(connection))
         elif path == "/plans":
             self._html(self._plans_index(connection))
+        elif path == "/decks":
+            self._html(self._decks_index(connection))
         elif path == "/actions":
             self._html(self._actions_index(connection))
         elif path == "/history":
@@ -474,6 +486,8 @@ class AppHandler(BaseHTTPRequestHandler):
             self._reports_get(connection, record, parts)
         elif action == "plans":
             self._plans_get(connection, record, parts)
+        elif action == "decks":
+            self._decks_get(connection, record, parts)
         elif action == "actions":
             self._actions_get(connection, record)
         elif action == "advisor":
@@ -609,6 +623,19 @@ class AppHandler(BaseHTTPRequestHandler):
                     status=403,
                 )
                 return
+        elif action == "decks":
+            if not may_read(state, record):
+                self._deny_assessment()
+                return
+            if not may_save_report(state, record):
+                self._html(
+                    layout(
+                        "Sign in required",
+                        "<h1>Sign in required</h1><p>Sign in to save a pitch deck.</p>",
+                    ),
+                    status=403,
+                )
+                return
         elif action == "preview":
             if not may_read(state, record):
                 self._deny_assessment()
@@ -709,6 +736,9 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if action == "plans":
             self._save_plan(connection, record, parts, form)
+            return
+        if action == "decks":
+            self._save_deck(connection, record, parts, form)
             return
         if action == "preview":
             self._preview(connection, record, form)
@@ -1242,6 +1272,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 "record": item,
                 "reports": self._visible_reports(connection, state, item),
                 "plans": self._visible_plans(connection, state, item),
+                "decks": self._visible_decks(connection, state, item),
                 "actions": self._visible_actions(connection, state, item),
             }
             for item in records
@@ -1262,6 +1293,164 @@ class AppHandler(BaseHTTPRequestHandler):
             str(item["id"]): self._visible_plans(connection, state, item) for item in records
         }
         return plans_page(records, grouped, signed_in=bool(self._session_user_id(state)))
+
+    def _decks_index(self, connection: Any) -> str:
+        records = self._visible_assessments(connection)
+        state = self._account_state(connection)
+        grouped = {
+            str(item["id"]): self._visible_decks(connection, state, item) for item in records
+        }
+        return decks_page(records, grouped, signed_in=bool(self._session_user_id(state)))
+
+    def _visible_decks(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_pitch_decks(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _decks_get(self, connection: Any, record: dict[str, Any], parts: list[str]) -> None:
+        state = self._account_state(connection)
+        if len(parts) == 3:
+            notice = "Pitch deck saved." if self._query_value("saved") == "1" else ""
+            self._html(
+                assessment_decks_page(
+                    record,
+                    self._visible_plans(connection, state, record),
+                    self._visible_decks(connection, state, record),
+                    selected_plan=self._query_value("plan"),
+                    signed_in=bool(self._session_user_id(state)),
+                    notice=notice,
+                )
+            )
+            return
+        deck = get_pitch_deck(connection, parts[3])
+        if deck is None or deck["assessment_id"] != record["id"]:
+            self._html(layout("Not found", "<h1>Pitch deck not found</h1>"), status=404)
+            return
+        if not may_see_attachment(state, record, str(deck.get("created_by") or "")):
+            self._deny_assessment()
+            return
+        form = parts[4] if len(parts) > 4 else ""
+        document = deck.get("document") if isinstance(deck.get("document"), dict) else {}
+        if form == "pptx":
+            payload = powerpoint_bytes(document, title=str(deck.get("title") or "Pitch deck"))
+            self._bytes(
+                payload,
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                disposition=f'attachment; filename="rugd-deck-{deck["id"]}.pptx"',
+            )
+            return
+        if form == "pdf":
+            payload = pdf_bytes(document, title=str(deck.get("title") or "Pitch deck"))
+            self._bytes(
+                payload,
+                "application/pdf",
+                disposition=f'attachment; filename="rugd-deck-{deck["id"]}.pdf"',
+            )
+            return
+        notice = "Pitch deck saved." if self._query_value("saved") == "1" else ""
+        self._html(pitch_deck_page(record, deck, notice=notice))
+
+    def _save_deck(self, connection: Any, record: dict[str, Any], parts: list[str], form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        user_id = self._session_user_id(state)
+        if len(parts) == 3:
+            plan = get_business_plan(connection, form.get("plan_id") or "")
+            if plan is None or plan["assessment_id"] != record["id"]:
+                self._html(layout("Not found", "<h1>Business plan not found</h1>"), status=404)
+                return
+            if not may_see_attachment(state, record, str(plan.get("created_by") or "")):
+                self._deny_assessment()
+                return
+            audience = form.get("audience") or ""
+            if audience not in AUDIENCES:
+                self._html(
+                    layout("Choose an audience", "<h1>Choose an audience</h1><p>Choose an audience before generating a pitch deck.</p>"),
+                    status=400,
+                )
+                return
+            try:
+                document = build_deck_document(plan, audience=audience)
+            except ValueError as exc:
+                self._html(layout("Choose an audience", f"<h1>Choose an audience</h1><p>{escape(str(exc))}</p>"), status=400)
+                return
+            name = str(document.get("business_name") or record.get("business_name") or "Assessment")
+            insert_pitch_deck(
+                connection,
+                assessment_id=str(record["id"]),
+                created_by=user_id,
+                title=f"{name} {document['audience_label']}",
+                document=document,
+            )
+            self._redirect(f"/assessments/{record['id']}/decks?saved=1")
+            return
+        deck = get_pitch_deck(connection, parts[3])
+        if deck is None or deck["assessment_id"] != record["id"]:
+            self._html(layout("Not found", "<h1>Pitch deck not found</h1>"), status=404)
+            return
+        if not may_see_attachment(state, record, str(deck.get("created_by") or "")):
+            self._deny_assessment()
+            return
+        if len(parts) > 4 and parts[4] == "propose":
+            self._propose_deck(connection, record, deck)
+            return
+        document = deck.get("document") if isinstance(deck.get("document"), dict) else {}
+        try:
+            slides = edited_deck(document, form)
+        except ValueError as exc:
+            self._html(pitch_deck_page(record, deck, notice=str(exc)), status=400)
+            return
+        update_pitch_deck(connection, parts[3], slides=slides)
+        self._redirect(f"/assessments/{record['id']}/decks/{parts[3]}?saved=1")
+
+    def _propose_deck(self, connection: Any, record: dict[str, Any], deck: dict[str, Any]) -> None:
+        """Ask a configured live adviser for slide wording. A missing provider does not invent a response."""
+        from app.analyst import get_analyst
+
+        analyst = get_analyst()
+        if analyst.__class__.__name__ != "ExternalAnalyst":
+            self._html(
+                pitch_deck_page(
+                    record,
+                    deck,
+                    notice=(
+                        "No live adviser is configured. This deck stays on the saved plan. "
+                        "The deck was not changed."
+                    ),
+                )
+            )
+            return
+        lines = analyst.reply(
+            record,
+            record.get("result") if isinstance(record.get("result"), dict) else None,
+            "Propose shorter slide wording from the saved business plan only. "
+            "Do not invent financial figures, market sizes, competitive facts, traction, or funding approval.",
+        )
+        text = "\n".join(str(line) for line in lines)
+        if "External analyst" not in text:
+            self._html(
+                pitch_deck_page(
+                    record,
+                    deck,
+                    notice="The live adviser did not return a proposal. The deck was not changed.",
+                )
+            )
+            return
+        set_deck_proposal(
+            connection,
+            str(deck["id"]),
+            {"source": "live-adviser", "text": text, "status": "review"},
+        )
+        updated = get_pitch_deck(connection, str(deck["id"])) or deck
+        self._html(
+            pitch_deck_page(
+                record,
+                updated,
+                notice="Live adviser proposal is ready for review. It is not part of the saved deck until you save it.",
+                narrative_draft={"intro": text},
+            )
+        )
 
     def _visible_plans(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
         return [
