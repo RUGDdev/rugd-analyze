@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from html import escape
 from typing import Any
 from urllib.parse import urlencode
@@ -13,6 +14,7 @@ from app.charts import render_engine_charts, render_scenario_chart
 from app.inputs import MONTHLY_FIELDS, field_state
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
 from app.objectives import OBJECTIVES, objective_label
+from app.plan import ASSEMBLED, NARRATIVE_KEYS, NOT_WRITTEN, capital_lines
 from app.store import (
     HYPOTHETICAL_DEMO_LABEL,
     RESTAURANT_ID,
@@ -64,6 +66,7 @@ NAV = (
         "See example monitoring cards. Monitoring is not active.",
     ),
     ("/reports", "Reports", "Generate a report from a saved assessment and open it later."),
+    ("/plans", "Business plan", "Write a plan from a saved assessment and export it."),
     ("/actions", "Action Center", "Save follow-up items for an assessment you can change."),
     ("/history", "History", "See saved assessments, reports, and action status."),
     ("/login", "Login", "Sign in with a local email and password."),
@@ -85,6 +88,8 @@ _TITLE_ACTIVE = {
     "Market Pulse": "/market-pulse",
     "Reports": "/reports",
     "Saved report": "/reports",
+    "Business plan": "/plans",
+    "Saved plan": "/plans",
     "Action Center": "/actions",
     "History": "/history",
     "Research Brief": "/reports",
@@ -209,6 +214,11 @@ summary {{ cursor: pointer; }}
 .adviser-log li {{ background: white; border: 1px solid var(--stone); border-left: 4px solid var(--bronze); padding: 0.55rem 0.7rem; margin: 0.35rem 0; }}
 .adviser-log .you {{ border-left-color: var(--slate); }}
 .figure-notes {{ margin-top: 0; }}
+.finance-workspace {{ display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1.1fr); gap: 1rem; align-items: start; }}
+.plan-nav {{ display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0 1rem; }}
+.plan-nav a {{ background: white; border: 1px solid var(--stone); padding: 0.25rem 0.45rem; }}
+.plan-section {{ scroll-margin-top: 0.75rem; }}
+.finance-preview {{ margin: 0; }}
 .chart-grid {{ display: grid; gap: 0.8rem; }}
 .chart {{ background: white; border: 1px solid var(--stone); padding: 0.75rem 0.9rem; }}
 .chart h3 {{ margin: 0 0 0.35rem; }}
@@ -226,6 +236,7 @@ summary {{ cursor: pointer; }}
   .nav-tip {{ left: 0; top: calc(100% + 0.2rem); width: 12.5rem; }}
   main {{ padding: 1.25rem 1rem 2rem; }}
   .glance {{ grid-template-columns: 1fr; }}
+  .finance-workspace {{ grid-template-columns: 1fr; }}
 }}
 @media print {{
   .sidebar, nav, .no-print {{ display: none !important; }}
@@ -893,6 +904,7 @@ def assessment_form(
     notes: list[dict[str, Any]] | None = None,
     *,
     writable: bool | None = None,
+    preview_html: str = "",
 ) -> str:
     profile = record["profile"]
     can_edit = (not record["read_only"]) if writable is None else bool(writable)
@@ -939,7 +951,13 @@ def assessment_form(
             "startup-only cost-build questions and still collects the monthly engine inputs. "
             "This choice does not clear a flag or grant investor-ready status.</div>"
         )
-    fields = _fields(profile, locked, path)
+    fields = _fields(
+        profile,
+        locked,
+        path,
+        assessment_id=str(record.get("id") or ""),
+        preview_html=preview_html,
+    )
     if can_edit:
         action = f"""
 <form method="post" action="/assessments/{escape(record['id'])}/save">
@@ -1113,7 +1131,89 @@ def shared_assessment_page(
     return layout("Read-only share", body)
 
 
-def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
+def _preview_script(assessment_id: str) -> str:
+    if not assessment_id:
+        return ""
+    names = [
+        *MONTHLY_FIELDS,
+        "downside_multiplier",
+        "construction_cost",
+        "seats",
+        "average_ticket",
+        "weekday_occupancy",
+        "weekend_occupancy",
+        "operating_days",
+        "contribution_margin",
+        "equipment",
+        "soft_costs",
+        "preopening_working_capital",
+        "contingency_pct",
+        "debt_share",
+        "annual_interest_rate",
+        "amortization_years",
+        "annual_fixed_costs",
+    ]
+    encoded = ",".join(json.dumps(name) for name in names)
+    target = json.dumps(f"/assessments/{assessment_id}/preview")
+    return f"""
+<script>
+(function () {{
+  var box = document.getElementById("financial-preview");
+  if (!box) return;
+  var names = [{encoded}];
+  var timer = null;
+  function collect() {{
+    var params = new URLSearchParams();
+    names.forEach(function (name) {{
+      var node = document.querySelector('[name="' + name + '"]');
+      if (!node) return;
+      if (node.type === "checkbox") {{
+        if (node.checked) params.set(name, node.value || "true");
+      }} else {{
+        params.set(name, node.value || "");
+      }}
+    }});
+    params.set("preview_fragment", "1");
+    return params;
+  }}
+  function refresh() {{
+    fetch({target}, {{
+      method: "POST",
+      headers: {{"Content-Type": "application/x-www-form-urlencoded"}},
+      body: collect().toString(),
+      credentials: "same-origin"
+    }}).then(function (response) {{
+      return response.text().then(function (text) {{
+        if (response.ok) box.innerHTML = text;
+        else box.innerHTML = '<p class="flag">This preview is not available to this session. The assessment was not changed.</p>';
+      }});
+    }}).catch(function () {{
+      box.innerHTML = '<p class="flag">The preview could not be calculated. The saved assessment was not changed.</p>';
+    }});
+  }}
+  function schedule() {{
+    window.clearTimeout(timer);
+    timer = window.setTimeout(refresh, 300);
+  }}
+  names.forEach(function (name) {{
+    var node = document.querySelector('[name="' + name + '"]');
+    if (!node || node.disabled) return;
+    node.addEventListener("input", schedule);
+    node.addEventListener("change", schedule);
+  }});
+}})();
+</script>
+"""
+
+
+def _fields(
+    profile: dict[str, Any],
+    locked: str,
+    path: str = "startup",
+    *,
+    assessment_id: str = "",
+    preview_html: str = "",
+) -> str:
     examples = suggestions_for(str(profile.get("industry") or ""), str(profile.get("stage") or ""))
 
     def text(name: str, label: str, *, area: bool = False) -> str:
@@ -1258,15 +1358,25 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
 </details>
 {capital}
 {_saved_explore_context(profile)}
-<details id="monthly-engine">
+<div class="finance-workspace" id="financial-workspace">
+<div class="finance-inputs">
+<details id="monthly-engine" open>
 <summary>Monthly engine</summary>
-<p class="muted">All four monthly fields are required before the monthly engine calculates. Unchecked measured status keeps the figures unmeasured.</p>
+<p class="muted">All four monthly fields are required before the monthly engine calculates. Unchecked measured status keeps the figures unmeasured. Changing these fields updates the preview only. Run Analyze to store an official result.</p>
 {text("initial_capital", "Initial capital")}
 {text("monthly_fixed_costs", "Monthly fixed costs")}
 {text("gross_margin_pct", "Gross margin")}
 {text("projected_monthly_revenue_base", "Projected monthly base revenue")}
 <label><input type="checkbox" name="inputs_are_measured" value="true" {measured} {locked}> These monthly figures are measured</label>
+{"<button type=\"submit\" formaction=\"/assessments/" + escape(assessment_id) + "/preview\">Update preview</button>" if assessment_id and not locked else ""}
 </details>
+</div>
+<aside class="card finance-preview" id="financial-preview" aria-live="polite">
+<h2>Financial preview</h2>
+{preview_html or "<p id=\"preview-waiting\">Change a supported assumption, then update the preview. A preview is not saved and does not change the official result.</p>"}
+</aside>
+</div>
+{_preview_script(assessment_id)}
 {text("evidence_notes", "Evidence notes", area=True)}
 """
 
@@ -3564,6 +3674,7 @@ def _workspace_links(record: dict[str, Any]) -> str:
     return (
         '<p class="no-print" id="workspace-links">'
         f'<a class="button" href="/assessments/{assessment_id}/reports">Report</a> '
+        f'<a class="button" href="/assessments/{assessment_id}/plans">Business plan</a> '
         f'<a class="button" href="/assessments/{assessment_id}/actions">Action Center</a> '
         '<a class="button" href="/history">History</a>'
         "</p>"
@@ -3703,6 +3814,7 @@ def saved_report_page(
 <h2>Financial charts</h2>
 {snapshot.get('chart_html') or ''}
 {snapshot.get('scenario_chart_html') or ''}
+{_graphics_html(snapshot)}
 </section>
 """
     return layout("Saved report", body, printable=printable)
@@ -3863,6 +3975,12 @@ def history_page(entries: list[dict[str, Any]]) -> str:
                 f"{escape(str(item.get('title') or 'Saved report'))}</a> · {escape(str(item.get('created_at') or ''))}</li>"
                 for item in reports
             ) or "<li>No report is saved.</li>"
+            plans = entry.get("plans") or []
+            plan_lines = "".join(
+                f"<li><a href=\"/assessments/{escape(str(record['id']))}/plans/{escape(str(item.get('id') or ''))}\">"
+                f"{escape(str(item.get('title') or 'Business plan'))}</a> · {escape(str(item.get('created_at') or ''))}</li>"
+                for item in plans
+            ) or "<li>No business plan is saved.</li>"
             actions = entry.get("actions") or []
             if actions:
                 action_lines = "".join(
@@ -3879,15 +3997,246 @@ def history_page(entries: list[dict[str, Any]]) -> str:
                 f"Updated {escape(str(record.get('updated_at') or ''))}.</p>"
                 f"<p>{financial}</p>"
                 f"<h3>Reports</h3><ul>{report_lines}</ul>"
+                f"<h3>Business plans</h3><ul>{plan_lines}</ul>"
                 f"<h3>Actions</h3><ul>{action_lines}</ul>"
                 "</section>"
             )
         rows = "".join(blocks)
     return layout(
         "History",
-        f"{_section_welcome('Welcome to RUGD History', 'This page lists saved assessments, stored results, reports, and action status.', 'An older report snapshot stays here after Analyze is run again.')}{_SURFACE_NOTE}"
+        f"{_section_welcome('Welcome to RUGD History', 'This page lists saved assessments, stored results, reports, business plans, and action status.', 'An older report or plan snapshot stays here after Analyze is run again.')}{_SURFACE_NOTE}"
         f"<div id=\"history\">{rows}</div>",
     )
+
+
+def plans_page(
+    records: list[dict[str, Any]],
+    plans_by_assessment: dict[str, list[dict[str, Any]]] | None = None,
+    *,
+    signed_in: bool = False,
+) -> str:
+    plans_by_assessment = plans_by_assessment or {}
+    if not records:
+        items = "<li>No authorized assessment is available. Sign in, then start one from Explore.</li>"
+    else:
+        rows = []
+        for item in records:
+            assessment_id = str(item.get("id") or "")
+            saved = plans_by_assessment.get(assessment_id) or []
+            saved_links = "".join(
+                f"<li><a href=\"/assessments/{escape(assessment_id)}/plans/{escape(str(plan.get('id') or ''))}\">"
+                f"{escape(str(plan.get('title') or 'Business plan'))}</a> · "
+                f"saved {escape(str(plan.get('updated_at') or plan.get('created_at') or ''))}</li>"
+                for plan in saved
+            ) or "<li>No business plan is saved yet.</li>"
+            generate = ""
+            if signed_in:
+                generate = (
+                    f"<form method=\"post\" action=\"/assessments/{escape(assessment_id)}/plans\">"
+                    "<button type=\"submit\">Generate business plan</button></form>"
+                )
+            rows.append(
+                "<section class=\"card\">"
+                f"<h2><a href=\"/assessments/{escape(assessment_id)}/plans\">{escape(str(item.get('business_name') or 'Assessment'))}</a></h2>"
+                f"{generate}<ul>{saved_links}</ul></section>"
+            )
+        items = "".join(rows)
+    sign_in = "" if signed_in else '<p><a class="button" href="/login">Sign in to save a business plan</a></p>'
+    return layout(
+        "Business plan",
+        f"{_section_welcome('Welcome to RUGD Business Plans', 'Generate a plan from a saved assessment and edit the narrative sections.', 'Financial figures are copied from the stored result. Generating a plan does not change the recommendation.')}{_SURFACE_NOTE}"
+        f"{sign_in}<div id=\"plans\">{items}</div>",
+    )
+
+
+def assessment_plans_page(
+    record: dict[str, Any],
+    plans: list[dict[str, Any]],
+    *,
+    signed_in: bool = False,
+    notice: str = "",
+) -> str:
+    banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
+    if plans:
+        saved = "".join(
+            f"<li><a href=\"/assessments/{escape(str(record['id']))}/plans/{escape(str(item.get('id') or ''))}\">"
+            f"{escape(str(item.get('title') or 'Business plan'))}</a> · "
+            f"updated {escape(str(item.get('updated_at') or ''))}</li>"
+            for item in plans
+        )
+    else:
+        saved = "<li>No business plan is saved yet.</li>"
+    generate = ""
+    if signed_in:
+        generate = (
+            f"<form method=\"post\" action=\"/assessments/{escape(str(record['id']))}/plans\">"
+            "<button type=\"submit\">Generate business plan</button></form>"
+        )
+    else:
+        generate = '<p><a class="button" href="/login">Sign in to save a business plan</a></p>'
+    body = f"""
+<h1>Business plans for {escape(str(record.get('business_name') or 'Assessment'))}</h1>
+{banner}
+<p>A business plan copies the saved intake and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>
+{generate}
+<ul>{saved}</ul>
+<p><a href="/history">Open History</a></p>
+"""
+    return layout("Business plan", body)
+
+
+def business_plan_page(
+    record: dict[str, Any],
+    plan: dict[str, Any],
+    *,
+    printable: bool = False,
+    notice: str = "",
+    narrative_draft: dict[str, str] | None = None,
+) -> str:
+    document = plan.get("document") if isinstance(plan.get("document"), dict) else {}
+    snapshot = document.get("snapshot") if isinstance(document.get("snapshot"), dict) else {}
+    sections = document.get("sections") if isinstance(document.get("sections"), dict) else {}
+    graphics = snapshot.get("graphics") if isinstance(snapshot.get("graphics"), dict) else {}
+    existing = document.get("stage") == "existing"
+    banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
+    plan_id = escape(str(plan.get("id") or ""))
+    assessment_id = escape(str(record.get("id") or ""))
+    draft = narrative_draft or {}
+    blocks = {
+        key: _narrative_block(key, label, str(draft.get(key) or sections.get(key) or NOT_WRITTEN), printable=printable)
+        for key, label in NARRATIVE_KEYS
+    }
+    if existing:
+        capital = (
+            "<p>Startup capital requirements are not part of this existing or expanding business. No allocation was added.</p>"
+        )
+        funding = (
+            "<p>Funding requirements for a new startup are not part of this existing or expanding business.</p>"
+        )
+    else:
+        capital_items = "".join(f"<li>{escape(line)}</li>" for line in capital_lines(document.get("projection")))
+        capital = f"<ul>{capital_items}</ul>{graphics.get('allocation') or ''}"
+        funding = f"<ul>{capital_items}</ul><p class=\"muted\">Use of proceeds is limited to the stored sources and uses. No extra category was added.</p>"
+    ordered = (
+        ("executive-summary", "Executive Summary", blocks["executive_summary"]),
+        ("business-description", "Business Description", _fact_list(snapshot, "business_overview")),
+        ("products-services", "Products and Services", blocks["products_services"]),
+        (
+            "customer-market",
+            "Customer and Market Analysis",
+            _fact_list(snapshot, "market_and_customers")
+            + "<p>A demonstration market snapshot is not copied into this plan. Market size is not stored.</p>",
+        ),
+        (
+            "industry",
+            "Industry and Competitive Environment",
+            _fact_list(snapshot, "market_and_customers")
+            + "<p>Competitive facts are not stored. None were added.</p>",
+        ),
+        (
+            "revenue-model",
+            "Business and Revenue Model",
+            _fact_list(snapshot, "objective") + _fact_list(snapshot, "assumptions"),
+        ),
+        ("marketing", "Marketing and Customer Acquisition", blocks["marketing"]),
+        ("operations", "Operations and Resources", blocks["operations"]),
+        ("management", "Management and Organization", blocks["management"]),
+        ("startup-capital", "Startup Capital Requirements", capital),
+        (
+            "financial-analysis",
+            "Financial Analysis and Projections",
+            _fact_list(snapshot, "base_results")
+            + str(graphics.get("revenue") or "")
+            + str(graphics.get("break_even") or "")
+            + str(graphics.get("trend") or "")
+            + str(snapshot.get("chart_html") or ""),
+        ),
+        (
+            "risks",
+            "Risks and Evidence Gaps",
+            _fact_list(snapshot, "evidence_gaps")
+            + _fact_list(snapshot, "risk_indicators")
+            + _fact_list(snapshot, "downside_scenario")
+            + str(graphics.get("comparison") or "")
+            + str(snapshot.get("scenario_chart_html") or ""),
+        ),
+        ("growth", "Growth and Development Strategy", blocks["growth"]),
+        ("durable-value", "Durable Value Considerations", blocks["durable_value"]),
+        ("funding", "Funding Requirements and Use of Proceeds", funding),
+        ("implementation", "Implementation Priorities and Next Steps", blocks["implementation"]),
+        ("recommendation", "Stored recommendation", _fact_list(snapshot, "recommendation") + _fact_list(snapshot, "limitations")),
+    )
+    nav = "".join(f'<a href="#{section_id}">{escape(title)}</a>' for section_id, title, _body in ordered)
+    rendered = [
+        f'<section class="card plan-section" id="{section_id}"><h2>{escape(title)}</h2>{content}</section>'
+        for section_id, title, content in ordered
+    ]
+    tools = ""
+    if not printable:
+        rendered_html = (
+            f'<form method="post" action="/assessments/{assessment_id}/plans/{plan_id}">'
+            + "".join(rendered)
+            + '<button type="submit">Save plan</button></form>'
+            f'<form method="post" action="/assessments/{assessment_id}/plans/{plan_id}/propose">'
+            '<button type="submit">Propose narrative</button></form>'
+        )
+        tools = (
+            f'<p class="no-print"><a class="button" href="/assessments/{assessment_id}/plans/{plan_id}/print">Print</a> '
+            f'<a class="button" href="/assessments/{assessment_id}/plans/{plan_id}/export">Export</a></p>'
+        )
+        status = (
+            '<p id="save-status">Business plan saved.</p>'
+            if notice == "Business plan saved."
+            else '<p id="save-status">Narrative changes stay unsaved until you choose Save plan.</p>'
+        )
+    else:
+        rendered_html = "".join(rendered)
+        status = ""
+    proposal = document.get("proposal") if isinstance(document.get("proposal"), dict) else None
+    proposal_block = ""
+    if proposal and str(proposal.get("text") or "").strip():
+        proposal_block = (
+            '<section class="card" id="adviser-proposal">'
+            "<h2>Adviser proposal</h2>"
+            "<p>Live adviser proposal. This text is not part of the saved plan until you save it. "
+            "It cannot change calculated figures.</p>"
+            f"<p>{escape(str(proposal.get('text') or ''))}</p></section>"
+        )
+    body = f"""
+<h1>{escape(str(plan.get('title') or 'Business plan'))}</h1>
+{banner}
+<p id="plan-source">{escape(str(document.get('narrative_source') or ASSEMBLED))}</p>
+<p>Saved {escape(str(plan.get('created_at') or ''))}. Updated {escape(str(plan.get('updated_at') or ''))}. Narrative edits do not change the copied financial figures or the assessment. Completing this plan does not set human_review_approved and does not grant investor-ready status.</p>
+{status}
+<nav class="plan-nav" aria-label="Business plan sections">{nav}</nav>
+{tools}
+{proposal_block}
+{rendered_html}
+"""
+    return layout("Saved plan", body, printable=printable)
+
+
+def _narrative_block(key: str, label: str, text: str, *, printable: bool) -> str:
+    if printable:
+        return f"<p>{escape(text)}</p>"
+    return (
+        f'<label for="{escape(key)}">{escape(label)}</label>'
+        f'<textarea id="{escape(key)}" name="{escape(key)}">{escape(text)}</textarea>'
+    )
+
+
+def _fact_list(snapshot: dict[str, Any], key: str) -> str:
+    values = snapshot.get(key)
+    if isinstance(values, list) and values:
+        items = "".join(f"<li>{escape(str(item))}</li>" for item in values)
+    else:
+        items = "<li>Not available. This section was not in the saved snapshot.</li>"
+    return f"<ul>{items}</ul>"
+
+
+def _graphics_html(snapshot: dict[str, Any]) -> str:
+    graphics = snapshot.get("graphics") if isinstance(snapshot.get("graphics"), dict) else {}
+    return "".join(str(graphics.get(key) or "") for key in ("revenue", "break_even", "comparison", "allocation", "trend"))
 
 
 def settings_page(user: dict[str, Any] | None = None) -> str:
@@ -4069,6 +4418,7 @@ def explore_page(
     links = "".join(
         f"<li><a href=\"/assessments/{escape(item['id'])}\">{escape(item['business_name'])}</a> · "
         f"<a href=\"/assessments/{escape(item['id'])}/reports\">Report</a> · "
+        f"<a href=\"/assessments/{escape(item['id'])}/plans\">Business plan</a> · "
         f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a></li>"
         for item in records
     )
@@ -4102,6 +4452,7 @@ def explore_page(
 <p>Open a draft to ask the assistant about that assessment. The assistant is assistance only and cannot change the draft.</p>
 <p><a class="button" href="/assessments/new">Start an Explore draft</a>
 <a class="button" href="/reports">Open Reports</a>
+<a class="button" href="/plans">Open Business Plans</a>
 <a class="button" href="/actions">Open Action Center</a></p>
 """
         + _guidance_section("explore")
@@ -4114,6 +4465,7 @@ def analyze_index(records: list[dict[str, Any]]) -> str:
     items = "".join(
         f"<li><a href=\"/assessments/{escape(item['id'])}/results\">{escape(item['business_name'])}</a> · "
         f"<a href=\"/assessments/{escape(item['id'])}/reports\">Report</a> · "
+        f"<a href=\"/assessments/{escape(item['id'])}/plans\">Business plan</a> · "
         f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a></li>"
         for item in records
     )
@@ -4124,6 +4476,7 @@ def analyze_index(records: list[dict[str, Any]]) -> str:
         "<p>Results come from the 0.1 deterministic engine. Authoritative financial numbers come only from the 0.1 engine. "
         "This list does not mark a draft or the official baseline investor-ready.</p>"
         "<p><a class=\"button\" href=\"/reports\">Open Reports</a> "
+        "<a class=\"button\" href=\"/plans\">Open Business Plans</a> "
         "<a class=\"button\" href=\"/actions\">Open Action Center</a></p>"
         f"<ul>{items}</ul>",
     )

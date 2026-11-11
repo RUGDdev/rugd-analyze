@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.charts import render_engine_charts, render_scenario_chart
+from app.charts import render_engine_charts, render_financial_graphics, render_scenario_chart
 from app.inputs import MONTHLY_FIELDS, field_state
 from app.scenarios import METRIC_KEYS, METRIC_LABELS
 
@@ -79,6 +79,17 @@ def build_report_snapshot(record: dict[str, Any]) -> dict[str, Any]:
             else "<p>No chart is drawn. Analyze has not stored a monthly result.</p>"
         ),
         "scenario_chart_html": render_scenario_chart(record.get("scenarios")),
+        "graphics": render_financial_graphics(
+            financial if engine_ran else None,
+            assumed_revenue=_stored_number(profile, "projected_monthly_revenue_base"),
+            assumed_fixed_costs=_stored_number(profile, "monthly_fixed_costs"),
+            projection=(
+                result.get("projection")
+                if result and isinstance(result.get("projection"), dict) and result["projection"].get("calculated")
+                else None
+            ),
+            preview=False,
+        ),
     }
 
 
@@ -258,6 +269,17 @@ def _present(value: Any) -> str:
     if not text:
         return NOT_STORED
     return text
+
+
+def _stored_number(profile: dict[str, Any], key: str) -> float | None:
+    if field_state(profile.get(key)) not in {"entered", "zero"}:
+        return None
+    raw = profile.get(key)
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    return float(str(raw).strip())
 
 
 def _text(value: Any) -> str:

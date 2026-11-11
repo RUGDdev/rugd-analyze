@@ -64,6 +64,9 @@ from app.pages import (
     reports_page,
     assessment_reports_page,
     saved_report_page,
+    plans_page,
+    assessment_plans_page,
+    business_plan_page,
     actions_page,
     assessment_actions_page,
     history_page,
@@ -97,6 +100,8 @@ from app.access import (
     may_write,
     visible_records,
 )
+from app.plan import build_plan_document, edited_sections, plan_markdown
+from app.preview import preview_markup
 from app.report_snapshot import build_report_snapshot, snapshot_markdown
 from app.share import ShareError, active_share_links, can_manage_share, issue_share_link, open_share, revoke_share
 from app.review import (
@@ -123,11 +128,16 @@ from app.store import (
     list_business_profiles,
     get_assessment,
     get_action_item,
+    get_business_plan,
     get_saved_report,
     insert_action_item,
+    insert_business_plan,
     insert_saved_report,
     list_action_items,
+    list_business_plans,
     list_saved_reports,
+    set_plan_proposal,
+    update_business_plan,
     update_action_item,
     list_approvals,
     list_assessments,
@@ -224,6 +234,8 @@ class AppHandler(BaseHTTPRequestHandler):
             )
         elif path == "/reports":
             self._html(self._reports_index(connection))
+        elif path == "/plans":
+            self._html(self._plans_index(connection))
         elif path == "/actions":
             self._html(self._actions_index(connection))
         elif path == "/history":
@@ -460,6 +472,8 @@ class AppHandler(BaseHTTPRequestHandler):
             )
         elif action == "reports":
             self._reports_get(connection, record, parts)
+        elif action == "plans":
+            self._plans_get(connection, record, parts)
         elif action == "actions":
             self._actions_get(connection, record)
         elif action == "advisor":
@@ -582,6 +596,23 @@ class AppHandler(BaseHTTPRequestHandler):
                     status=403,
                 )
                 return
+        elif action == "plans":
+            if not may_read(state, record):
+                self._deny_assessment()
+                return
+            if not may_save_report(state, record):
+                self._html(
+                    layout(
+                        "Sign in required",
+                        "<h1>Sign in required</h1><p>Sign in to save a business plan.</p>",
+                    ),
+                    status=403,
+                )
+                return
+        elif action == "preview":
+            if not may_read(state, record):
+                self._deny_assessment()
+                return
         elif action in {"assistant", "share"}:
             if not may_read(state, record):
                 self._deny_assessment()
@@ -675,6 +706,12 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if action == "reports":
             self._save_report(connection, record)
+            return
+        if action == "plans":
+            self._save_plan(connection, record, parts, form)
+            return
+        if action == "preview":
+            self._preview(connection, record, form)
             return
         if action == "actions":
             self._save_action(connection, record, parts, form)
@@ -1204,6 +1241,7 @@ class AppHandler(BaseHTTPRequestHandler):
             {
                 "record": item,
                 "reports": self._visible_reports(connection, state, item),
+                "plans": self._visible_plans(connection, state, item),
                 "actions": self._visible_actions(connection, state, item),
             }
             for item in records
@@ -1216,6 +1254,175 @@ class AppHandler(BaseHTTPRequestHandler):
             for item in list_saved_reports(connection, str(record["id"]))
             if may_see_attachment(state, record, str(item.get("created_by") or ""))
         ]
+
+    def _plans_index(self, connection: Any) -> str:
+        records = self._visible_assessments(connection)
+        state = self._account_state(connection)
+        grouped = {
+            str(item["id"]): self._visible_plans(connection, state, item) for item in records
+        }
+        return plans_page(records, grouped, signed_in=bool(self._session_user_id(state)))
+
+    def _visible_plans(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_business_plans(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _plans_get(self, connection: Any, record: dict[str, Any], parts: list[str]) -> None:
+        state = self._account_state(connection)
+        if len(parts) == 3:
+            notice = ""
+            if self._query_value("saved") == "1":
+                notice = "Business plan saved."
+            self._html(
+                assessment_plans_page(
+                    record,
+                    self._visible_plans(connection, state, record),
+                    signed_in=bool(self._session_user_id(state)),
+                    notice=notice,
+                )
+            )
+            return
+        plan = get_business_plan(connection, parts[3])
+        if plan is None or plan["assessment_id"] != record["id"]:
+            self._html(layout("Not found", "<h1>Business plan not found</h1>"), status=404)
+            return
+        if not may_see_attachment(state, record, str(plan.get("created_by") or "")):
+            self._deny_assessment()
+            return
+        form = parts[4] if len(parts) > 4 else ""
+        if form == "export":
+            document = plan.get("document") if isinstance(plan.get("document"), dict) else {}
+            payload = plan_markdown(document, title=str(plan.get("title") or "Business plan")).encode("utf-8")
+            self._bytes(
+                payload,
+                "text/markdown; charset=utf-8",
+                disposition=f'attachment; filename="rugd-plan-{plan["id"]}.md"',
+            )
+            return
+        if form == "print":
+            self._html(business_plan_page(record, plan, printable=True))
+            return
+        notice = "Business plan saved." if self._query_value("saved") == "1" else ""
+        self._html(business_plan_page(record, plan, notice=notice))
+
+    def _save_plan(self, connection: Any, record: dict[str, Any], parts: list[str], form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        user_id = self._session_user_id(state)
+        if len(parts) == 3:
+            business_name = str(record.get("business_name") or "Assessment")
+            insert_business_plan(
+                connection,
+                assessment_id=str(record["id"]),
+                created_by=user_id,
+                title=f"{business_name} business plan",
+                document=build_plan_document(
+                    record,
+                    actions=self._visible_actions(connection, state, record),
+                    notes=list_guidance_notes(connection, record["id"]),
+                ),
+            )
+            self._redirect(f"/assessments/{record['id']}/plans?saved=1")
+            return
+        plan = get_business_plan(connection, parts[3])
+        if plan is None or plan["assessment_id"] != record["id"]:
+            self._html(layout("Not found", "<h1>Business plan not found</h1>"), status=404)
+            return
+        if not may_see_attachment(state, record, str(plan.get("created_by") or "")):
+            self._deny_assessment()
+            return
+        if len(parts) > 4 and parts[4] == "propose":
+            self._propose_plan(connection, record, plan)
+            return
+        document = plan.get("document") if isinstance(plan.get("document"), dict) else {}
+        try:
+            sections = edited_sections(document, form)
+        except ValueError as exc:
+            self._html(
+                business_plan_page(record, plan, notice=str(exc)),
+                status=400,
+            )
+            return
+        update_business_plan(connection, parts[3], sections=sections)
+        self._redirect(f"/assessments/{record['id']}/plans/{parts[3]}?saved=1")
+
+    def _propose_plan(self, connection: Any, record: dict[str, Any], plan: dict[str, Any]) -> None:
+        """Ask a configured live adviser for narrative text. A missing provider does not invent a response."""
+        from app.analyst import get_analyst
+
+        analyst = get_analyst()
+        if analyst.__class__.__name__ != "ExternalAnalyst":
+            self._html(
+                business_plan_page(
+                    record,
+                    plan,
+                    notice=(
+                        "No live adviser is configured. This plan stays on the saved assessment text. "
+                        "The plan was not changed."
+                    ),
+                )
+            )
+            return
+        lines = analyst.reply(
+            record,
+            record.get("result") if isinstance(record.get("result"), dict) else None,
+            "Propose an executive summary from the saved business information only. "
+            "Do not invent financial figures, market sizes, competitive facts, or customer traction.",
+        )
+        text = "\n".join(str(line) for line in lines)
+        if "External analyst" not in text:
+            self._html(
+                business_plan_page(
+                    record,
+                    plan,
+                    notice="The live adviser did not return a proposal. The plan was not changed.",
+                )
+            )
+            return
+        set_plan_proposal(
+            connection,
+            str(plan["id"]),
+            {"source": "live-adviser", "text": text, "status": "review"},
+        )
+        updated = get_business_plan(connection, str(plan["id"])) or plan
+        self._html(
+            business_plan_page(
+                record,
+                updated,
+                notice="Live adviser proposal is ready for review. It is not part of the saved plan until you save it.",
+                narrative_draft={"executive_summary": text},
+            )
+        )
+
+    def _preview(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
+        """Calculate a preview from the posted fields. This does not write the assessment."""
+        markup = preview_markup(form)
+        if form.get("preview_fragment") == "1":
+            self._bytes(markup.encode("utf-8"), "text/html; charset=utf-8")
+            return
+        state = self._account_state(connection)
+        shown = dict(record)
+        profile = dict(record.get("profile") or {})
+        profile.update(
+            {
+                key: value
+                for key, value in form.items()
+                if key not in {"preview_fragment", "human_review_approved"}
+            }
+        )
+        shown["profile"] = profile
+        if str(profile.get("business_name") or "").strip():
+            shown["business_name"] = profile["business_name"]
+        self._html(
+            assessment_form(
+                shown,
+                notes=list_guidance_notes(connection, record["id"]),
+                writable=may_write(state, record),
+                preview_html=markup,
+            )
+        )
 
     def _visible_actions(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
         return [

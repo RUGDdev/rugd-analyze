@@ -281,6 +281,19 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS business_plans (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            title TEXT NOT NULL,
+            document_json TEXT NOT NULL
+        )
+        """
+    )
     return connection
 
 
@@ -1910,6 +1923,153 @@ def _action_row(row: sqlite3.Row) -> dict[str, Any]:
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "completed_at": row["completed_at"],
+    }
+
+
+def insert_business_plan(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    created_by: str,
+    title: str,
+    document: dict[str, Any],
+) -> dict[str, Any]:
+    plan_id = str(uuid.uuid4())
+    created_at = _now()
+    connection.execute(
+        """
+        INSERT INTO business_plans (
+            id, assessment_id, created_by, created_at, updated_at, title, document_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            plan_id,
+            assessment_id,
+            created_by,
+            created_at,
+            created_at,
+            title,
+            json.dumps(document),
+        ),
+    )
+    connection.commit()
+    return _plan_row_from_values(plan_id, assessment_id, created_by, created_at, created_at, title, document)
+
+
+def update_business_plan(
+    connection: sqlite3.Connection,
+    plan_id: str,
+    *,
+    sections: dict[str, str],
+) -> None:
+    row = connection.execute(
+        "SELECT document_json FROM business_plans WHERE id = ?",
+        (plan_id,),
+    ).fetchone()
+    if row is None:
+        return
+    try:
+        document = json.loads(row["document_json"])
+    except json.JSONDecodeError:
+        document = {}
+    if not isinstance(document, dict):
+        document = {}
+    document["sections"] = sections
+    connection.execute(
+        "UPDATE business_plans SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), plan_id),
+    )
+    connection.commit()
+
+
+def set_plan_proposal(
+    connection: sqlite3.Connection,
+    plan_id: str,
+    proposal: dict[str, Any],
+) -> None:
+    """Store a narrative proposal for review. Saved sections stay unchanged."""
+    row = connection.execute(
+        "SELECT document_json FROM business_plans WHERE id = ?",
+        (plan_id,),
+    ).fetchone()
+    if row is None:
+        return
+    try:
+        document = json.loads(row["document_json"])
+    except json.JSONDecodeError:
+        document = {}
+    if not isinstance(document, dict):
+        document = {}
+    document["proposal"] = proposal
+    connection.execute(
+        "UPDATE business_plans SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), plan_id),
+    )
+    connection.commit()
+
+
+def list_business_plans(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, title, document_json
+        FROM business_plans
+        WHERE assessment_id = ?
+        ORDER BY created_at, id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_plan_row(row) for row in rows]
+
+
+def get_business_plan(connection: sqlite3.Connection, plan_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, title, document_json
+        FROM business_plans
+        WHERE id = ?
+        """,
+        (plan_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _plan_row(row)
+
+
+def _plan_row(row: sqlite3.Row) -> dict[str, Any]:
+    try:
+        document = json.loads(row["document_json"])
+    except json.JSONDecodeError:
+        document = None
+    if not isinstance(document, dict):
+        document = None
+    return _plan_row_from_values(
+        row["id"],
+        row["assessment_id"],
+        row["created_by"],
+        row["created_at"],
+        row["updated_at"],
+        row["title"],
+        document,
+    )
+
+
+def _plan_row_from_values(
+    plan_id: str,
+    assessment_id: str,
+    created_by: str,
+    created_at: str,
+    updated_at: str,
+    title: str,
+    document: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "id": plan_id,
+        "assessment_id": assessment_id,
+        "created_by": created_by,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "title": title,
+        "document": document,
     }
 
 

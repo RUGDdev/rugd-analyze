@@ -561,3 +561,11 @@ Owner input required before replacing `billing_hooks`:
 - A saved report is a snapshot of stored profile fields and stored engine figures. A blank stays missing. A missing result stays “Not calculated.” Generating another report does not replace the earlier snapshot and does not change the assessment.
 - An action item stores a description and a status. Completing it does not verify evidence, clear a flag, or change the stored recommendation.
 - An unclaimed draft is still not assigned and not deleted. Only a reviewer can read or change it. A signed-out visit cannot. Seeded restaurant demonstrations stay readable and cannot be changed by a customer or a visitor. The baseline stays read-only. A share token still opens the assessment it was issued for.
+
+## Decision: Financial previews and business plans
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline.
+- A preview calls `run_financials` and, when the required startup fields are finite, the existing startup projection. It does not save the assessment and it does not create an official recommendation. Run Analyze remains the step that stores the authoritative result.
+- A business plan copies stored profile fields, the stored engine result, and the stored startup projection. Narrative sections can be edited. Those edits do not replace the copied figures, clear a flag, or set `human_review_approved`. Generating another plan does not replace the earlier plan.
+- Graphics use those copied figures. They do not invent an expense total, a capital category, or a period-by-period forecast. An existing or expanding business does not receive startup capital or startup funding sections. A live adviser proposal is stored for review and does not become plan text until the customer saves it. With no live adviser configured, the plan says so and stays on the saved assessment. Markdown and the print view are the exports. Completing a plan does not grant investor-ready status.

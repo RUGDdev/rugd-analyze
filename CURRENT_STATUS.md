@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 167 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 173 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -521,3 +521,18 @@ Further work on production authentication, real market data, an approved scoring
 - History lists saved assessments, whether a financial result is stored, report timestamps, and action status.
 - An unclaimed draft stays unassigned. A visitor who is not signed in cannot read or change it, and it is left off Explore, Analyze, Market, Reports, and export. A reviewer can open it. Seeded demonstrations stay readable and are read-only for customers and visitors. The official baseline stays read-only.
 - The unittest suite is 167 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.
+
+## Progress — 2026-11-11 Interactive financial preview and business plans
+
+- The intake places monthly assumptions beside a financial preview. Changing an assumption calculates through the existing monthly engine and, when the required startup fields are finite, the existing startup projection. The preview is labeled as unsaved. It does not write the assessment, an evidence flag, human review, investor readiness, or a recommendation. Run Analyze still stores the official result.
+- A blank monthly field stays missing. A value that is not a finite number is refused and no preview figure is invented. Charts copy the engine numbers for that request.
+- A signed-in customer can generate a business plan from a saved assessment, edit the narrative, save it, and export or print it. Financial figures in the plan are a snapshot. A later Analyze run leaves the earlier plan in place. Editing the narrative does not change the stored recommendation or `human_review_approved`.
+- The unittest suite is 171 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.
+
+## Progress — 2026-11-11 Financial graphics and business plan sections
+
+- Preview, saved reports, and business plans draw revenue, contribution, cash flow, break-even, and Base versus Downside from stored or just-calculated engine figures. Monthly revenue and fixed costs stay labeled as customer assumptions. No expense total is invented. A blank stays missing. A zero stays zero.
+- Startup capital is a doughnut only when the stored sources and uses are complete. An incomplete worksheet says the allocation is not drawn. No cash-flow trend line is drawn, because the monthly engine does not return a period-by-period series.
+- A business plan has the sixteen customer sections. An existing or expanding business omits startup capital and startup funding. Narrative text is assembled from the saved assessment. With no live adviser configured, Propose narrative says so and does not change the plan. A configured adviser can only propose text for review. Saving the plan is what stores that text. The copied figures stay with that plan.
+- Supported exports are Markdown and the print view. No PDF library is included.
+- The unittest suite is 173 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.
