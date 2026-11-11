@@ -173,6 +173,7 @@ from app.store import (
     get_monitoring_config,
     get_pulse_development,
     get_research_project,
+    record_audit_event,
     get_retrieval_batch,
     insert_adviser_conversation,
     list_adviser_conversations,
@@ -1314,8 +1315,22 @@ class AppHandler(BaseHTTPRequestHandler):
                 password=form.get("password") or "",
             )
         except ReviewError as exc:
+            record_audit_event(
+                connection,
+                action="sign_in",
+                actor_id="unknown",
+                session_token="",
+                detail="denied",
+            )
             self._html(login_page(self._safe_next(form.get("next") or "", "/"), str(exc)), status=403)
             return
+        record_audit_event(
+            connection,
+            action="sign_in",
+            actor_id=str(session.get("user_id") or ""),
+            session_token=str(session.get("token") or ""),
+            detail="role=" + str(session.get("role") or "unknown"),
+        )
         default = "/reviewer" if session.get("role") == "reviewer" else "/"
         spec = objective_by_id(form.get("objective") or "")
         if spec is not None and session.get("user_id"):
@@ -1719,6 +1734,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 document["summaries"] = summaries[-5:]
             document["update_proposal"] = None
             update_research_project(connection, str(project["id"]), title=str(project.get("title") or "Research"), document=document)
+            self._audit(connection, "research_update", user_id, assessment_id, "approved" if form.get("decision") == "approve" else "rejected")
         elif op == "create_action":
             evidence = self._visible_evidence(connection, state, record, str(project["id"]))
             summary = synthesize(project, evidence)
@@ -1896,6 +1912,13 @@ class AppHandler(BaseHTTPRequestHandler):
             created_by=user_id,
             document=document,
         )
+        self._audit(
+            connection,
+            "public_retrieval",
+            user_id,
+            assessment_id,
+            str(document.get("source") or "") + ":" + str(document.get("error_category") or document.get("status") or ""),
+        )
         self._redirect(f"/assessments/{assessment_id}/intelligence/{project_id}")
 
     def _import_public(self, connection: Any, record: dict[str, Any], project: dict[str, Any], user_id: str, form: dict[str, str]) -> None:
@@ -1923,6 +1946,7 @@ class AppHandler(BaseHTTPRequestHandler):
             document["notice"] = "This record is already saved. It was not imported again."
             document["status"] = "review"
             update_retrieval_batch(connection, str(batch["id"]), document)
+            self._audit(connection, "public_import", user_id, str(record["id"]), "duplicate")
             self._redirect(f"/assessments/{record['id']}/intelligence/{project['id']}")
             return
         builder = evidence_from_register if chosen.get("source") == "federal-register" else evidence_from_observation
@@ -1939,6 +1963,7 @@ class AppHandler(BaseHTTPRequestHandler):
         document["status"] = "review" if remaining else "imported"
         document["error_category"] = ""
         update_retrieval_batch(connection, str(batch["id"]), document)
+        self._audit(connection, "public_import", user_id, str(record["id"]), "imported")
         self._redirect(f"/assessments/{record['id']}/intelligence/{project['id']}")
 
     def _reject_public(self, connection: Any, state: dict[str, Any], record: dict[str, Any], project: dict[str, Any], form: dict[str, str]) -> None:
@@ -1951,7 +1976,18 @@ class AppHandler(BaseHTTPRequestHandler):
         document["status"] = "rejected"
         document["error_category"] = ""
         update_retrieval_batch(connection, str(batch["id"]), document)
+        self._audit(connection, "public_import", str(state.get("user_id") or ""), str(record["id"]), "rejected")
         self._redirect(f"/assessments/{record['id']}/intelligence/{project['id']}")
+
+    def _audit(self, connection: Any, action: str, actor_id: str, assessment_id: str, detail: str) -> None:
+        record_audit_event(
+            connection,
+            action=action,
+            actor_id=actor_id,
+            assessment_id=assessment_id,
+            session_token=self._cookies().get(SESSION_COOKIE, ""),
+            detail=detail,
+        )
 
     def _batch_visible(self, state: dict[str, Any], record: dict[str, Any], project: dict[str, Any], batch: dict[str, Any] | None) -> bool:
         return bool(

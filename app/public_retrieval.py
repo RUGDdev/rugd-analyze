@@ -7,6 +7,7 @@ A returned row is not evidence until the customer imports it.
 from __future__ import annotations
 
 import ipaddress
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -53,10 +54,28 @@ def retrieval_allowed(existing_batches: int) -> bool:
     return existing_batches < MAX_BATCHES
 
 
+def _configured_limit(name: str, default: int, low: int, high: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw.isdigit():
+        return default
+    value = int(raw)
+    if value < low or value > high:
+        return default
+    return value
+
+
+def source_batch_limit() -> int:
+    return _configured_limit("RUGD_SOURCE_BATCH_LIMIT", SOURCE_BATCH_LIMIT, 1, 10)
+
+
+def account_batch_limit() -> int:
+    return _configured_limit("RUGD_ACCOUNT_BATCH_LIMIT", ACCOUNT_BATCH_LIMIT, 1, 40)
+
+
 def retrieval_blocked(project_batches: list[dict[str, Any]], source: str, account_count: int) -> bool:
     """True when this source or this account has used its retrieval budget."""
     source_count = sum(1 for item in project_batches if str(item.get("source") or "") == source)
-    return source_count >= SOURCE_BATCH_LIMIT or account_count >= ACCOUNT_BATCH_LIMIT
+    return source_count >= source_batch_limit() or account_count >= account_batch_limit()
 
 
 def assert_allowed_url(url: str) -> None:

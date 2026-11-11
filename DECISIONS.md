@@ -628,3 +628,10 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline.
 - An assessment shows the same links for Explore, Research, Analyze, Business plan, Pitch deck, Reports, Action Center, Adviser, and Market Pulse. The sentence on that navigation says research can inform an assumption the customer chooses to enter, and a scenario is a separate engine run.
 - The links do not write the assessment. An approved research note remains the only research text copied onto a plan or a deck. Longarc_Platform stays a separate codebase.
+
+## Decision: Audit and configurable retrieval budgets
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not add a paid identity provider, and it does not change the 0.1 engine formulas or the official baseline.
+- Sensitive customer actions append an `audit_events` row: sign-in, public retrieval, import, rejection, and a research-update decision. The detail is a category such as `imported` or `denied`. The session id stored there is the existing short hash. A failed sign-in does not record the email or the password.
+- `RUGD_SOURCE_BATCH_LIMIT` accepts 1 through 10 and defaults to 3. `RUGD_ACCOUNT_BATCH_LIMIT` accepts 1 through 40 and defaults to 8. Another value is ignored and the default remains. Ownership checks are unchanged: another customer still receives the generic denial.

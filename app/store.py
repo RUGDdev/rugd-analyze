@@ -372,6 +372,19 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
     )
     connection.execute(
         """
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT NOT NULL,
+            actor_id TEXT NOT NULL,
+            assessment_id TEXT,
+            recorded_at TEXT NOT NULL,
+            session_public_id TEXT NOT NULL,
+            detail TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE IF NOT EXISTS retrieval_batches (
             id TEXT PRIMARY KEY,
             assessment_id TEXT NOT NULL,
@@ -1547,6 +1560,57 @@ def _stored_preferences(raw: str | None) -> dict[str, bool]:
     except json.JSONDecodeError:
         parsed = {}
     return normalize_preferences(parsed)
+
+
+def record_audit_event(
+    connection: sqlite3.Connection,
+    *,
+    action: str,
+    actor_id: str,
+    session_token: str,
+    assessment_id: str | None = None,
+    detail: str = "",
+) -> None:
+    """Record a sensitive action. The detail is a short category, not customer content."""
+    connection.execute(
+        """
+        INSERT INTO audit_events (
+            action, actor_id, assessment_id, recorded_at, session_public_id, detail
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            action[:80],
+            (actor_id or "unknown")[:80],
+            assessment_id,
+            _now(),
+            session_public_id(session_token or ""),
+            detail[:120],
+        ),
+    )
+    connection.commit()
+
+
+def list_audit_events(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, str]]:
+    rows = connection.execute(
+        """
+        SELECT action, actor_id, assessment_id, recorded_at, session_public_id, detail
+        FROM audit_events
+        WHERE assessment_id = ?
+        ORDER BY id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [
+        {
+            "action": str(row["action"]),
+            "actor_id": str(row["actor_id"]),
+            "assessment_id": str(row["assessment_id"] or ""),
+            "recorded_at": str(row["recorded_at"]),
+            "session_public_id": str(row["session_public_id"]),
+            "detail": str(row["detail"]),
+        }
+        for row in rows
+    ]
 
 
 def record_reviewer_event(

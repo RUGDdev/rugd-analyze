@@ -4,7 +4,7 @@ Updated: 2026-11-11
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 197 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 199 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -580,3 +580,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Business workflow
 
 - Explore, Research, Analyze, Business plan, Pitch deck, Reports, Action Center, Adviser, and Market Pulse share one workflow navigation on the assessment. The navigation says saved research can inform an assumption the customer enters, and a financial scenario does not replace the official result. Opening the workflow does not change the assessment. The unittest suite is 197 tests, all passing. This work has not been deployed.
+
+## Progress — 2026-11-11 Account controls
+
+- Sign-in, public retrieval, import, rejection, and a research-update decision write an audit row with a short detail and a hashed session id. The row does not store a password, an email, or the retrieved text. Retrieval budgets can be set with `RUGD_SOURCE_BATCH_LIMIT` and `RUGD_ACCOUNT_BATCH_LIMIT`; values outside the allowed range stay on the built-in limits. The session cookie remains HttpOnly and SameSite=Lax, and Secure when production cookies are enabled. The unittest suite is 199 tests, all passing. This work has not been deployed.
