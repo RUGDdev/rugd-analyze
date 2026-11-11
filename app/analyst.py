@@ -144,6 +144,7 @@ class ExternalAnalyst:
         self._model = model
         self._transport = transport or _post_json
         self.last_usage: dict[str, Any] = {}
+        self.last_error_category = ""
 
     def explain(self, record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:
         safe_record = copy.deepcopy(record)
@@ -212,7 +213,18 @@ class ExternalAnalyst:
                 "content-type": "application/json",
                 "authorization": f"Bearer {self._api_key}",
             }
-        response = self._transport(spec["url"], headers, payload)
+        try:
+            response = self._transport(spec["url"], headers, payload)
+        except ProviderCallError as exc:
+            self.last_error_category = exc.category
+            raise
+        except TimeoutError:
+            self.last_error_category = "timeout"
+            raise
+        except Exception:
+            self.last_error_category = "unavailable"
+            raise
+        self.last_error_category = ""
         self.last_usage = _usage(response)
         return _response_text(self.provider, response)[:MAX_REPLY_CHARS]
 
@@ -691,6 +703,44 @@ def _response_text(provider: str, payload: dict[str, Any]) -> str:
     return str(content)
 
 
+class ProviderCallError(RuntimeError):
+    """A failed provider call reduced to a category. The response body is not kept."""
+
+    def __init__(self, category: str) -> None:
+        self.category = category
+        super().__init__(f"analyst provider request failed: {category}")
+
+
+def provider_error_category(exc: BaseException) -> str:
+    """Name the failure without the response body, the URL, or a credential."""
+    if isinstance(exc, TimeoutError):
+        return "timeout"
+    if isinstance(exc, urllib.error.HTTPError):
+        code = int(getattr(exc, "code", 0) or 0)
+        if code in {401, 403, 404, 429}:
+            return f"http_{code}"
+        if code == 408:
+            return "timeout"
+        if code == 400:
+            return "http_400"
+        if 500 <= code <= 599:
+            return "http_5xx"
+        return "http_error"
+    if isinstance(exc, urllib.error.URLError):
+        reason = getattr(exc, "reason", exc)
+        if isinstance(reason, TimeoutError):
+            return "timeout"
+        text = str(reason).lower()
+        if "timed out" in text:
+            return "timeout"
+        if "getaddrinfo" in text or "name or service not known" in text or "nodename nor servname" in text:
+            return "dns"
+        if "certificate" in text or "tls" in text or "ssl" in text:
+            return "tls"
+        return "connection"
+    return "unavailable"
+
+
 def _post_json(url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
     request = urllib.request.Request(
         url,
@@ -701,5 +751,7 @@ def _post_json(url: str, headers: dict[str, str], payload: dict[str, Any]) -> di
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             return json.loads(response.read().decode("utf-8"))
+    except TimeoutError as exc:
+        raise ProviderCallError("timeout") from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError("analyst provider request failed") from exc
+        raise ProviderCallError(provider_error_category(exc)) from exc

@@ -4,7 +4,7 @@ Updated: 2026-11-11
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 182 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 183 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -551,3 +551,8 @@ Further work on production authentication, real market data, an approved scoring
 - Claude, OpenAI, and Grok stay behind `ANALYST_PROVIDER` and the matching server-side key. A missing key or a failed call uses the deterministic adviser. Opening a page does not call a provider. Live connectivity is unverified.
 - A plan or deck suggestion stays a proposal until the customer approves it. Rejection leaves the saved plan, deck, and assessment unchanged. Approval stores the suggestion beside the plan or deck and does not replace figures, sections, or the official result.
 - The unittest suite is 182 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed. Live provider connectivity is unverified.
+
+## Progress — 2026-11-11 Adviser provider errors
+
+- A failed provider call keeps a category such as timeout, dns, tls, connection, or an HTTP status class. The response body is not kept and is not shown to the customer. The customer still sees the generic fallback. Live connectivity remains unverified.
+- The unittest suite is 183 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.

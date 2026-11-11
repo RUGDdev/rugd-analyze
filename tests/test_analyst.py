@@ -1,10 +1,22 @@
 """The analyst explains results and cannot change them."""
 
 import copy
+import io
 import os
 import unittest
+import urllib.error
+from unittest.mock import patch
 
-from app.analyst import SAFETY_PROMPT, DemonstrationAnalyst, explain, get_analyst
+from app.adviser_workspace import ask_adviser
+from app.analyst import (
+    SAFETY_PROMPT,
+    DemonstrationAnalyst,
+    ProviderCallError,
+    _post_json,
+    explain,
+    get_analyst,
+    provider_error_category,
+)
 from app.pages import analyst_page, results_page
 from app.store import BASELINE_ID, connect, create_assessment, get_assessment, save_profile, seed
 from app.analysis import analyze_record
@@ -243,6 +255,80 @@ class TestDemonstrationAnalyst(unittest.TestCase):
         self.assertIn("Open the optional analyst explanation", shown)
         self.assertIn("cannot alter authoritative results", shown)
         self.assertEqual(result, before)
+
+    def test_provider_failures_keep_a_category_and_hide_the_body(self) -> None:
+        secret = "sk-ant-secret-value"
+        body = b'{"error":"sk-ant-secret-value","concept":"Harbor Books private note"}'
+        cases = (
+            (_http_error(401, body), "http_401"),
+            (_http_error(403, body), "http_403"),
+            (_http_error(404, body), "http_404"),
+            (_http_error(400, body), "http_400"),
+            (_http_error(429, body), "http_429"),
+            (_http_error(500, body), "http_5xx"),
+            (_http_error(418, body), "http_error"),
+            (urllib.error.URLError(TimeoutError("The read operation timed out")), "timeout"),
+            (urllib.error.URLError(OSError("getaddrinfo failed")), "dns"),
+            (urllib.error.URLError(OSError("certificate verify failed")), "tls"),
+            (urllib.error.URLError(ConnectionRefusedError(111, "connection refused")), "connection"),
+            (TimeoutError("timed out"), "timeout"),
+        )
+        for exc, category in cases:
+            self.assertEqual(provider_error_category(exc), category, category)
+            message = str(ProviderCallError(provider_error_category(exc)))
+            self.assertNotIn(secret, message)
+            self.assertNotIn("Harbor Books", message)
+            self.assertNotIn("private note", message)
+
+        def raise_http(request, timeout):  # noqa: ARG001
+            raise _http_error(401, body)
+
+        with patch("urllib.request.urlopen", raise_http):
+            with self.assertRaises(ProviderCallError) as caught:
+                _post_json(
+                    "https://api.anthropic.com/v1/messages",
+                    {"x-api-key": secret, "content-type": "application/json"},
+                    {"model": "claude-sonnet-4-5", "max_tokens": 200},
+                )
+        self.assertEqual(caught.exception.category, "http_401")
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertNotIn("Harbor Books", str(caught.exception))
+
+        def raise_timeout(request, timeout):  # noqa: ARG001
+            raise TimeoutError("timed out")
+
+        with patch("urllib.request.urlopen", raise_timeout):
+            with self.assertRaises(ProviderCallError) as timed:
+                _post_json("https://api.anthropic.com/v1/messages", {}, {"model": "claude-sonnet-4-5"})
+        self.assertEqual(timed.exception.category, "timeout")
+
+        def fail(url: str, headers: dict[str, str], payload: dict[str, object]) -> dict[str, object]:
+            raise ProviderCallError("http_401")
+
+        analyst = get_analyst(
+            environ={"ANALYST_PROVIDER": "claude", "ANTHROPIC_API_KEY": secret},
+            transport=fail,
+        )
+        outcome = ask_adviser(
+            {"customer_facts": {"business_name": "Milestone Cafe"}, "verified_calculations": {}, "official_conclusion": {}},
+            "What is cash flow?",
+            analyst,
+        )
+        self.assertEqual(analyst.last_error_category, "http_401")
+        self.assertEqual(outcome["source"], "fallback")
+        self.assertNotIn(secret, outcome["text"])
+        self.assertNotIn("http_401", outcome["text"])
+        self.assertIn("could not be reached", outcome["text"])
+
+
+def _http_error(code: int, body: bytes) -> urllib.error.HTTPError:
+    return urllib.error.HTTPError(
+        "https://api.anthropic.com/v1/messages",
+        code,
+        "status",
+        hdrs=None,
+        fp=io.BytesIO(body),
+    )
 
 
 if __name__ == "__main__":

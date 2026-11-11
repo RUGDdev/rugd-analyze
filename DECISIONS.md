@@ -583,3 +583,4 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. Implementation is complete. Live provider connectivity is unverified. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline.
 - Claude, OpenAI, and Grok remain optional through `ANALYST_PROVIDER` and a server-side key. A missing key, a timeout, or a failed call stays on the deterministic adviser. A page view does not call a provider. Tests use mocked responses and do not make a paid request.
 - A suggestion for a plan or a deck is stored only after the customer approves it. Rejection leaves the saved records unchanged. The adviser cannot set `human_review_approved` or clear `INSUFFICIENT_DEMAND_EVIDENCE`.
+- A failed provider call records a category only: timeout, dns, tls, connection, or an HTTP status class. The provider body is discarded. The customer still sees the generic fallback.
