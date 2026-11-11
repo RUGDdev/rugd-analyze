@@ -12,7 +12,7 @@ Render starts the app with:
 python -m app
 ```
 
-That is the same stdlib server as the local pilot (`Procfile` and `render.yaml`). It is not gunicorn. Python 3.12 is enough. `requirements.txt` lists no third-party packages.
+That is the same standard-library server as the local pilot (`Procfile` and `render.yaml`). It is not gunicorn. Python 3.12 is enough. `requirements.txt` lists `python-pptx` and `fpdf2` for local PowerPoint and PDF export. The assessment service does not add another package.
 
 `RUGD_ENV=production` makes `main()` listen on `0.0.0.0` and on Render's `PORT`. Local runs leave those variables unset and stay on `127.0.0.1:8765`. A local `PORT` value does not move the local server.
 
@@ -79,3 +79,11 @@ The session cookie is marked Secure in this environment, so the browser sends it
 - Password hashing is the pilot scrypt parameter. There is no OAuth provider and no external identity provider.
 - `app/future.py` stays disabled. Render settings are read from `app/config.py`. The deployment seam does not turn on billing or scoring.
 - One SQLite file is the database. An external database is a later decision. `RUGD_DATABASE` is the path seam for that file.
+
+## Rollback
+
+This document does not deploy the service and does not turn on Render Auto-Deploy.
+
+A later owner rollback is a manual Render deploy of an earlier commit. Do not force-push `main`. Select the earlier commit in the Render dashboard and deploy that revision by hand.
+
+A code rollback does not restore the SQLite file on the persistent disk. `CREATE TABLE IF NOT EXISTS` lets an older revision ignore a newer table, and it does not delete rows. Keep the service at one instance so two processes do not write the same file. Take a copy of `/var/data/analyze.sqlite` before a deploy that changes stored data. Restoring that copy is a separate owner decision and is not part of a code deploy.

@@ -635,3 +635,10 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not add a paid identity provider, and it does not change the 0.1 engine formulas or the official baseline.
 - Sensitive customer actions append an `audit_events` row: sign-in, public retrieval, import, rejection, and a research-update decision. The detail is a category such as `imported` or `denied`. The session id stored there is the existing short hash. A failed sign-in does not record the email or the password.
 - `RUGD_SOURCE_BATCH_LIMIT` accepts 1 through 10 and defaults to 3. `RUGD_ACCOUNT_BATCH_LIMIT` accepts 1 through 40 and defaults to 8. Another value is ignored and the default remains. Ownership checks are unchanged: another customer still receives the generic denial.
+
+## Decision: Production readiness is a report, not a deploy
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not deploy, does not enable Render Auto-Deploy, and does not change the 0.1 engine formulas or the official baseline.
+- `PRODUCTION_READINESS.md` separates checks that passed, checks that failed, and checks that were not run. A local browser walk and the unittest suite do not verify the Render process, SMTP delivery, load, or a second SQLite instance.
+- Rollback, when an owner later chooses to deploy, is a manual Render deploy of an earlier commit. The persistent SQLite file is not reverted by that code deploy. Do not force-push.

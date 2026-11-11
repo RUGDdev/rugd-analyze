@@ -584,3 +584,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Account controls
 
 - Sign-in, public retrieval, import, rejection, and a research-update decision write an audit row with a short detail and a hashed session id. The row does not store a password, an email, or the retrieved text. Retrieval budgets can be set with `RUGD_SOURCE_BATCH_LIMIT` and `RUGD_ACCOUNT_BATCH_LIMIT`; values outside the allowed range stay on the built-in limits. The session cookie remains HttpOnly and SameSite=Lax, and Secure when production cookies are enabled. The unittest suite is 199 tests, all passing. This work has not been deployed.
+
+## Progress — 2026-11-11 Production-readiness preparation
+
+- `PRODUCTION_READINESS.md` records PASS, FAIL, and NOT VERIFIED checks. The unittest suite was run again and remains 199 tests, all passing. An authenticated local browser walk opened Explore, Research, Analyze, Business plan, Pitch deck, Reports, Action Center, Adviser, and Market Pulse on a temporary database. Each page showed the workflow navigation. Opening those pages did not run Analyze. `DEPLOYMENT.md` now names `python-pptx` and `fpdf2` and describes a manual rollback. Render was not deployed, and Auto-Deploy was not enabled. The official sample hash is unchanged.
