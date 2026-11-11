@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Any
 
 OBJECTIVES = (
@@ -186,6 +187,96 @@ def cite_evidence(item: dict[str, Any]) -> str:
     return f"{prefix}{label}. {gap}{finding} Evidence {marker}."
 
 
+def _source_name(item: dict[str, Any]) -> str:
+    return clip(item.get("source_organization") or item.get("source_title") or "Source not recorded", 120)
+
+
+def _date_relation(item: dict[str, Any]) -> str:
+    published = str(item.get("published_on") or "")
+    retrieved = str(item.get("retrieved_on") or "")
+    if not published:
+        return "Publication date is not recorded."
+    if not retrieved:
+        return "Retrieval date is not recorded."
+    try:
+        age = (date.fromisoformat(retrieved) - date.fromisoformat(published)).days
+    except ValueError:
+        return "A stored date is not a calendar date."
+    if age > 540:
+        return "The publication date is more than 18 months before the retrieval date."
+    if age < 0:
+        return "The publication date is later than the retrieval date."
+    return "The publication date is within 18 months of the retrieval date."
+
+
+def evidence_review(project: dict[str, Any], evidence: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Quote saved records. This does not add a source, a statistic, or a finding."""
+    document = project.get("document") if isinstance(project.get("document"), dict) else {}
+    area = clip(document.get("geography"), 200) or "the project area"
+    rows = [item for item in evidence if isinstance(item, dict)]
+    names = []
+    for item in rows:
+        name = _source_name(item)
+        if name not in names:
+            names.append(name)
+    if len(names) < 2:
+        comparison = ["Fewer than two sources are saved. No source comparison is available."]
+    else:
+        comparison = [
+            "Saved sources: " + ", ".join(names) + ". The lines below quote saved records and do not add a figure."
+        ]
+        for name in names[:4]:
+            match = next(item for item in rows if _source_name(item) == name)
+            comparison.append(f"{name}: {clip(match.get('finding'), 240) or 'No finding was recorded.'}")
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    conflicts = []
+    quality = []
+    relevance = []
+    staleness = []
+    for item in rows:
+        category = str(item.get("category") or "")
+        if category not in OBJECTIVE_KEYS:
+            category = "demand"
+        grouped.setdefault(category, []).append(item)
+        name = _source_name(item)
+        limitations = clip(item.get("limitations"), 240) or "not recorded"
+        quality.append(f"{name}: {CLASS_LABELS.get(str(item.get('evidence_class') or ''), CLASS_LABELS['missing'])} Limitation: {limitations}")
+        geography = clip(item.get("geography"), 120)
+        industry = clip(item.get("industry"), 120)
+        if not geography:
+            relevance.append(f"{name}: geography is not recorded, so relevance to {area} is not established.")
+        elif area != "the project area" and area.lower() not in geography.lower() and geography.lower() not in area.lower():
+            relevance.append(f"{name}: source geography {geography} does not match the project area {area}.")
+        else:
+            relevance.append(f"{name}: source geography {geography} is the geography stored on the record.")
+        if industry:
+            relevance.append(f"{name}: source industry {industry} is stored on the record and is not verified for this business.")
+        else:
+            relevance.append(f"{name}: industry is not recorded, so industry relevance is not established.")
+        staleness.append(f"{name}: {_date_relation(item)}")
+        text = f"{item.get('finding') or ''} {item.get('limitations') or ''}".lower()
+        if "stale" in text:
+            staleness.append(f"{name}: the saved record says the source is stale.")
+    for category, items in grouped.items():
+        findings = {clip(item.get("finding"), 180) for item in items}
+        if len(items) >= 2 and len(findings) >= 2:
+            conflicts.append(
+                f"{objective_label(category)} has {len(items)} saved records that do not use the same finding text. Neither record is treated as the correct one."
+            )
+        statements = " ".join(str(item.get("finding") or "") for item in items)
+        if "Proposed rule" in statements and "Final rule" in statements:
+            conflicts.append(
+                "A proposed rule and a final rule are both saved. The proposal is not an enacted requirement, and the final rule is not verified for this business."
+            )
+    return {
+        "source_comparison": comparison,
+        "conflicting_evidence": conflicts or ["No conflict is identified in the saved records."],
+        "evidence_quality": quality or ["No saved evidence is available to assess."],
+        "geographic_relevance": relevance or ["No saved evidence is available to compare with the project area."],
+        "staleness": staleness or ["No saved evidence is available to check for age."],
+    }
+
+
 def synthesize(project: dict[str, Any], evidence: list[dict[str, Any]]) -> dict[str, Any]:
     """Group saved records. A missing category stays an open question."""
     document = project.get("document") if isinstance(project.get("document"), dict) else {}
@@ -231,6 +322,7 @@ def synthesize(project: dict[str, Any], evidence: list[dict[str, Any]]) -> dict[
         "unanswered_questions": unanswered,
         "next_steps": [f"Collect a source before treating this as a finding: {item}" for item in unanswered[:8]]
         or ["Review the saved evidence before adding it to a plan or a deck."],
+        **evidence_review(project, evidence),
     }
 
 
@@ -250,11 +342,13 @@ def adviser_research_view(projects: list[dict[str, Any]], evidence: list[dict[st
             continue
         document = project.get("document") if isinstance(project.get("document"), dict) else {}
         related = [item for item in evidence if item.get("project_id") == project.get("id")][:4]
+        review = evidence_review(project, related)
         shown.append(
             {
                 "id": str(project.get("id") or ""),
                 "title": clip(project.get("title"), 120),
                 "objective": objective_label(str(document.get("objective") or "")),
+                "comparison": review["source_comparison"][:2] + review["conflicting_evidence"][:1],
                 "evidence": [
                     {
                         "class_label": CLASS_LABELS.get(str(item.get("evidence_class") or ""), CLASS_LABELS["missing"]),

@@ -613,3 +613,11 @@ Owner input required before replacing `billing_hooks`:
 - Document classes are proposed rule, final rule, and notice. A proposed rule or a notice is labeled as not an enacted requirement. A final rule is not treated as verified for this business. A returned type that does not match the requested class is dropped.
 - Publication date and retrieval date are stored separately. A publication date more than 18 months before retrieval is marked stale. A missing publication date is marked incomplete.
 - Each source may be requested three times on one project. An account may store eight retrieval batches across projects. A fourth source request or a ninth account request does not send a network call. Importing the same document number again does not create a second evidence record.
+
+## Decision: Evidence synthesis quotes saved records
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline.
+- Source comparison, conflicts, quality, relevance, and age are written from saved evidence fields. A missing geography, industry, or date stays missing. Two different finding texts in one category are reported as a conflict, and neither is selected as correct.
+- A proposed rule saved beside a final rule stays labeled as not an enacted requirement. The synthesis does not invent a market size, a growth rate, or a citation.
+- A research update is held for review. Approval saves the summary. Rejection leaves the earlier summaries unchanged. The adviser can quote the comparison. Asking the adviser does not run because a summary was prepared.

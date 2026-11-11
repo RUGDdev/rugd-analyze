@@ -4,7 +4,7 @@ Updated: 2026-11-11
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 194 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 196 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -572,3 +572,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Federal Register retrieval
 
 - An authorized customer can also request the public Federal Register documents API for a proposed rule, a final rule, or a notice. The search is allowlisted. Publication date stays separate from the retrieval date, and a document older than 18 months is marked stale. A proposed rule or a notice is not an enacted requirement. A duplicate document is not imported again. Each source has a three-request project budget, and an account has eight retrieval batches. The unittest suite is 194 tests, all passing. This work has not been deployed.
+
+## Progress — 2026-11-11 Evidence synthesis
+
+- A research summary compares saved sources, names conflicting finding text, quotes limitations, and checks geography, industry, and age from the stored dates. Fewer than two sources produces no comparison. A research update is stored only after the customer approves it. The adviser quotes that comparison and does not add a source or a statistic. The unittest suite is 196 tests, all passing. This work has not been deployed.

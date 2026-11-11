@@ -120,6 +120,11 @@ def _summary_block(summary: dict[str, Any]) -> str:
         ("opportunities", "Opportunities"),
         ("threats_and_risks", "Threats and risks"),
         ("evidence_limitations", "Evidence limitations"),
+        ("source_comparison", "Source comparison"),
+        ("conflicting_evidence", "Conflicting evidence"),
+        ("evidence_quality", "Evidence quality"),
+        ("geographic_relevance", "Geographic and industry relevance"),
+        ("staleness", "Source age"),
         ("unanswered_questions", "Unanswered questions"),
         ("next_steps", "Recommended next research steps"),
     )
@@ -191,6 +196,7 @@ def project_page(
             for item in decks
         ) or '<option value="">No saved deck</option>'
         proposal = document.get("proposal") if isinstance(document.get("proposal"), dict) else None
+        update = document.get("update_proposal") if isinstance(document.get("update_proposal"), dict) else None
         proposal_html = ""
         if proposal and str(proposal.get("text") or "").strip():
             proposal_html = (
@@ -248,6 +254,18 @@ def project_page(
 <label>Target <select name="target"><option value="plan">Business plan</option><option value="deck">Pitch deck</option></select></label>
 <button type="submit">Propose a note for review</button>
 </form>
+<form method="post" action="/assessments/{assessment_id}/intelligence/{project_id}">
+<input type="hidden" name="op" value="propose_update">
+<button type="submit">Propose a research update</button>
+</form>
+{"".join([
+    "<section class=\"card\" id=\"update-proposal\"><h2>Research update awaiting approval</h2>"
+    f"<p>{escape(str(update.get('text') or ''))}</p>"
+    f"<form method=\"post\" action=\"/assessments/{assessment_id}/intelligence/{project_id}\">"
+    "<input type=\"hidden\" name=\"op\" value=\"decide_update\">"
+    "<button type=\"submit\" name=\"decision\" value=\"approve\">Approve and save the update</button> "
+    "<button type=\"submit\" name=\"decision\" value=\"reject\">Reject the update</button></form></section>"
+]) if update else ""}
 <form method="post" action="/assessments/{assessment_id}/intelligence/{project_id}">
 <input type="hidden" name="op" value="save_summary">
 <button type="submit">Save this summary</button>

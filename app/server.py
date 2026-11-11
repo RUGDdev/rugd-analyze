@@ -1696,6 +1696,29 @@ class AppHandler(BaseHTTPRequestHandler):
         elif op == "reject_public":
             self._reject_public(connection, state, record, project, form)
             return
+        elif op == "propose_update":
+            evidence = self._visible_evidence(connection, state, record, str(project["id"]))
+            summary = synthesize(project, evidence)
+            document["update_proposal"] = {
+                "status": "review",
+                "saved_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                "text": research_note(summary),
+            }
+            update_research_project(connection, str(project["id"]), title=str(project.get("title") or "Research"), document=document)
+        elif op == "decide_update":
+            proposal = document.get("update_proposal") if isinstance(document.get("update_proposal"), dict) else {}
+            if form.get("decision") == "approve" and proposal:
+                evidence = self._visible_evidence(connection, state, record, str(project["id"]))
+                snapshot = prepare_summary_snapshot(
+                    synthesize(project, evidence),
+                    str(proposal.get("saved_at") or datetime.now(timezone.utc).replace(microsecond=0).isoformat()),
+                )
+                snapshot["approved"] = True
+                summaries = list(document.get("summaries") or [])
+                summaries.append(snapshot)
+                document["summaries"] = summaries[-5:]
+            document["update_proposal"] = None
+            update_research_project(connection, str(project["id"]), title=str(project.get("title") or "Research"), document=document)
         elif op == "create_action":
             evidence = self._visible_evidence(connection, state, record, str(project["id"]))
             summary = synthesize(project, evidence)

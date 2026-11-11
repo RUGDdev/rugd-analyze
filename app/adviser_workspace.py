@@ -105,6 +105,13 @@ def _deterministic(context: dict[str, Any], question: str) -> str:
             "Interpretation is separate from a sourced fact. Saved research does not clear a recommend-against flag "
             "or change a stored calculation."
         )
+        for project in projects[:2]:
+            if not isinstance(project, dict):
+                continue
+            for line in (project.get("comparison") or [])[:3]:
+                lines.append("Saved comparison: " + str(line))
+        if any(isinstance(project, dict) and project.get("comparison") for project in projects):
+            lines.append("This comparison quotes saved records. It does not add a source, a statistic, or a finding.")
         if any(
             "Retrieved public source" in str(finding.get("class_label") or "")
             for project in projects
