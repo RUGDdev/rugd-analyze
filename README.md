@@ -139,7 +139,7 @@ Set these in the environment for the terminal that starts the app. Do not put ke
 - `ANTHROPIC_API_KEY` — required when the provider is Claude
 - `OPENAI_API_KEY` — required when the provider is OpenAI
 - `XAI_API_KEY` — required when the provider is Grok
-- `ANALYST_MODEL` — optional model name. Defaults are `claude-sonnet-4-5`, `gpt-4.1-mini`, and `grok-3`
+- `ANALYST_MODEL` — optional model name. Defaults are `claude-sonnet-5-5`, `gpt-4.1-mini`, and `grok-3`
 
 The provider receives a summary of the current assessment and the engine result, plus a system instruction that forbids changing numbers, clearing flags, or approving the assessment. It does not receive session tokens or the API key in the prompt. This is still prototype-grade. It is not production authentication and it is not a decision.
 

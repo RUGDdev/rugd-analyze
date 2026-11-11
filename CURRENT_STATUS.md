@@ -556,3 +556,7 @@ Further work on production authentication, real market data, an approved scoring
 
 - A failed provider call keeps a category such as timeout, dns, tls, connection, or an HTTP status class. The response body is not kept and is not shown to the customer. The customer still sees the generic fallback. Live connectivity remains unverified.
 - The unittest suite is 183 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.
+
+## Progress — 2026-11-11 Claude model default
+
+- The Claude adviser default is `claude-sonnet-5-5`. `ANALYST_MODEL` still overrides it. Sonnet 4.5 remains deprecated and is no longer the default. A Sonnet 5.5 request uses the current Messages API version and turns off up-front thinking so the existing output cap covers the reply. The unittest suite remains 183 tests. Live connectivity remains unverified. This work has not been deployed.

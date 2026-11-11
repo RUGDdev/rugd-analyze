@@ -22,7 +22,7 @@ _PROVIDERS = {
     "claude": {
         "key": "ANTHROPIC_API_KEY",
         "url": "https://api.anthropic.com/v1/messages",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-5-5",
     },
     "openai": {
         "key": "OPENAI_API_KEY",
@@ -195,10 +195,14 @@ class ExternalAnalyst:
                 "system": SAFETY_PROMPT,
                 "messages": [{"role": "user", "content": user}],
             }
+            # Sonnet 5.5 thinks by default, and thinking tokens count against max_tokens.
+            # Without tools, between_tools returns text only. Older overrides omit the field.
+            if self._model == "claude-sonnet-5-5":
+                payload["thinking"] = {"type": "between_tools"}
             headers = {
                 "content-type": "application/json",
                 "x-api-key": self._api_key,
-                "anthropic-version": "2023-06-01",
+                "anthropic-version": "2026-10-21",
             }
         else:
             payload = {

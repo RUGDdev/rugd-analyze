@@ -238,6 +238,57 @@ class TestDemonstrationAnalyst(unittest.TestCase):
         )
         self.assertTrue(grok_lines[0].startswith("External analyst (grok)."))
         self.assertEqual(result, before)
+        captured: dict[str, object] = {}
+
+        def current(url: str, headers: dict[str, str], payload: dict[str, object]) -> dict[str, object]:
+            captured["url"] = url
+            captured["headers"] = headers
+            captured["payload"] = payload
+            return {
+                "content": [
+                    {"type": "thinking", "thinking": ""},
+                    {"type": "text", "text": "Base cash flow stays 100. Demand evidence is still missing."},
+                ],
+                "usage": {"input_tokens": 20, "output_tokens": 12},
+            }
+
+        current_analyst = get_analyst(
+            environ={"ANALYST_PROVIDER": "claude", "ANTHROPIC_API_KEY": "claude-test"},
+            transport=current,
+        )
+        current_text = current_analyst.complete_context({"customer_facts": {"business_name": "Mock Cafe"}}, "Explain cash flow")
+        sent = captured["payload"]
+        self.assertIsInstance(sent, dict)
+        assert isinstance(sent, dict)
+        self.assertEqual(sent["model"], "claude-sonnet-5-5")
+        self.assertEqual(sent["max_tokens"], 600)
+        self.assertEqual(sent["thinking"], {"type": "between_tools"})
+        self.assertEqual(sent["system"], SAFETY_PROMPT)
+        self.assertNotIn("claude-test", str(sent))
+        self.assertEqual(captured["headers"]["anthropic-version"], "2026-10-21")
+        self.assertEqual(captured["headers"]["x-api-key"], "claude-test")
+        self.assertIn("api.anthropic.com/v1/messages", str(captured["url"]))
+        self.assertEqual(current_text, "Base cash flow stays 100. Demand evidence is still missing.")
+        self.assertEqual(current_analyst.last_usage, {"input_tokens": 20, "output_tokens": 12})
+
+        def overridden(url: str, headers: dict[str, str], payload: dict[str, object]) -> dict[str, object]:
+            captured["override"] = payload
+            return {"content": [{"type": "text", "text": "Override reply."}]}
+
+        override_analyst = get_analyst(
+            environ={
+                "ANALYST_PROVIDER": "claude",
+                "ANTHROPIC_API_KEY": "claude-test",
+                "ANALYST_MODEL": "claude-sonnet-4-6",
+            },
+            transport=overridden,
+        )
+        self.assertEqual(override_analyst.complete_context({"customer_facts": {}}, "Explain"), "Override reply.")
+        override_payload = captured["override"]
+        self.assertIsInstance(override_payload, dict)
+        assert isinstance(override_payload, dict)
+        self.assertEqual(override_payload["model"], "claude-sonnet-4-6")
+        self.assertNotIn("thinking", override_payload)
         page = analyst_page(record, grok_lines)
         self.assertIn("External analyst (grok).", page)
         self.assertIn("cannot alter authoritative results", page)
