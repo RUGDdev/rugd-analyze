@@ -13,7 +13,7 @@ from app.access import DENIAL, may_read, may_write
 from app.accounts import bootstrap_reviewer, register_account
 from app.review import SESSION_COOKIE, open_account_session
 from app.server import make_server
-from app.store import BASELINE_ID, SAMPLE, connect, create_assessment, get_assessment, seed
+from app.store import BASELINE_ID, RESTAURANT_ID, SAMPLE, connect, create_assessment, get_assessment, seed
 
 OWNER_EMAIL = "access-owner@pilot.example"
 OTHER_EMAIL = "access-other@pilot.example"
@@ -44,9 +44,16 @@ class TestAssessmentAccess(unittest.TestCase):
         self.assertTrue(may_read(reviewer, owned))
         self.assertFalse(may_read(stranger, unclaimed))
         self.assertFalse(may_write(stranger, unclaimed))
-        self.assertTrue(may_read(signed_out, unclaimed))
+        self.assertFalse(may_read(signed_out, unclaimed))
+        self.assertFalse(may_write(signed_out, unclaimed))
         self.assertTrue(may_read(reviewer, unclaimed))
+        self.assertTrue(may_write(reviewer, unclaimed))
         self.assertFalse(may_write(reviewer, {"id": BASELINE_ID, "read_only": True, "owner_user_id": ""}))
+        demo = {"id": RESTAURANT_ID, "read_only": False, "owner_user_id": ""}
+        self.assertTrue(may_read(signed_out, demo))
+        self.assertFalse(may_write(signed_out, demo))
+        self.assertFalse(may_write(customer, demo))
+        self.assertTrue(may_write(reviewer, demo))
 
     def test_http_hides_another_customers_draft_and_leaves_unclaimed_rows(self) -> None:
         directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
@@ -140,8 +147,19 @@ class TestAssessmentAccess(unittest.TestCase):
             self.assertNotIn("Unclaimed Draft", owner_list[1])
 
             unclaimed = self._get(base + f"/assessments/{unclaimed_id}")
-            self.assertEqual(unclaimed[0], 200)
-            self.assertIn("Unclaimed Draft", unclaimed[1])
+            self.assertEqual(unclaimed[0], 403)
+            self.assertNotIn("Unclaimed Draft", unclaimed[1])
+            unclaimed_post = self._raw(
+                base + f"/assessments/{unclaimed_id}/save",
+                {"business_name": "Claimed Draft"},
+                "",
+            )
+            self.assertEqual(unclaimed_post[0], 403)
+            self.assertNotIn("Unclaimed Draft", unclaimed_post[1])
+            for path in ("/explore", "/analyze", "/market", "/reports", "/actions", "/history", "/assessments/export"):
+                listed = self._get(base + path)
+                self.assertEqual(listed[0], 200, path)
+                self.assertNotIn("Unclaimed Draft", listed[1], path)
             hidden = self._get(base + f"/assessments/{unclaimed_id}", other_cookie)
             self.assertEqual(hidden[0], 403)
             self.assertNotIn("Unclaimed Draft", hidden[1])
@@ -152,6 +170,29 @@ class TestAssessmentAccess(unittest.TestCase):
             reviewer_unclaimed = self._get(base + f"/assessments/{unclaimed_id}", reviewer_cookie)
             self.assertEqual(reviewer_unclaimed[0], 200)
             self.assertIn("Unclaimed Draft", reviewer_unclaimed[1])
+            restaurant = get_assessment(connection, RESTAURANT_ID)
+            assert restaurant is not None
+            restaurant_name = restaurant["business_name"]
+            for cookie in ("", other_cookie):
+                demo_write = self._raw(
+                    base + f"/assessments/{RESTAURANT_ID}/save",
+                    {"business_name": "Taken Restaurant"},
+                    cookie,
+                )
+                self.assertEqual(demo_write[0], 403)
+                self.assertNotIn("Taken Restaurant", demo_write[1])
+                self.assertNotIn(restaurant_name, demo_write[1])
+            kept_demo = get_assessment(connection, RESTAURANT_ID)
+            assert kept_demo is not None
+            self.assertEqual(kept_demo["business_name"], restaurant_name)
+            ghost = self._raw(
+                base + "/assessments",
+                {"business_name": "Ghost Cafe", "purpose": "startup_feasibility", "tier": "explore"},
+                "",
+            )
+            self.assertEqual(ghost[0], 403)
+            self.assertIn("Sign in to create a draft", ghost[1])
+            self.assertNotIn("Ghost Cafe", ghost[1])
 
             stored = get_assessment(connection, owned_id)
             assert stored is not None

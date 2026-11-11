@@ -206,9 +206,13 @@ class TestEvidenceChecklist(unittest.TestCase):
         host, port = server.server_address
         base = f"http://{host}:{port}"
         try:
-            draft = _get(base + f"/assessments/{self.assessment_id}")
-            explore = _get(base + "/explore")
-            results = _get(base + f"/assessments/{self.assessment_id}/results")
+            from tests.session_cookie import claim, open_customer
+
+            cookie, user_id = open_customer(self.connection, base)
+            claim(self.connection, self.assessment_id, user_id)
+            draft = _get(base + f"/assessments/{self.assessment_id}", cookie)
+            explore = _get(base + "/explore", cookie)
+            results = _get(base + f"/assessments/{self.assessment_id}/results", cookie)
             for page in (draft, explore, results):
                 self.assertIn("Evidence checklist", page)
                 self.assertIn("Verified demand evidence", page)
@@ -225,7 +229,7 @@ class TestEvidenceChecklist(unittest.TestCase):
                     "investor_ready": "true",
                 }
             ).encode("utf-8")
-            noted = _post(base + f"/assessments/{self.assessment_id}/checklist", body)
+            noted = _post(base + f"/assessments/{self.assessment_id}/checklist", body, cookie)
             self.assertIn("Checklist status:</strong> Noted", noted)
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE:</strong> present", noted)
             self.assertIn("Recommendation:</strong> do-not-proceed", noted)
@@ -284,13 +288,16 @@ class TestEvidenceChecklist(unittest.TestCase):
             thread.join(timeout=5)
 
 
-def _get(url: str) -> str:
-    with urllib.request.urlopen(url) as response:
+def _get(url: str, cookie: str = "") -> str:
+    headers = {"Cookie": cookie} if cookie else {}
+    request = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(request) as response:
         return response.read().decode("utf-8")
 
 
-def _post(url: str, body: bytes) -> str:
-    request = urllib.request.Request(url, data=body, method="POST")
+def _post(url: str, body: bytes, cookie: str = "") -> str:
+    headers = {"Cookie": cookie} if cookie else {}
+    request = urllib.request.Request(url, data=body, method="POST", headers=headers)
     with urllib.request.urlopen(request) as response:
         return response.read().decode("utf-8")
 

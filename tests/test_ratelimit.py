@@ -62,11 +62,16 @@ class TestAuthEndpointLimit(unittest.TestCase):
                 home = response.read().decode("utf-8")
             self.assertEqual(response.status, 200)
             self.assertIn("Welcome to RUGD Intelligence", home)
-            created, _created_body, _headers = self._post(
+            with urllib.request.urlopen(base + f"/assessments/{BASELINE_ID}/results") as response:
+                baseline_page = response.read().decode("utf-8")
+            self.assertEqual(response.status, 200)
+            self.assertIn("do-not-proceed", baseline_page)
+            created, created_body, _headers = self._post(
                 base + "/assessments",
                 {"business_name": "Limit Check", "venture_path": "startup"},
             )
-            self.assertEqual(created, 303)
+            self.assertEqual(created, 403)
+            self.assertIn("Sign in to create a draft", created_body)
             baseline = get_assessment(connection, BASELINE_ID)
             assert baseline is not None
             self.assertFalse(baseline["human_review_approved"])

@@ -62,6 +62,11 @@ from app.pages import (
     verification_banner,
     verify_email_page,
     reports_page,
+    assessment_reports_page,
+    saved_report_page,
+    actions_page,
+    assessment_actions_page,
+    history_page,
     advisor_summary_page,
     research_brief_page,
     results_page,
@@ -84,7 +89,15 @@ from app.accounts import (
     send_verification,
 )
 import app.mail as account_mail
-from app.access import DENIAL, may_read, may_write, visible_records
+from app.access import (
+    DENIAL,
+    may_read,
+    may_save_report,
+    may_see_attachment,
+    may_write,
+    visible_records,
+)
+from app.report_snapshot import build_report_snapshot, snapshot_markdown
 from app.share import ShareError, active_share_links, can_manage_share, issue_share_link, open_share, revoke_share
 from app.review import (
     SESSION_COOKIE,
@@ -109,6 +122,13 @@ from app.store import (
     label_for_new_assessment,
     list_business_profiles,
     get_assessment,
+    get_action_item,
+    get_saved_report,
+    insert_action_item,
+    insert_saved_report,
+    list_action_items,
+    list_saved_reports,
+    update_action_item,
     list_approvals,
     list_assessments,
     list_reviewer_events,
@@ -159,10 +179,12 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(self._dashboard_page(connection))
         elif path == "/explore":
             records = self._visible_assessments(connection)
+            state = self._account_state(connection)
             notes = {
                 item["id"]: list_guidance_notes(connection, item["id"]) for item in records
             }
-            self._html(explore_page(records, notes))
+            writable = {str(item["id"]) for item in records if may_write(state, item)}
+            self._html(explore_page(records, notes, writable_ids=writable))
         elif path == "/analyze":
             self._html(analyze_index(self._visible_assessments(connection)))
         elif path == "/validate":
@@ -201,7 +223,11 @@ class AppHandler(BaseHTTPRequestHandler):
                 )
             )
         elif path == "/reports":
-            self._html(reports_page(self._visible_assessments(connection)))
+            self._html(self._reports_index(connection))
+        elif path == "/actions":
+            self._html(self._actions_index(connection))
+        elif path == "/history":
+            self._html(self._history_index(connection))
         elif path == "/settings":
             with_user = None
             state = self._account_state(connection)
@@ -234,7 +260,14 @@ class AppHandler(BaseHTTPRequestHandler):
                 disposition=f'attachment; filename="rugd-drafts-{_today()}.json"',
             )
         elif path == "/assessments/new":
-            self._html(new_assessment_page(self._visible_customer_profiles(connection)))
+            state = self._account_state(connection)
+            notice = ""
+            if not self._session_user_id(state):
+                notice = (
+                    "Sign in before creating a draft. Submitting this form while signed out "
+                    "does not save an assessment."
+                )
+            self._html(new_assessment_page(self._visible_customer_profiles(connection), notice))
         elif path == "/reviewer" or path.startswith("/reviewer/"):
             self._reviewer_get(connection, path)
         elif path.startswith("/assessments/"):
@@ -269,6 +302,17 @@ class AppHandler(BaseHTTPRequestHandler):
             self._start_objective(connection, form)
             return
         if path == "/assessments":
+            state = self._account_state(connection)
+            if not self._session_user_id(state):
+                self._html(
+                    layout(
+                        "Sign in required",
+                        "<h1>Sign in required</h1>"
+                        "<p>Sign in to create a draft. An unsigned visit does not create an assessment.</p>",
+                    ),
+                    status=403,
+                )
+                return
             business_name = (form.get("business_name") or "Untitled").strip() or "Untitled"
             profile_id = (form.get("business_profile_id") or "").strip()
             posted_path = (form.get("venture_path") or "").strip()
@@ -406,7 +450,18 @@ class AppHandler(BaseHTTPRequestHandler):
         action = parts[2] if len(parts) > 2 else ""
         if action == "results":
             stored = record.get("result") or {"engine_ran": False, "message": "Analyze has not been run."}
-            self._html(results_page(record, stored, list_guidance_notes(connection, record["id"])))
+            self._html(
+                results_page(
+                    record,
+                    stored,
+                    list_guidance_notes(connection, record["id"]),
+                    writable=may_write(self._account_state(connection), record),
+                )
+            )
+        elif action == "reports":
+            self._reports_get(connection, record, parts)
+        elif action == "actions":
+            self._actions_get(connection, record)
         elif action == "advisor":
             self._advisor_get(connection, record, parts)
         elif action == "research":
@@ -482,8 +537,12 @@ class AppHandler(BaseHTTPRequestHandler):
         elif action == "validate":
             self._html(validate_page(record, list_guidance_notes(connection, record["id"])))
         else:
-            page = assessment_form(record, notes=list_guidance_notes(connection, record["id"]))
             state = self._account_state(connection)
+            page = assessment_form(
+                record,
+                notes=list_guidance_notes(connection, record["id"]),
+                writable=may_write(state, record),
+            )
             if can_manage_share(state, record):
                 revealed = ""
                 token = self._query_value("share")
@@ -510,7 +569,20 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
             return
         state = self._account_state(connection)
-        if action in {"assistant", "share"}:
+        if action == "reports":
+            if not may_read(state, record):
+                self._deny_assessment()
+                return
+            if not may_save_report(state, record):
+                self._html(
+                    layout(
+                        "Sign in required",
+                        "<h1>Sign in required</h1><p>Sign in to save a report.</p>",
+                    ),
+                    status=403,
+                )
+                return
+        elif action in {"assistant", "share"}:
             if not may_read(state, record):
                 self._deny_assessment()
                 return
@@ -600,6 +672,12 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if action == "share":
             self._share_post(connection, record, parts, form)
+            return
+        if action == "reports":
+            self._save_report(connection, record)
+            return
+        if action == "actions":
+            self._save_action(connection, record, parts, form)
             return
         self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
 
@@ -859,6 +937,19 @@ class AppHandler(BaseHTTPRequestHandler):
         if record is None:
             self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
             return
+        state = self._account_state(connection)
+        if not may_read(state, record):
+            if state.get("state") == "expired":
+                self._html(
+                    layout(
+                        "Not allowed",
+                        "<h1>Not allowed</h1><p><strong>Authentication state:</strong> expired.</p>",
+                    ),
+                    status=403,
+                )
+                return
+            self._deny_assessment()
+            return
         result = record.get("result")
         self._html(
             reviewer_page(
@@ -1079,6 +1170,169 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _account_state(self, connection: Any) -> dict[str, Any]:
         return self._reviewer_session_state(connection)
+
+    def _session_user_id(self, state: dict[str, Any]) -> str:
+        if (
+            state.get("active")
+            and state.get("authentication_method") == "local-account"
+            and state.get("user_id")
+            and state.get("role") in {"customer", "reviewer"}
+        ):
+            return str(state["user_id"])
+        return ""
+
+    def _reports_index(self, connection: Any) -> str:
+        records = self._visible_assessments(connection)
+        state = self._account_state(connection)
+        grouped = {
+            str(item["id"]): self._visible_reports(connection, state, item) for item in records
+        }
+        return reports_page(records, grouped, signed_in=bool(self._session_user_id(state)))
+
+    def _actions_index(self, connection: Any) -> str:
+        records = self._visible_assessments(connection)
+        state = self._account_state(connection)
+        grouped = {
+            str(item["id"]): self._visible_actions(connection, state, item) for item in records
+        }
+        return actions_page(records, grouped)
+
+    def _history_index(self, connection: Any) -> str:
+        records = self._visible_assessments(connection)
+        state = self._account_state(connection)
+        entries = [
+            {
+                "record": item,
+                "reports": self._visible_reports(connection, state, item),
+                "actions": self._visible_actions(connection, state, item),
+            }
+            for item in records
+        ]
+        return history_page(entries)
+
+    def _visible_reports(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_saved_reports(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _visible_actions(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_action_items(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _reports_get(self, connection: Any, record: dict[str, Any], parts: list[str]) -> None:
+        state = self._account_state(connection)
+        if len(parts) == 3:
+            notice = "Report saved." if self._query_value("saved") == "1" else ""
+            self._html(
+                assessment_reports_page(
+                    record,
+                    self._visible_reports(connection, state, record),
+                    signed_in=bool(self._session_user_id(state)),
+                    notice=notice,
+                )
+            )
+            return
+        report = get_saved_report(connection, parts[3])
+        if report is None or report["assessment_id"] != record["id"]:
+            self._html(layout("Not found", "<h1>Report not found</h1>"), status=404)
+            return
+        if not may_see_attachment(state, record, str(report.get("created_by") or "")):
+            self._deny_assessment()
+            return
+        form = parts[4] if len(parts) > 4 else ""
+        if form == "export":
+            snapshot = report.get("snapshot") if isinstance(report.get("snapshot"), dict) else {}
+            payload = snapshot_markdown(snapshot).encode("utf-8")
+            self._bytes(
+                payload,
+                "text/markdown; charset=utf-8",
+                disposition=f'attachment; filename="rugd-report-{report["id"]}.md"',
+            )
+            return
+        if form == "print":
+            self._html(saved_report_page(record, report, printable=True))
+            return
+        if form:
+            self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
+            return
+        notice = "Report saved." if self._query_value("saved") == "1" else ""
+        self._html(saved_report_page(record, report, notice=notice))
+
+    def _actions_get(self, connection: Any, record: dict[str, Any]) -> None:
+        state = self._account_state(connection)
+        notice = "Action saved." if self._query_value("saved") == "1" else ""
+        self._html(
+            assessment_actions_page(
+                record,
+                self._visible_actions(connection, state, record),
+                writable=may_write(state, record),
+                notice=notice,
+            )
+        )
+
+    def _save_report(self, connection: Any, record: dict[str, Any]) -> None:
+        state = self._account_state(connection)
+        snapshot = build_report_snapshot(record)
+        title = f"{record.get('business_name') or 'Assessment'} report"
+        saved = insert_saved_report(
+            connection,
+            assessment_id=str(record["id"]),
+            created_by=self._session_user_id(state),
+            title=title,
+            snapshot=snapshot,
+        )
+        self._redirect(f"/assessments/{record['id']}/reports/{saved['id']}?saved=1")
+
+    def _save_action(self, connection: Any, record: dict[str, Any], parts: list[str], form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        description = (form.get("description") or "").strip()
+        status = (form.get("status") or "open").strip()
+        if status not in {"open", "in_progress", "completed"}:
+            self._html(
+                assessment_actions_page(
+                    record,
+                    self._visible_actions(connection, state, record),
+                    writable=True,
+                    notice="Choose open, in progress, or completed. The action was not changed.",
+                ),
+                status=400,
+            )
+            return
+        if not description:
+            self._html(
+                assessment_actions_page(
+                    record,
+                    self._visible_actions(connection, state, record),
+                    writable=True,
+                    notice="Enter a description. The action was not saved.",
+                ),
+                status=400,
+            )
+            return
+        if len(parts) >= 4:
+            current = get_action_item(connection, parts[3])
+            if current is None or current["assessment_id"] != record["id"]:
+                self._html(layout("Not found", "<h1>Action not found</h1>"), status=404)
+                return
+            update_action_item(connection, parts[3], description=description, status=status)
+        else:
+            source = (form.get("source_flag") or "").strip()
+            title = source or description[:80]
+            insert_action_item(
+                connection,
+                assessment_id=str(record["id"]),
+                created_by=self._session_user_id(state),
+                title=title,
+                description=description,
+                status=status,
+                source_flag=source,
+            )
+        self._redirect(f"/assessments/{record['id']}/actions?saved=1")
 
     def _visible_assessments(self, connection: Any) -> list[dict[str, Any]]:
         return visible_records(self._account_state(connection), list_assessments(connection))

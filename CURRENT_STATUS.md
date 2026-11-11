@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 165 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 167 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -513,3 +513,11 @@ Further work on production authentication, real market data, an approved scoring
 - Explore, Analyze, Market, Reports, and draft export list only records that session may read. A signed-in customer does not see another customer’s draft or an unclaimed draft. A reviewer still can.
 - An unclaimed draft keeps its empty owner. It is not assigned and it is not deleted. A signed-in customer cannot open it. Someone who is not signed in still can, if they know the id. The official baseline stays readable and cannot be written, including checklist, guidance, and analyze.
 - The unittest suite is 165 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.
+
+## Progress — 2026-11-11 Reports and Action Center
+
+- Reports copies a saved assessment into a new snapshot. A later Analyze run leaves the earlier snapshot in place. Missing figures stay missing. Charts copy stored engine values.
+- Action Center saves a follow-up, including one started from a stored flag. Completing an action does not verify evidence, clear a flag, or change the recommendation.
+- History lists saved assessments, whether a financial result is stored, report timestamps, and action status.
+- An unclaimed draft stays unassigned. A visitor who is not signed in cannot read or change it, and it is left off Explore, Analyze, Market, Reports, and export. A reviewer can open it. Seeded demonstrations stay readable and are read-only for customers and visitors. The official baseline stays read-only.
+- The unittest suite is 167 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.

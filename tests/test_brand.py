@@ -35,6 +35,8 @@ NAV_LABELS = (
     "My Assessments",
     "Market Intelligence (demonstration)",
     "Reports",
+    "Action Center",
+    "History",
     "Settings",
 )
 NAV_TIPS = (
@@ -62,7 +64,9 @@ NAV_TIPS = (
         "Market Pulse (demonstration)",
         "See example monitoring cards. Monitoring is not active.",
     ),
-    ('href="/reports"', "Reports", "Open a research brief or the audit of a saved result."),
+    ('href="/reports"', "Reports", "Generate a report from a saved assessment and open it later."),
+    ('href="/actions"', "Action Center", "Save follow-up items for an assessment you can change."),
+    ('href="/history"', "History", "See saved assessments, reports, and action status."),
     ('href="/settings"', "Settings", "Update this local account and its email preferences."),
     ('href="/login"', "Login", "Sign in with a local email and password."),
     ('href="/register"', "Register", "Create a local customer account."),

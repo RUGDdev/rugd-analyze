@@ -209,6 +209,9 @@ class TestBusinessProfiles(unittest.TestCase):
                 urllib.request.urlopen(linked)
             self.assertEqual(caught.exception.code, 403)
             self.assertEqual(self._snapshot(BASELINE_ID), baseline_before)
+            from tests.session_cookie import open_customer
+
+            cookie, _user_id = open_customer(self.connection, base)
             opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
             created = urllib.request.Request(
                 base + "/assessments",
@@ -220,6 +223,7 @@ class TestBusinessProfiles(unittest.TestCase):
                     }
                 ).encode("utf-8"),
                 method="POST",
+                headers={"Cookie": cookie},
             )
             with opener.open(created) as response:
                 page = response.read().decode("utf-8")
@@ -231,6 +235,7 @@ class TestBusinessProfiles(unittest.TestCase):
                 assessment_url.rstrip("/") + "/linked",
                 data=urllib.parse.urlencode({"tier": "analyze", "purpose": "startup_feasibility"}).encode("utf-8"),
                 method="POST",
+                headers={"Cookie": cookie},
             )
             with opener.open(follow) as response:
                 second = response.read().decode("utf-8")

@@ -171,6 +171,10 @@ class TestDurableValueGuidance(unittest.TestCase):
                 urllib.request.urlopen(blocked)
             self.assertEqual(caught.exception.code, 403)
             self.assertEqual(list_guidance_notes(self.connection, BASELINE_ID), [])
+            from tests.session_cookie import claim, open_customer
+
+            cookie, user_id = open_customer(self.connection, base)
+            claim(self.connection, assessment_id, user_id)
             opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
             saved = urllib.request.Request(
                 base + f"/assessments/{assessment_id}/guidance",
@@ -181,6 +185,7 @@ class TestDurableValueGuidance(unittest.TestCase):
                     }
                 ).encode("utf-8"),
                 method="POST",
+                headers={"Cookie": cookie},
             )
             with opener.open(saved) as response:
                 page = response.read().decode("utf-8")

@@ -11,8 +11,10 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from app.accounts import register_account
 from app.analysis import analyze_record
 from app.pages import results_page
+from app.review import SESSION_COOKIE
 from app.server import make_server
 from app.store import (
     BASELINE_ID,
@@ -333,6 +335,7 @@ class TestAnalyzeApp(unittest.TestCase):
         self.assertNotEqual(result["readiness_status"], "investor-ready")
 
     def test_http_journey_refuses_customer_approval(self) -> None:
+        register_account(self.connection, email="journey@pilot.example", password="journey-pass-1")
         server = make_server(self.db, port=0)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -377,29 +380,50 @@ class TestAnalyzeApp(unittest.TestCase):
                 self.fail("approval field should be refused")
             except urllib.error.HTTPError as exc:
                 self.assertEqual(exc.code, 403)
-            opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
-            created = urllib.request.Request(
-                base + "/assessments",
-                data=b"business_name=Journey+Cafe&purpose=startup_feasibility&tier=explore",
+            login = urllib.request.Request(
+                base + "/login",
+                data=b"email=journey@pilot.example&password=journey-pass-1",
                 method="POST",
+            )
+            class NoRedirect(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, req, fp, code, msg, headers, newurl):
+                    return None
+
+            try:
+                login_response = urllib.request.build_opener(NoRedirect).open(login)
+            except urllib.error.HTTPError as exc:
+                login_response = exc
+            cookie = (login_response.headers.get("Set-Cookie") or "").split(";", 1)[0]
+            self.assertTrue(cookie.startswith(SESSION_COOKIE + "="))
+            opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
+
+            def signed(url: str, data: bytes | None = None) -> urllib.request.Request:
+                return urllib.request.Request(
+                    url,
+                    data=data,
+                    headers={"Cookie": cookie},
+                    method="POST" if data is not None else "GET",
+                )
+
+            created = signed(
+                base + "/assessments",
+                b"business_name=Journey+Cafe&purpose=startup_feasibility&tier=explore",
             )
             with opener.open(created) as response:
                 body = response.read().decode("utf-8")
                 assessment_url = response.geturl()
             self.assertIn("Journey Cafe", body)
             self.assertIn("Save draft", body)
-            saved = urllib.request.Request(
+            saved = signed(
                 assessment_url.rstrip("/") + "/save",
-                data=b"business_name=Journey+Cafe&purpose=startup_feasibility&tier=explore&concept=Guided+draft",
-                method="POST",
+                b"business_name=Journey+Cafe&purpose=startup_feasibility&tier=explore&concept=Guided+draft",
             )
             with opener.open(saved) as response:
                 draft = response.read().decode("utf-8")
             self.assertIn("Guided draft", draft)
-            analyzed = urllib.request.Request(
+            analyzed = signed(
                 assessment_url.rstrip("/") + "/analyze",
-                data=b"business_name=Journey+Cafe&purpose=startup_feasibility&tier=explore&concept=Guided+draft",
-                method="POST",
+                b"business_name=Journey+Cafe&purpose=startup_feasibility&tier=explore&concept=Guided+draft",
             )
             with opener.open(analyzed) as response:
                 results = response.read().decode("utf-8")
@@ -408,11 +432,11 @@ class TestAnalyzeApp(unittest.TestCase):
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", results)
             self.assertIn("human_review_approved", results)
             self.assertIn("false", results)
-            with urllib.request.urlopen(results_url.replace("/results", "/report")) as response:
+            with opener.open(signed(results_url.replace("/results", "/report"))) as response:
                 report = response.read().decode("utf-8")
             self.assertIn("do-not-proceed", report)
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", report)
-            with urllib.request.urlopen(results_url.replace("/results", "/audit")) as response:
+            with opener.open(signed(results_url.replace("/results", "/audit"))) as response:
                 audit = json.loads(response.read().decode("utf-8"))
             self.assertIn(
                 "INSUFFICIENT_DEMAND_EVIDENCE",
@@ -435,18 +459,13 @@ class TestAnalyzeApp(unittest.TestCase):
                     "verified_demand_rationale": "Reviewed trailing revenue statement.",
                 }
             ).encode()
-            created_verified = urllib.request.Request(
+            created_verified = signed(
                 base + "/assessments",
-                data=b"business_name=Verified+Path&purpose=startup_feasibility&tier=analyze",
-                method="POST",
+                b"business_name=Verified+Path&purpose=startup_feasibility&tier=analyze",
             )
             with opener.open(created_verified) as response:
                 verified_url = response.geturl()
-            analyzed_verified = urllib.request.Request(
-                verified_url.rstrip("/") + "/analyze",
-                data=verified,
-                method="POST",
-            )
+            analyzed_verified = signed(verified_url.rstrip("/") + "/analyze", verified)
             with opener.open(analyzed_verified) as response:
                 verified_results = response.read().decode("utf-8")
                 verified_results_url = response.geturl()
@@ -454,11 +473,11 @@ class TestAnalyzeApp(unittest.TestCase):
             self.assertIn("cleared", verified_results)
             self.assertIn("human_review_approved", verified_results)
             self.assertNotIn("Investor readiness: investor-ready", verified_results)
-            with urllib.request.urlopen(verified_results_url.replace("/results", "/report")) as response:
+            with opener.open(signed(verified_results_url.replace("/results", "/report"))) as response:
                 verified_report = response.read().decode("utf-8")
             self.assertIn("**Status:** cleared", verified_report)
             self.assertIn("human_review_approved remains false", verified_report)
-            with urllib.request.urlopen(verified_results_url.replace("/results", "/audit")) as response:
+            with opener.open(signed(verified_results_url.replace("/results", "/audit"))) as response:
                 verified_audit = json.loads(response.read().decode("utf-8"))
             self.assertEqual(verified_audit["demand_evidence"]["status"], "cleared")
             self.assertFalse(verified_audit["human_review_approved"])

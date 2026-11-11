@@ -29,6 +29,9 @@ class TestOnboardingPaths(unittest.TestCase):
         host, port = self.server.server_address
         self.base = f"http://{host}:{port}"
         self.opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
+        from tests.session_cookie import open_customer
+
+        self.cookie, _user_id = open_customer(self.connection, self.base)
 
     def tearDown(self) -> None:
         self.server.shutdown()
@@ -41,6 +44,7 @@ class TestOnboardingPaths(unittest.TestCase):
             self.base + path,
             data=urllib.parse.urlencode(fields).encode("utf-8"),
             method="POST",
+            headers={"Cookie": self.cookie},
         )
         with self.opener.open(request) as response:
             return response.read().decode("utf-8"), response.geturl()
@@ -198,6 +202,7 @@ class TestOnboardingPaths(unittest.TestCase):
             self.base + "/assessments",
             data=b"venture_path=reviewer&business_name=Bad+Path&purpose=startup_feasibility&tier=explore",
             method="POST",
+            headers={"Cookie": self.cookie},
         )
         with self.assertRaises(urllib.error.HTTPError) as refused:
             urllib.request.urlopen(request)

@@ -553,3 +553,11 @@ Owner input required before replacing `billing_hooks`:
 - The official baseline and the seeded restaurant demonstrations stay public prototype records. The baseline cannot be written. Restaurant demonstrations remain writable, as they were.
 - An unclaimed draft is left unassigned. A signed-in customer cannot read or change it. A visitor who is not signed in still can. That remaining local-prototype path is recorded in `CURRENT_STATUS.md`.
 - Choosing another customer’s business profile on a new draft is refused unless every assessment linked to that profile can be changed by this session.
+
+## Decision: Reports, actions, and unclaimed drafts
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, a recommend-against flag, or the official baseline.
+- A saved report is a snapshot of stored profile fields and stored engine figures. A blank stays missing. A missing result stays “Not calculated.” Generating another report does not replace the earlier snapshot and does not change the assessment.
+- An action item stores a description and a status. Completing it does not verify evidence, clear a flag, or change the stored recommendation.
+- An unclaimed draft is still not assigned and not deleted. Only a reviewer can read or change it. A signed-out visit cannot. Seeded restaurant demonstrations stay readable and cannot be changed by a customer or a visitor. The baseline stays read-only. A share token still opens the assessment it was issued for.

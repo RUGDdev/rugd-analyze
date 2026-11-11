@@ -253,6 +253,34 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         connection.execute(
             "ALTER TABLE business_profiles ADD COLUMN venture_path TEXT NOT NULL DEFAULT 'startup'"
         )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS saved_reports (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            title TEXT NOT NULL,
+            snapshot_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS action_items (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            status TEXT NOT NULL,
+            source_flag TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT
+        )
+        """
+    )
     return connection
 
 
@@ -1693,6 +1721,196 @@ def _load_checklist(raw: str | None) -> dict[str, bool]:
     if not isinstance(loaded, dict):
         return {}
     return {str(key): value is True for key, value in loaded.items()}
+
+
+def insert_saved_report(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    created_by: str,
+    title: str,
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    report_id = str(uuid.uuid4())
+    created_at = _now()
+    connection.execute(
+        """
+        INSERT INTO saved_reports (
+            id, assessment_id, created_by, created_at, title, snapshot_json
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            report_id,
+            assessment_id,
+            created_by,
+            created_at,
+            title,
+            json.dumps(snapshot),
+        ),
+    )
+    connection.commit()
+    return {
+        "id": report_id,
+        "assessment_id": assessment_id,
+        "created_by": created_by,
+        "created_at": created_at,
+        "title": title,
+        "snapshot": snapshot,
+    }
+
+
+def list_saved_reports(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, title, snapshot_json
+        FROM saved_reports
+        WHERE assessment_id = ?
+        ORDER BY created_at, id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_report_row(row) for row in rows]
+
+
+def get_saved_report(connection: sqlite3.Connection, report_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, title, snapshot_json
+        FROM saved_reports
+        WHERE id = ?
+        """,
+        (report_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _report_row(row)
+
+
+def insert_action_item(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    created_by: str,
+    title: str,
+    description: str,
+    status: str,
+    source_flag: str = "",
+) -> dict[str, Any]:
+    action_id = str(uuid.uuid4())
+    now = _now()
+    completed_at = now if status == "completed" else None
+    connection.execute(
+        """
+        INSERT INTO action_items (
+            id, assessment_id, created_by, title, description, status,
+            source_flag, created_at, updated_at, completed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            action_id,
+            assessment_id,
+            created_by,
+            title,
+            description,
+            status,
+            source_flag,
+            now,
+            now,
+            completed_at,
+        ),
+    )
+    connection.commit()
+    stored = get_action_item(connection, action_id)
+    assert stored is not None
+    return stored
+
+
+def update_action_item(
+    connection: sqlite3.Connection,
+    action_id: str,
+    *,
+    description: str,
+    status: str,
+) -> dict[str, Any] | None:
+    current = get_action_item(connection, action_id)
+    if current is None:
+        return None
+    now = _now()
+    if status == "completed":
+        completed_at = str(current.get("completed_at") or now)
+    else:
+        completed_at = None
+    connection.execute(
+        """
+        UPDATE action_items
+        SET description = ?, status = ?, updated_at = ?, completed_at = ?
+        WHERE id = ?
+        """,
+        (description, status, now, completed_at, action_id),
+    )
+    connection.commit()
+    return get_action_item(connection, action_id)
+
+
+def list_action_items(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, title, description, status,
+               source_flag, created_at, updated_at, completed_at
+        FROM action_items
+        WHERE assessment_id = ?
+        ORDER BY created_at, id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_action_row(row) for row in rows]
+
+
+def get_action_item(connection: sqlite3.Connection, action_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, title, description, status,
+               source_flag, created_at, updated_at, completed_at
+        FROM action_items
+        WHERE id = ?
+        """,
+        (action_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _action_row(row)
+
+
+def _report_row(row: sqlite3.Row) -> dict[str, Any]:
+    try:
+        snapshot = json.loads(row["snapshot_json"])
+    except json.JSONDecodeError:
+        snapshot = None
+    if not isinstance(snapshot, dict):
+        snapshot = None
+    return {
+        "id": row["id"],
+        "assessment_id": row["assessment_id"],
+        "created_by": row["created_by"],
+        "created_at": row["created_at"],
+        "title": row["title"],
+        "snapshot": snapshot,
+    }
+
+
+def _action_row(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "assessment_id": row["assessment_id"],
+        "created_by": row["created_by"],
+        "title": row["title"],
+        "description": row["description"],
+        "status": row["status"],
+        "source_flag": row["source_flag"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+        "completed_at": row["completed_at"],
+    }
 
 
 def _now() -> str:

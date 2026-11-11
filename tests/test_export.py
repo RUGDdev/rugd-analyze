@@ -118,12 +118,26 @@ class TestEmptyStatesAndExport(unittest.TestCase):
         host, port = server.server_address
         base = f"http://{host}:{port}"
         try:
-            with urllib.request.urlopen(base + f"/assessments/{draft_id}/results") as response:
+            from tests.session_cookie import claim, open_customer
+
+            cookie, user_id = open_customer(self.connection, base)
+            claim(self.connection, draft_id, user_id)
+            with urllib.request.urlopen(
+                urllib.request.Request(
+                    base + f"/assessments/{draft_id}/results",
+                    headers={"Cookie": cookie},
+                )
+            ) as response:
                 empty = response.read().decode("utf-8")
             self.assertIn("Analyze has not been run", empty)
             self.assertEqual(get_assessment(self.connection, draft_id)["result"], None)
             self.assertEqual(get_assessment(self.connection, draft_id)["updated_at"], stamp)
-            with urllib.request.urlopen(base + f"/assessments/{draft_id}/export") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(
+                    base + f"/assessments/{draft_id}/export",
+                    headers={"Cookie": cookie},
+                )
+            ) as response:
                 one = json.loads(response.read().decode("utf-8"))
                 self.assertEqual(response.headers.get_content_type(), "application/json")
                 disposition = response.headers.get("Content-Disposition", "")
@@ -141,7 +155,9 @@ class TestEmptyStatesAndExport(unittest.TestCase):
             self.assertNotIn(session["token"], encoded)
             self.assertNotIn("second-raw-token", encoded)
             self.assertNotIn("local-prototype-reviewer", encoded)
-            with urllib.request.urlopen(base + "/assessments/export") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(base + "/assessments/export", headers={"Cookie": cookie})
+            ) as response:
                 bundle = json.loads(response.read().decode("utf-8"))
                 self.assertEqual(response.headers.get_content_type(), "application/json")
                 self.assertIn("rugd-drafts-", response.headers.get("Content-Disposition", ""))

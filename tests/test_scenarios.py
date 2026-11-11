@@ -163,11 +163,17 @@ class TestScenarioComparison(unittest.TestCase):
         thread.start()
         host, port = server.server_address
         base = f"http://{host}:{port}"
+        from tests.session_cookie import claim, open_customer
+
+        cookie, user_id = open_customer(self.connection, base)
+        claim(self.connection, empty_id, user_id)
+        claim(self.connection, self.assessment_id, user_id)
         try:
             refused = urllib.request.Request(
                 base + f"/assessments/{empty_id}/scenarios",
                 data=b"case=downside",
                 method="POST",
+                headers={"Cookie": cookie},
             )
             with self.assertRaises(urllib.error.HTTPError) as blocked:
                 urllib.request.urlopen(refused)
@@ -177,6 +183,7 @@ class TestScenarioComparison(unittest.TestCase):
             page = _post(
                 base + f"/assessments/{self.assessment_id}/scenarios",
                 urllib.parse.urlencode({"case": "downside"}).encode("utf-8"),
+                cookie,
             )
             self.assertIn("Scenario comparison", page)
             self.assertIn("<th>Base</th>", page)
@@ -194,6 +201,7 @@ class TestScenarioComparison(unittest.TestCase):
             replaced = _post(
                 base + f"/assessments/{self.assessment_id}/scenarios",
                 urllib.parse.urlencode({"case": "upside"}).encode("utf-8"),
+                cookie,
             )
             self.assertIn("<th>Upside</th>", replaced)
             self.assertNotIn("<th>Downside</th>", replaced)
@@ -224,8 +232,9 @@ class TestScenarioComparison(unittest.TestCase):
             thread.join(timeout=5)
 
 
-def _post(url: str, body: bytes) -> str:
-    request = urllib.request.Request(url, data=body, method="POST")
+def _post(url: str, body: bytes, cookie: str = "") -> str:
+    headers = {"Cookie": cookie} if cookie else {}
+    request = urllib.request.Request(url, data=body, method="POST", headers=headers)
     with urllib.request.urlopen(request) as response:
         return response.read().decode("utf-8")
 

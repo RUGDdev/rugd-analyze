@@ -177,15 +177,21 @@ class TestPresentation(unittest.TestCase):
         host, port = server.server_address
         base = f"http://{host}:{port}"
         opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
+        from tests.session_cookie import open_customer
+
+        cookie, _user_id = open_customer(self.connection, base)
         try:
             created = urllib.request.Request(
                 base + "/assessments",
                 data=b"business_name=Resume+Cafe&purpose=startup_feasibility&tier=explore",
                 method="POST",
+                headers={"Cookie": cookie},
             )
             with opener.open(created) as response:
                 assessment_url = response.geturl().rstrip("/")
-            first = urllib.request.urlopen(assessment_url).read().decode("utf-8")
+            first = urllib.request.urlopen(
+                urllib.request.Request(assessment_url, headers={"Cookie": cookie})
+            ).read().decode("utf-8")
             self.assertIn("User-supplied assumptions", first)
             self.assertIn("Verified data", first)
             self.assertIn("Unmeasured placeholders", first)
@@ -203,7 +209,12 @@ class TestPresentation(unittest.TestCase):
                     "demand_evidence": "yes",
                 }
             ).encode()
-            saved = urllib.request.Request(assessment_url + "/save", data=payload, method="POST")
+            saved = urllib.request.Request(
+                assessment_url + "/save",
+                data=payload,
+                method="POST",
+                headers={"Cookie": cookie},
+            )
             with opener.open(saved) as response:
                 restored = response.read().decode("utf-8")
             self.assertIn("Keep this concept.", restored)
@@ -297,40 +308,60 @@ class TestPresentation(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as caught:
                 urllib.request.urlopen(denied)
             self.assertEqual(caught.exception.code, 403)
+            from tests.session_cookie import open_customer
+
+            cookie, _user_id = open_customer(self.connection, base)
             created = urllib.request.Request(
                 base + "/assessments",
                 data=b"business_name=Regression+Restaurant&purpose=startup_feasibility&tier=explore",
                 method="POST",
+                headers={"Cookie": cookie},
             )
             with opener.open(created) as response:
                 assessment_url = response.geturl().rstrip("/")
             assessment_id = assessment_url.rsplit("/", 1)[-1]
-            saved = urllib.request.Request(assessment_url + "/save", data=payload, method="POST")
+            saved = urllib.request.Request(
+                assessment_url + "/save",
+                data=payload,
+                method="POST",
+                headers={"Cookie": cookie},
+            )
             with opener.open(saved) as response:
                 intake = response.read().decode("utf-8")
             self.assertIn("Guidance. Not a decision.", intake)
             self.assertIn("A small restaurant draft.", intake)
             self.assertIn('value="40"', intake)
-            analyzed = urllib.request.Request(assessment_url + "/analyze", data=payload, method="POST")
+            analyzed = urllib.request.Request(
+                assessment_url + "/analyze",
+                data=payload,
+                method="POST",
+                headers={"Cookie": cookie},
+            )
             with opener.open(analyzed) as response:
                 results = response.read().decode("utf-8")
             self._assert_shared_status(results)
             self.assertIn("Limitations", results)
             self.assertIn("Demonstration data is not real market research", results)
-            with urllib.request.urlopen(assessment_url + "/report") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/report", headers={"Cookie": cookie})
+            ) as response:
                 report = response.read().decode("utf-8")
             self.assertIn("**Recommendation:** do-not-proceed", report)
             self.assertIn("**INSUFFICIENT_DEMAND_EVIDENCE:** present", report)
             self.assertIn("**Investor readiness:** internal", report)
             self.assertIn("**Human review status:** pending", report)
             self.assertIn("**Demand evidence provenance:**", report)
-            with urllib.request.urlopen(assessment_url + "/audit/html") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/audit/html", headers={"Cookie": cookie})
+            ) as response:
                 html_audit = response.read().decode("utf-8")
             self._assert_shared_status(html_audit)
             self.assertIn("Limitations", html_audit)
             self.assertIn("Demonstration data is not real market research", html_audit)
             self.assertNotIn("<form", html_audit)
-            with urllib.request.urlopen(assessment_url + "/audit") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/audit", headers={"Cookie": cookie})
+            ) as response:
                 audit = json.loads(response.read().decode("utf-8"))
             self.assertEqual(audit["recommendation"]["draft_recommendation"], "do-not-proceed")
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", audit["recommendation"]["blocking_flags"])
@@ -338,7 +369,9 @@ class TestPresentation(unittest.TestCase):
             self.assertEqual(audit["view_summary"]["human_review_status"], "pending")
             self.assertFalse(audit["human_review_approved"])
             self.assertTrue(audit["view_summary"]["demand_provenance"])
-            with urllib.request.urlopen(assessment_url) as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url, headers={"Cookie": cookie})
+            ) as response:
                 resumed = response.read().decode("utf-8")
             self.assertIn("A small restaurant draft.", resumed)
             self.assertIn('value="40"', resumed)
@@ -401,6 +434,9 @@ class TestPresentation(unittest.TestCase):
         host, port = server.server_address
         base = f"http://{host}:{port}"
         opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
+        from tests.session_cookie import open_customer
+
+        cookie, _user_id = open_customer(self.connection, base)
         try:
             with urllib.request.urlopen(base + "/assessments/new") as response:
                 new_page = response.read().decode("utf-8")
@@ -419,6 +455,7 @@ class TestPresentation(unittest.TestCase):
                         }
                     ).encode(),
                     method="POST",
+                    headers={"Cookie": cookie},
                 )
                 with opener.open(request) as response:
                     page = response.read().decode("utf-8")
@@ -436,7 +473,12 @@ class TestPresentation(unittest.TestCase):
             self.assertNotIn("Empty named-pilot draft", home)
             self.assertNotIn("Official baseline", home)
             for assessment_id in created_ids:
-                with urllib.request.urlopen(base + f"/assessments/{assessment_id}") as response:
+                with urllib.request.urlopen(
+                    urllib.request.Request(
+                        base + f"/assessments/{assessment_id}",
+                        headers={"Cookie": cookie},
+                    )
+                ) as response:
                     draft_page = response.read().decode("utf-8")
                 self.assertIn("Empty named-pilot draft", draft_page)
             baseline = get_assessment(self.connection, "rugd-intelligence-baseline")

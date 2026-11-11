@@ -63,7 +63,9 @@ NAV = (
         "Market Pulse (demonstration)",
         "See example monitoring cards. Monitoring is not active.",
     ),
-    ("/reports", "Reports", "Open a research brief or the audit of a saved result."),
+    ("/reports", "Reports", "Generate a report from a saved assessment and open it later."),
+    ("/actions", "Action Center", "Save follow-up items for an assessment you can change."),
+    ("/history", "History", "See saved assessments, reports, and action status."),
     ("/login", "Login", "Sign in with a local email and password."),
     ("/register", "Register", "Create a local customer account."),
     ("/logout", "Log out", "End this local session."),
@@ -82,6 +84,9 @@ _TITLE_ACTIVE = {
     "Market Intelligence": "/market",
     "Market Pulse": "/market-pulse",
     "Reports": "/reports",
+    "Saved report": "/reports",
+    "Action Center": "/actions",
+    "History": "/history",
     "Research Brief": "/reports",
     "Audit view": "/reports",
     "Settings": "/settings",
@@ -883,10 +888,15 @@ def _business_profile_card(record: dict[str, Any]) -> str:
 
 
 def assessment_form(
-    record: dict[str, Any], notice: str = "", notes: list[dict[str, Any]] | None = None
+    record: dict[str, Any],
+    notice: str = "",
+    notes: list[dict[str, Any]] | None = None,
+    *,
+    writable: bool | None = None,
 ) -> str:
     profile = record["profile"]
-    locked = "disabled" if record["read_only"] else ""
+    can_edit = (not record["read_only"]) if writable is None else bool(writable)
+    locked = "" if can_edit else "disabled"
     purposes = []
     for key, label in {**ENGINE_PURPOSES, **UNSUPPORTED_PURPOSES}.items():
         selected = "selected" if profile.get("purpose") == key else ""
@@ -930,7 +940,8 @@ def assessment_form(
             "This choice does not clear a flag or grant investor-ready status.</div>"
         )
     fields = _fields(profile, locked, path)
-    action = "" if record["read_only"] else f"""
+    if can_edit:
+        action = f"""
 <form method="post" action="/assessments/{escape(record['id'])}/save">
 {fields}
 <label>Service tier</label>
@@ -941,16 +952,14 @@ def assessment_form(
 <button type="submit" formaction="/assessments/{escape(record['id'])}/analyze">Run Analyze</button>
 </form>
 """
-    if record["read_only"]:
+    else:
         action = f"""
 {fields}
-<p class="muted">Saving is disabled. You can still run the engine on the stored baseline.</p>
-<form method="post" action="/assessments/{escape(record['id'])}/analyze">
-<button type="submit">Run Analyze on the baseline</button>
-</form>
+<p class="muted">This record is read-only for this session. The draft was not changed.</p>
 """
     body = f"""
 <h1>{escape(record['business_name'])}</h1>
+{_workspace_links(record)}
 {_SURFACE_NOTE}
 {banner}
 {_explore_workspace(record)}
@@ -965,7 +974,7 @@ def assessment_form(
 {_plain("investor_readiness")}
 </div>
 {_assistant_panel(record, surface="intake")}
-{_evidence_checklist(record, record.get("result"), notes, return_to="draft")}
+{_evidence_checklist(record, record.get("result"), notes, return_to="draft", writable=can_edit)}
 {_intake_status(record)}
 {_business_profile_card(record)}
 <p class="muted">Tier {escape(record['tier'])}. Changing tier does not change a recommendation. Entered answers stay user-supplied assumptions.</p>
@@ -1425,9 +1434,11 @@ def results_page(
     record: dict[str, Any],
     result: dict[str, Any],
     notes: list[dict[str, Any]] | None = None,
+    *,
+    writable: bool = True,
 ) -> str:
     if not result.get("engine_ran"):
-        body = _results_not_run(record, result, notes)
+        body = _results_not_run(record, result, notes, writable=writable)
         return layout("Analyze", body)
     flags = "".join(f"<li class=\"flag\">{escape(flag)}</li>" for flag in result.get("blocking_flags") or []) or "<li>None</li>"
     gaps = "".join(f"<li>{escape(flag)}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
@@ -1445,6 +1456,7 @@ def results_page(
     links = _output_links(record)
     body = f"""
 <h1>Results for {escape(record['business_name'])}</h1>
+{_workspace_links(record)}
 <p>This page shows the stored engine result, the hard gate, and the next step. It does not grant investor-ready status.</p>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
@@ -1472,7 +1484,7 @@ def results_page(
 {_draft_market_context(record)}
 {links}
 {_scenario_comparison(record, result)}
-{_evidence_checklist(record, result, notes, return_to="results")}
+{_evidence_checklist(record, result, notes, return_to="results", writable=writable)}
 {_assistant_panel(record, surface="results")}
 {_analyst_panel(record, result)}
 {_LIMITATIONS}
@@ -1519,6 +1531,8 @@ def _results_not_run(
     record: dict[str, Any],
     result: dict[str, Any],
     notes: list[dict[str, Any]] | None = None,
+    *,
+    writable: bool = True,
 ) -> str:
     profile = record.get("profile") or {}
     startup_missing = _missing_labels(profile, _STARTUP_REQUIRED)
@@ -1552,6 +1566,7 @@ def _results_not_run(
 """
     return f"""
 <h1>Analyze has not been run</h1>
+{_workspace_links(record)}
 <p>This page says Analyze has not written a result yet. It does not invent a number and it does not grant investor-ready status.</p>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
@@ -1562,7 +1577,7 @@ def _results_not_run(
 <div class="banner">{escape(message)} This page did not run the engine and did not fill any blank fields.</div>
 {details}
 {baseline}
-{_evidence_checklist(record, result, notes, return_to="results")}
+{_evidence_checklist(record, result, notes, return_to="results", writable=writable)}
 <div class="card">
 <h2>What this means</h2>
 <p><strong>What to do next:</strong> Return to the draft, fill the missing fields named above, save, and run Analyze. This page did not invent a number.</p>
@@ -3544,21 +3559,334 @@ def research_brief_page(package: dict[str, Any]) -> str:
     return layout("Research Brief", body, printable=True)
 
 
-def reports_page(records: list[dict[str, Any]]) -> str:
-    items = "".join(
-        f"<li><a href=\"/assessments/{escape(item['id'])}/report\">{escape(item['business_name'])} report</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/audit/html\">HTML audit view</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/audit\">audit</a></li>"
-        for item in records
+def _workspace_links(record: dict[str, Any]) -> str:
+    assessment_id = escape(str(record.get("id") or ""))
+    return (
+        '<p class="no-print" id="workspace-links">'
+        f'<a class="button" href="/assessments/{assessment_id}/reports">Report</a> '
+        f'<a class="button" href="/assessments/{assessment_id}/actions">Action Center</a> '
+        '<a class="button" href="/history">History</a>'
+        "</p>"
     )
+
+
+def reports_page(
+    records: list[dict[str, Any]],
+    reports_by_assessment: dict[str, list[dict[str, Any]]] | None = None,
+    *,
+    signed_in: bool = False,
+) -> str:
+    reports_by_assessment = reports_by_assessment or {}
+    if not records:
+        items = "<li>No authorized assessment is available. Sign in, then start one from Explore.</li>"
+    else:
+        rows = []
+        for item in records:
+            assessment_id = str(item.get("id") or "")
+            saved = reports_by_assessment.get(assessment_id) or []
+            saved_links = "".join(
+                f"<li><a href=\"/assessments/{escape(assessment_id)}/reports/{escape(str(report.get('id') or ''))}\">"
+                f"{escape(str(report.get('title') or 'Saved report'))}</a> · "
+                f"saved {escape(str(report.get('created_at') or ''))}</li>"
+                for report in saved
+            ) or "<li>No report is saved yet.</li>"
+            generate = ""
+            if signed_in:
+                generate = (
+                    f"<form method=\"post\" action=\"/assessments/{escape(assessment_id)}/reports\">"
+                    "<button type=\"submit\">Generate report</button></form>"
+                )
+            rows.append(
+                "<li>"
+                f"<a href=\"/assessments/{escape(assessment_id)}/reports\">{escape(str(item.get('business_name') or 'Assessment'))}</a>"
+                f"{generate}<ul>{saved_links}</ul></li>"
+            )
+        items = "".join(rows)
+    sign_in = ""
+    if not signed_in:
+        sign_in = "<p><a class=\"button\" href=\"/login\">Sign in to save a report</a></p>"
     return layout(
         "Reports",
-        f"{_section_welcome('Welcome to RUGD Reports', 'This page opens a draft report or the audit of a saved result.', 'A report does not change the stored recommendation or grant investor-ready status.')}{_SURFACE_NOTE}"
-        "<p class=\"muted\">Service tier is stored on each assessment. A report does not change that tier.</p>"
-        f"<ul>{items}</ul>"
-        "<p class=\"muted\">Reports are drafts. A report is not investor-ready unless the existing gate "
-        "and an authorized review say otherwise. This prototype does not write the official 0.1 output files. "
-        "Authoritative financial numbers in a report come only from the 0.1 engine.</p>",
+        f"{_section_welcome('Welcome to RUGD Reports', 'Generate a report from a saved assessment and read it here.', 'A saved report copies stored figures. It does not change the recommendation or grant investor-ready status.')}{_SURFACE_NOTE}"
+        "<p class=\"muted\">Authoritative financial numbers in a report come only from the stored 0.1 engine result. "
+        "A missing figure stays missing.</p>"
+        f"{sign_in}<ul id=\"report-list\">{items}</ul>"
+        "<p class=\"muted\">Each Generate report saves a new snapshot. An older snapshot stays in History.</p>",
+    )
+
+
+def assessment_reports_page(
+    record: dict[str, Any],
+    reports: list[dict[str, Any]],
+    *,
+    signed_in: bool,
+    notice: str = "",
+) -> str:
+    banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
+    if reports:
+        items = "".join(
+            "<li>"
+            f"<a href=\"/assessments/{escape(str(record['id']))}/reports/{escape(str(item.get('id') or ''))}\">"
+            f"{escape(str(item.get('title') or 'Saved report'))}</a> · "
+            f"saved {escape(str(item.get('created_at') or ''))}</li>"
+            for item in reports
+        )
+    else:
+        items = "<li>No report is saved yet.</li>"
+    if signed_in:
+        form = (
+            f"<form method=\"post\" action=\"/assessments/{escape(str(record['id']))}/reports\">"
+            "<button type=\"submit\">Generate report</button></form>"
+        )
+    else:
+        form = "<p><a class=\"button\" href=\"/login\">Sign in to save a report</a></p>"
+    body = f"""
+<h1>Reports for {escape(str(record.get('business_name') or 'Assessment'))}</h1>
+{_SURFACE_NOTE}
+{banner}
+<p>Generating a report copies the saved business information and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>
+{form}
+<ul id="saved-reports">{items}</ul>
+<p><a href="/history">Open History</a></p>
+"""
+    return layout("Reports", body)
+
+
+def saved_report_page(
+    record: dict[str, Any],
+    report: dict[str, Any],
+    *,
+    printable: bool = False,
+    notice: str = "",
+) -> str:
+    snapshot = report.get("snapshot") if isinstance(report.get("snapshot"), dict) else None
+    banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
+    if snapshot is None:
+        body = f"""
+<h1>Saved report</h1>
+{_SURFACE_NOTE}
+<div class="banner">This saved report could not be read. No figure was filled in.</div>
+"""
+        return layout("Saved report", body, printable=printable)
+    sections = (
+        ("Business overview", snapshot.get("business_overview"), "business-overview"),
+        ("Customer objective", snapshot.get("objective"), "customer-objective"),
+        ("Market and customers", snapshot.get("market_and_customers"), "market-customers"),
+        ("Financial assumptions", snapshot.get("assumptions"), "financial-assumptions"),
+        ("Base financial results", snapshot.get("base_results"), "base-results"),
+        ("Downside scenario", snapshot.get("downside_scenario"), "downside-scenario"),
+        ("Evidence gaps", snapshot.get("evidence_gaps"), "evidence-gaps"),
+        ("Risk indicators", snapshot.get("risk_indicators"), "risk-indicators"),
+        ("Recommendation", snapshot.get("recommendation"), "recommendation"),
+        ("Limitations", snapshot.get("limitations"), "limitations"),
+    )
+    blocks = []
+    for title, lines, section_id in sections:
+        items = "".join(f"<li>{escape(str(line))}</li>" for line in (lines or ["Not available. This value is not stored."]))
+        blocks.append(f'<section class="card" id="{section_id}"><h2>{escape(title)}</h2><ul>{items}</ul></section>')
+    report_id = escape(str(report.get("id") or ""))
+    assessment_id = escape(str(record.get("id") or ""))
+    tools = ""
+    if not printable:
+        tools = (
+            f'<p class="no-print"><a class="button" href="/assessments/{assessment_id}/reports/{report_id}/print">Print</a> '
+            f'<a class="button" href="/assessments/{assessment_id}/reports/{report_id}/export">Export</a></p>'
+        )
+    body = f"""
+<h1>{escape(str(report.get('title') or 'Saved report'))}</h1>
+{_SURFACE_NOTE}
+{banner}
+<p>Saved {escape(str(report.get('created_at') or ''))}. This page shows that snapshot. A later Analyze run does not replace it.</p>
+{tools}
+{''.join(blocks)}
+<section class="card" id="report-charts">
+<h2>Financial charts</h2>
+{snapshot.get('chart_html') or ''}
+{snapshot.get('scenario_chart_html') or ''}
+</section>
+"""
+    return layout("Saved report", body, printable=printable)
+
+
+def actions_page(
+    records: list[dict[str, Any]],
+    actions_by_assessment: dict[str, list[dict[str, Any]]] | None = None,
+) -> str:
+    actions_by_assessment = actions_by_assessment or {}
+    if not records:
+        items = "<li>No authorized assessment is available. Sign in, then open a draft from Explore.</li>"
+    else:
+        rows = []
+        for item in records:
+            assessment_id = str(item.get("id") or "")
+            actions = actions_by_assessment.get(assessment_id) or []
+            if actions:
+                summary = ", ".join(
+                    f"{escape(str(action.get('status') or 'open'))}" for action in actions
+                )
+                count = f"{len(actions)} saved"
+            else:
+                summary = "none saved"
+                count = "0 saved"
+            rows.append(
+                "<li>"
+                f"<a href=\"/assessments/{escape(assessment_id)}/actions\">"
+                f"{escape(str(item.get('business_name') or 'Assessment'))}</a> · {count}. Status: {summary}.</li>"
+            )
+        items = "".join(rows)
+    return layout(
+        "Action Center",
+        f"{_section_welcome('Welcome to RUGD Action Center', 'Review stored gaps and save a follow-up you can finish later.', 'Marking an action completed does not verify evidence or change the recommendation.')}{_SURFACE_NOTE}"
+        f"<ul id=\"action-index\">{items}</ul>",
+    )
+
+
+def assessment_actions_page(
+    record: dict[str, Any],
+    actions: list[dict[str, Any]],
+    *,
+    writable: bool,
+    notice: str = "",
+) -> str:
+    banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
+    result = record.get("result") if isinstance(record.get("result"), dict) else None
+    flags: list[str] = []
+    if result and result.get("engine_ran"):
+        for key in ("blocking_flags", "gap_flags"):
+            for flag in result.get(key) or []:
+                text = str(flag)
+                if text not in flags:
+                    flags.append(text)
+        financial = result.get("financial") if isinstance(result.get("financial"), dict) else {}
+        for flag in financial.get("flags") or []:
+            text = str(flag)
+            if text not in flags:
+                flags.append(text)
+    if flags:
+        flag_list = "".join(f"<li>{escape(flag)}</li>" for flag in flags)
+    elif result and result.get("engine_ran"):
+        flag_list = "<li>None stored.</li>"
+    else:
+        flag_list = "<li>Not calculated. Analyze has not been run.</li>"
+    if actions:
+        rows = []
+        for item in actions:
+            action_id = escape(str(item.get("id") or ""))
+            status = str(item.get("status") or "open")
+            options = []
+            for value, label in (("open", "Open"), ("in_progress", "In progress"), ("completed", "Completed")):
+                selected = " selected" if status == value else ""
+                options.append(f'<option value="{value}"{selected}>{label}</option>')
+            completed = escape(str(item.get("completed_at") or ""))
+            completed_line = f"<p>Completed {completed}.</p>" if item.get("completed_at") else ""
+            if writable:
+                editor = (
+                    f"<form method=\"post\" action=\"/assessments/{escape(str(record['id']))}/actions/{action_id}\">"
+                    f"<label>Description<textarea name=\"description\">{escape(str(item.get('description') or ''))}</textarea></label>"
+                    f"<label>Status<select name=\"status\">{''.join(options)}</select></label>"
+                    "<button type=\"submit\">Save action</button></form>"
+                )
+            else:
+                editor = (
+                    f"<p>{escape(str(item.get('description') or ''))}</p>"
+                    f"<p>Status: {escape(status)}</p>"
+                    "<p class=\"muted\">This session cannot change this action.</p>"
+                )
+            rows.append(
+                "<li class=\"card\">"
+                f"<strong>{escape(str(item.get('title') or 'Action'))}</strong>"
+                f"<p>Updated {escape(str(item.get('updated_at') or ''))}.</p>"
+                f"{completed_line}{editor}</li>"
+            )
+        saved = "".join(rows)
+    else:
+        saved = "<li>No action items are saved yet.</li>"
+    if writable and flags and result and result.get("engine_ran"):
+        starters = "".join(
+            "<li><form method=\"post\" action=\"/assessments/"
+            + escape(str(record["id"]))
+            + "/actions\">"
+            f"<input type=\"hidden\" name=\"source_flag\" value=\"{escape(flag)}\">"
+            f"<input type=\"hidden\" name=\"description\" value=\"Follow up on {escape(flag)}. Completing this action does not clear the flag.\">"
+            f"<button type=\"submit\">Create action from {escape(flag)}</button></form></li>"
+            for flag in flags
+        )
+    else:
+        starters = ""
+    if writable:
+        create = f"""
+<form method="post" action="/assessments/{escape(str(record['id']))}/actions" id="new-action">
+<label>Description<textarea name="description" required></textarea></label>
+<label>Status
+<select name="status">
+<option value="open">Open</option>
+<option value="in_progress">In progress</option>
+<option value="completed">Completed</option>
+</select>
+</label>
+<button type="submit">Save action</button>
+</form>
+"""
+    else:
+        create = "<p class=\"muted\">This session cannot save an action on this record.</p>"
+    body = f"""
+<h1>Action Center for {escape(str(record.get('business_name') or 'Assessment'))}</h1>
+{_SURFACE_NOTE}
+{banner}
+<p>Stored recommendation flags are listed below. Creating an action does not verify evidence, clear a flag, or change the recommendation.</p>
+<section class="card" id="stored-flags"><h2>Stored flags</h2><ul>{flag_list}</ul></section>
+<h2>Create from a stored flag</h2>
+<ul>{starters or '<li>No stored flag is available to start an action.</li>'}</ul>
+<h2>New action</h2>
+{create}
+<h2>Saved actions</h2>
+<ul id="saved-actions">{saved}</ul>
+"""
+    return layout("Action Center", body)
+
+
+def history_page(entries: list[dict[str, Any]]) -> str:
+    if not entries:
+        rows = "<li>No authorized assessment is available.</li>"
+    else:
+        blocks = []
+        for entry in entries:
+            record = entry["record"]
+            result = record.get("result") if isinstance(record.get("result"), dict) else None
+            if result and result.get("engine_ran"):
+                financial = "A stored engine result is available."
+            else:
+                financial = "No financial result is stored."
+            reports = entry.get("reports") or []
+            report_lines = "".join(
+                f"<li><a href=\"/assessments/{escape(str(record['id']))}/reports/{escape(str(item.get('id') or ''))}\">"
+                f"{escape(str(item.get('title') or 'Saved report'))}</a> · {escape(str(item.get('created_at') or ''))}</li>"
+                for item in reports
+            ) or "<li>No report is saved.</li>"
+            actions = entry.get("actions") or []
+            if actions:
+                action_lines = "".join(
+                    f"<li>{escape(str(item.get('title') or 'Action'))}: {escape(str(item.get('status') or 'open'))}"
+                    f" · updated {escape(str(item.get('updated_at') or ''))}</li>"
+                    for item in actions
+                )
+            else:
+                action_lines = "<li>No action is saved.</li>"
+            blocks.append(
+                "<section class=\"card\">"
+                f"<h2><a href=\"/assessments/{escape(str(record['id']))}\">{escape(str(record.get('business_name') or 'Assessment'))}</a></h2>"
+                f"<p>Assessment saved {escape(str(record.get('created_at') or ''))}. "
+                f"Updated {escape(str(record.get('updated_at') or ''))}.</p>"
+                f"<p>{financial}</p>"
+                f"<h3>Reports</h3><ul>{report_lines}</ul>"
+                f"<h3>Actions</h3><ul>{action_lines}</ul>"
+                "</section>"
+            )
+        rows = "".join(blocks)
+    return layout(
+        "History",
+        f"{_section_welcome('Welcome to RUGD History', 'This page lists saved assessments, stored results, reports, and action status.', 'An older report snapshot stays here after Analyze is run again.')}{_SURFACE_NOTE}"
+        f"<div id=\"history\">{rows}</div>",
     )
 
 
@@ -3680,6 +4008,7 @@ def _evidence_checklist(
     notes: list[dict[str, Any]] | None,
     *,
     return_to: str,
+    writable: bool = True,
 ) -> str:
     from app.checklist import build_checklist
 
@@ -3688,11 +4017,18 @@ def _evidence_checklist(
     for item in view["items"]:
         item_id = str(item["id"])
         checked = " checked" if item["status"] in {"noted", "recorded"} else ""
+        control = ""
+        if writable:
+            control = (
+                f'<input type="hidden" name="known_{escape(item_id)}" value="1">'
+                f'<label><input type="checkbox" name="check_{escape(item_id)}" value="1"{checked}> '
+                f"{escape(str(item['title']))}</label>"
+            )
+        else:
+            control = f"<strong>{escape(str(item['title']))}</strong>"
         rows.append(
             "<li>"
-            f'<input type="hidden" name="known_{escape(item_id)}" value="1">'
-            f'<label><input type="checkbox" name="check_{escape(item_id)}" value="1"{checked}> '
-            f"{escape(str(item['title']))}</label>"
+            f"{control}"
             f"<p>{escape(str(item.get('plain') or ''))}</p>"
             f"<p><strong>Checklist status:</strong> {escape(str(item['status']).title())}</p>"
             f"<p class=\"muted\">{escape(str(item['guidance']))}</p>"
@@ -3700,16 +4036,25 @@ def _evidence_checklist(
         )
     assessment_id = escape(str(record.get("id") or ""))
     destination = return_to if return_to in {"explore", "results", "draft"} else "draft"
-    return f"""
-<section class="card" id="evidence-checklist-{assessment_id}">
-<h2>Evidence checklist</h2>
-<p>{escape(str(view["disclaimer"]))}</p>
-<p><strong>Guidance progress:</strong> {view["noted_or_recorded"]} of {view["total"]} items noted or recorded. This progress does not clear a recommend-against flag.</p>
+    if writable:
+        controls = f"""
 <form method="post" action="/assessments/{assessment_id}/checklist">
 <input type="hidden" name="return_to" value="{escape(destination)}">
 <ul>{''.join(rows)}</ul>
 <button type="submit">Update checklist</button>
 </form>
+"""
+    else:
+        controls = (
+            f"<ul>{''.join(rows)}</ul>"
+            "<p class=\"muted\">This record is read-only for this session. The checklist was not changed.</p>"
+        )
+    return f"""
+<section class="card" id="evidence-checklist-{assessment_id}">
+<h2>Evidence checklist</h2>
+<p>{escape(str(view["disclaimer"]))}</p>
+<p><strong>Guidance progress:</strong> {view["noted_or_recorded"]} of {view["total"]} items noted or recorded. This progress does not clear a recommend-against flag.</p>
+{controls}
 </section>
 """
 
@@ -3717,10 +4062,14 @@ def _evidence_checklist(
 def explore_page(
     records: list[dict[str, Any]],
     notes_by_id: dict[str, list[dict[str, Any]]] | None = None,
+    *,
+    writable_ids: set[str] | None = None,
 ) -> str:
     notes_by_id = notes_by_id or {}
     links = "".join(
-        f"<li><a href=\"/assessments/{escape(item['id'])}\">{escape(item['business_name'])}</a></li>"
+        f"<li><a href=\"/assessments/{escape(item['id'])}\">{escape(item['business_name'])}</a> · "
+        f"<a href=\"/assessments/{escape(item['id'])}/reports\">Report</a> · "
+        f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a></li>"
         for item in records
     )
     checklists = "".join(
@@ -3732,6 +4081,7 @@ def explore_page(
             item.get("result") if isinstance(item.get("result"), dict) else None,
             notes_by_id.get(str(item.get("id") or "")),
             return_to="explore",
+            writable=writable_ids is None or str(item.get("id") or "") in writable_ids,
         )
         for item in records
     )
@@ -3750,7 +4100,9 @@ def explore_page(
 <div class="banner">Explore is an intake and gap check. It is not a completed feasibility study. It does not clear a flag.</div>
 <p>Use a saved draft to clarify the concept, capital assumptions, and missing evidence. Run Analyze only when you want the deterministic engine.</p>
 <p>Open a draft to ask the assistant about that assessment. The assistant is assistance only and cannot change the draft.</p>
-<p><a class="button" href="/assessments/new">Start an Explore draft</a></p>
+<p><a class="button" href="/assessments/new">Start an Explore draft</a>
+<a class="button" href="/reports">Open Reports</a>
+<a class="button" href="/actions">Open Action Center</a></p>
 """
         + _guidance_section("explore")
         + f"<ul>{links}</ul>"
@@ -3760,7 +4112,9 @@ def explore_page(
 
 def analyze_index(records: list[dict[str, Any]]) -> str:
     items = "".join(
-        f"<li><a href=\"/assessments/{escape(item['id'])}/results\">{escape(item['business_name'])}</a></li>"
+        f"<li><a href=\"/assessments/{escape(item['id'])}/results\">{escape(item['business_name'])}</a> · "
+        f"<a href=\"/assessments/{escape(item['id'])}/reports\">Report</a> · "
+        f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a></li>"
         for item in records
     )
     return layout(
@@ -3769,5 +4123,7 @@ def analyze_index(records: list[dict[str, Any]]) -> str:
         "<p class=\"muted\">Service tier: Analyze.</p>"
         "<p>Results come from the 0.1 deterministic engine. Authoritative financial numbers come only from the 0.1 engine. "
         "This list does not mark a draft or the official baseline investor-ready.</p>"
+        "<p><a class=\"button\" href=\"/reports\">Open Reports</a> "
+        "<a class=\"button\" href=\"/actions\">Open Action Center</a></p>"
         f"<ul>{items}</ul>",
     )

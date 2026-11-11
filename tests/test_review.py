@@ -213,10 +213,18 @@ class TestReviewerApproval(unittest.TestCase):
                 b"business_name=Cafe&purpose=startup_feasibility&tier=explore&human_review_approved=true",
                 403,
             )
+            customer_cookie = self._sign_in(
+                base,
+                "/",
+                email=CUSTOMER_EMAIL,
+                password=CUSTOMER_PASSWORD,
+                role="customer",
+            )
             created = urllib.request.Request(
                 base + "/assessments",
                 data=b"business_name=Review+Cafe&purpose=startup_feasibility&tier=analyze",
                 method="POST",
+                headers={"Cookie": customer_cookie},
             )
             with opener.open(created) as response:
                 assessment_url = response.geturl().rstrip("/")
@@ -256,12 +264,16 @@ class TestReviewerApproval(unittest.TestCase):
                 403,
                 "customer account",
             )
-            with urllib.request.urlopen(f"{base}/reviewer/assessments/{assessment_id}") as response:
-                unsigned = response.read().decode("utf-8")
-            self.assertIn("signed out", unsigned)
-            self.assertNotIn("Record reviewer approval", unsigned)
+            with self.assertRaises(urllib.error.HTTPError) as unsigned:
+                urllib.request.urlopen(f"{base}/reviewer/assessments/{assessment_id}")
+            self.assertEqual(unsigned.exception.code, 403)
+            unsigned_body = unsigned.exception.read().decode("utf-8")
+            self.assertNotIn("Review Cafe", unsigned_body)
+            self.assertNotIn("Record reviewer approval", unsigned_body)
             cookie = self._sign_in(base, f"/reviewer/assessments/{assessment_id}")
-            with urllib.request.urlopen(assessment_url + "/audit") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/audit", headers={"Cookie": customer_cookie})
+            ) as response:
                 before_audit = json.loads(response.read().decode("utf-8"))
             self.assertEqual(before_audit["recommendation"]["draft_recommendation"], "do-not-proceed")
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", before_audit["recommendation"]["blocking_flags"])
@@ -290,17 +302,23 @@ class TestReviewerApproval(unittest.TestCase):
             self.assertIn("human_review_approved:</strong> true", page)
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", page)
             self.assertNotIn("Investor readiness:</strong> investor-ready", page)
-            with urllib.request.urlopen(assessment_url + "/validate") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/validate", headers={"Cookie": customer_cookie})
+            ) as response:
                 validate = response.read().decode("utf-8")
             self.assertIn("Request review", validate)
             self.assertIn("Human review status:</strong> pending", validate)
             self.assertNotIn("Record reviewer approval", validate)
-            with urllib.request.urlopen(assessment_url + "/results") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/results", headers={"Cookie": customer_cookie})
+            ) as response:
                 results = response.read().decode("utf-8")
             self.assertIn("Human review status:</strong> approved", results)
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE:</strong> present", results)
             self.assertIn("Investor readiness:</strong> internal", results)
-            with urllib.request.urlopen(assessment_url + "/audit") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/audit", headers={"Cookie": customer_cookie})
+            ) as response:
                 audit = json.loads(response.read().decode("utf-8"))
             self.assertTrue(audit["human_review_approved"])
             self.assertFalse(audit["investor_summary_written"])
@@ -393,15 +411,17 @@ class TestReviewerApproval(unittest.TestCase):
                 ("2020-01-01T00:00:00+00:00", session_storage_key(token)),
             )
             self.connection.commit()
-            with urllib.request.urlopen(
-                urllib.request.Request(
-                    f"{base}/reviewer/assessments/{assessment_id}",
-                    headers={"Cookie": cookie},
-                )
-            ) as response:
-                expired_http = response.read().decode("utf-8")
-            self.assertIn("Authentication state:</strong> expired", expired_http)
-            self.assertNotIn("Record reviewer approval", expired_http)
+            expired_request = urllib.request.Request(
+                f"{base}/reviewer/assessments/{assessment_id}",
+                headers={"Cookie": cookie},
+            )
+            with self.assertRaises(urllib.error.HTTPError) as expired_http:
+                urllib.request.urlopen(expired_request)
+            self.assertEqual(expired_http.exception.code, 403)
+            expired_body = expired_http.exception.read().decode("utf-8")
+            self.assertIn("Authentication state:</strong> expired", expired_body)
+            self.assertNotIn("Record reviewer approval", expired_body)
+            self.assertNotIn("Lifetime Cafe", expired_body)
             self._expect_status_with_cookie(
                 f"{base}/reviewer/assessments/{assessment_id}/approve",
                 b"",
@@ -418,7 +438,13 @@ class TestReviewerApproval(unittest.TestCase):
                 403,
                 "signed out",
             )
-            with urllib.request.urlopen(f"{base}/assessments/{assessment_id}/audit") as response:
+            reader = self._sign_in(base, f"/assessments/{assessment_id}/audit")
+            with urllib.request.urlopen(
+                urllib.request.Request(
+                    f"{base}/assessments/{assessment_id}/audit",
+                    headers={"Cookie": reader},
+                )
+            ) as response:
                 trail = json.loads(response.read().decode("utf-8"))
             trail_actions = [item["action"] for item in trail["reviewer_events"]]
             self.assertIn("sign-in", trail_actions)

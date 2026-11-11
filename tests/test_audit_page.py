@@ -95,6 +95,18 @@ class TestHtmlAuditPage(unittest.TestCase):
         host, port = server.server_address
         base = f"http://{host}:{port}"
         opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler)
+        from app.accounts import bootstrap_reviewer
+        from app.review import SESSION_COOKIE, open_account_session
+        from tests.session_cookie import open_customer
+
+        cookie, _user_id = open_customer(self.connection, base)
+        bootstrap_reviewer(self.connection, email="audit-reviewer@pilot.example", password="reviewer-pass-1")
+        reviewer = open_account_session(
+            self.connection,
+            email="audit-reviewer@pilot.example",
+            password="reviewer-pass-1",
+        )
+        reviewer_cookie = f"{SESSION_COOKIE}={reviewer['token']}"
         try:
             self._expect_status(
                 base + "/assessments",
@@ -105,11 +117,14 @@ class TestHtmlAuditPage(unittest.TestCase):
                 base + "/assessments",
                 data=b"business_name=Audit+Cafe&purpose=startup_feasibility&tier=analyze",
                 method="POST",
+                headers={"Cookie": cookie},
             )
             with opener.open(created) as response:
                 assessment_url = response.geturl().rstrip("/")
             assessment_id = assessment_url.rsplit("/", 1)[-1]
-            with urllib.request.urlopen(assessment_url + "/audit/html") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/audit/html", headers={"Cookie": cookie})
+            ) as response:
                 early = response.read().decode("utf-8")
             self.assertIsNone(get_assessment(self.connection, assessment_id)["result"])
             self.assertIn("Audit view", early)
@@ -119,6 +134,7 @@ class TestHtmlAuditPage(unittest.TestCase):
                 assessment_url + "/analyze",
                 data=b"business_name=Audit+Cafe&purpose=startup_feasibility&tier=analyze",
                 method="POST",
+                headers={"Cookie": cookie},
             )
             with opener.open(analyzed) as response:
                 results = response.read().decode("utf-8")
@@ -127,7 +143,9 @@ class TestHtmlAuditPage(unittest.TestCase):
             stamp = stored["updated_at"]
             recommendation = stored["result"]["recommendation"]
             flags = list(stored["result"]["blocking_flags"])
-            with urllib.request.urlopen(assessment_url + "/audit/html") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/audit/html", headers={"Cookie": cookie})
+            ) as response:
                 page = response.read().decode("utf-8")
             again = get_assessment(self.connection, assessment_id)
             assert again is not None
@@ -146,15 +164,24 @@ class TestHtmlAuditPage(unittest.TestCase):
             self.assertNotIn("<form", page)
             self.assertNotIn("Record reviewer approval", page)
             self.assertIn(f"/assessments/{assessment_id}/audit/html", results)
-            with urllib.request.urlopen(assessment_url + "/report") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/report", headers={"Cookie": cookie})
+            ) as response:
                 report = response.read().decode("utf-8")
                 self.assertIn("text/markdown", response.headers.get("Content-Type", ""))
             self.assertIn(f"HTML audit view: /assessments/{assessment_id}/audit/html", report)
             self.assertIn("do-not-proceed", report)
-            with urllib.request.urlopen(base + f"/reviewer/assessments/{assessment_id}") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(
+                    base + f"/reviewer/assessments/{assessment_id}",
+                    headers={"Cookie": reviewer_cookie},
+                )
+            ) as response:
                 reviewer = response.read().decode("utf-8")
             self.assertIn(f"/assessments/{assessment_id}/audit/html", reviewer)
-            with urllib.request.urlopen(assessment_url + "/audit") as response:
+            with urllib.request.urlopen(
+                urllib.request.Request(assessment_url + "/audit", headers={"Cookie": cookie})
+            ) as response:
                 self.assertEqual(response.headers.get_content_type(), "application/json")
                 audit = json.loads(response.read().decode("utf-8"))
             self.assertIn("recommendation", audit)
@@ -183,7 +210,7 @@ class TestHtmlAuditPage(unittest.TestCase):
             self.assertNotIn("Investor readiness:</strong> investor-ready", baseline)
             self.assertNotIn("<form", baseline)
             self.assertNotIn("Record reviewer approval", baseline)
-            self._expect_status(assessment_url + "/audit/html", b"", 404)
+            self._expect_status(assessment_url + "/audit/html", b"", 404, cookie)
             self.assertFalse(get_assessment(self.connection, assessment_id)["human_review_approved"])
             self.assertEqual(hashlib.sha256(SAMPLE.read_bytes()).hexdigest(), before_sample)
             self.assertEqual(sorted(path.name for path in OUTPUT.iterdir()), output_before)
@@ -192,8 +219,9 @@ class TestHtmlAuditPage(unittest.TestCase):
             server.server_close()
             thread.join(timeout=3)
 
-    def _expect_status(self, url: str, body: bytes, status: int) -> None:
-        request = urllib.request.Request(url, data=body, method="POST")
+    def _expect_status(self, url: str, body: bytes, status: int, cookie: str = "") -> None:
+        headers = {"Cookie": cookie} if cookie else {}
+        request = urllib.request.Request(url, data=body, method="POST", headers=headers)
         try:
             urllib.request.urlopen(request)
         except urllib.error.HTTPError as exc:
