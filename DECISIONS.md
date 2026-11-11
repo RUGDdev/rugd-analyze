@@ -528,3 +528,11 @@ Owner input required before replacing `billing_hooks`:
 - The intake and results pages address the reader as an AI Business Adviser. The welcome names the draft. Three questions follow the current stage. The reply remains assistance only.
 - One suggestion appears for a stored gap: missing demand evidence, blank monthly fields, or Analyze not yet run. The browser can hide that note. Hiding it does not write the assessment.
 - The signed-in dashboard lists available modules and demonstration modules. Engine figures keep the calculated number and add a plain-language sentence.
+
+## Decision: Explore objective workspace
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine, a recommend-against flag, or the official baseline.
+- The home page offers eleven objectives. Each one creates a draft owned by the signed-in account. Prepare for Sale or Exit uses the unsupported acquisition purpose, so Analyze does not invent a recommendation for it. Monitor My Business or Industry is marked Demonstration because no monitoring job runs.
+- The adviser asks for one missing note at a time. The customer must choose Save this answer before that text is written. A configured provider may add a reply. If that call fails, the screen says no live reply was invented.
+- The checkpoint before this work is `ccd9b0e`.

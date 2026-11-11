@@ -30,7 +30,16 @@ from app.export import (
     export_research_package,
     research_package_markdown,
 )
-from app.analyst import answer, explain
+from app.adviser_flow import (
+    apply_proposal,
+    discard_proposal,
+    note_provider_failure,
+    note_provider_reply,
+    receive_answer,
+    start_conversation,
+)
+from app.analyst import answer, explain, get_analyst
+from app.objectives import objective_by_id
 from app.pages import (
     analyst_page,
     assistant_page,
@@ -255,6 +264,9 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _post_routes(self, connection: Any, path: str, form: dict[str, str]) -> None:
         seed(connection)
+        if path == "/start":
+            self._start_objective(connection, form)
+            return
         if path == "/assessments":
             business_name = (form.get("business_name") or "Untitled").strip() or "Untitled"
             profile_id = (form.get("business_profile_id") or "").strip()
@@ -511,6 +523,9 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if action == "assistant":
             self._assistant_post(connection, record, form)
+            return
+        if action == "adviser":
+            self._adviser_turn(connection, record, parts, form)
             return
         if action == "scenarios":
             self._save_scenario(connection, record, form)
@@ -1007,6 +1022,11 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(login_page(self._safe_next(form.get("next") or "", "/"), str(exc)), status=403)
             return
         default = "/reviewer" if session.get("role") == "reviewer" else "/"
+        spec = objective_by_id(form.get("objective") or "")
+        if spec is not None and session.get("user_id"):
+            assessment_id = self._open_objective(connection, spec, str(session["user_id"]))
+            self._redirect(f"/assessments/{assessment_id}#adviser", session["token"])
+            return
         self._redirect(self._safe_next(form.get("next") or "", default), session["token"])
 
     def _account_sign_out(self, connection: Any, form: dict[str, str]) -> None:
@@ -1018,6 +1038,77 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _account_state(self, connection: Any) -> dict[str, Any]:
         return self._reviewer_session_state(connection)
+
+    def _start_objective(self, connection: Any, form: dict[str, str]) -> None:
+        spec = objective_by_id(form.get("objective") or "")
+        if spec is None:
+            self._redirect("/")
+            return
+        state = self._account_state(connection)
+        user_id = str(state.get("user_id") or "")
+        if not state.get("active") or not user_id:
+            self._html(login_page("/", objective=spec["id"]))
+            return
+        assessment_id = self._open_objective(connection, spec, user_id)
+        self._redirect(f"/assessments/{assessment_id}#adviser")
+
+    def _open_objective(self, connection: Any, spec: dict[str, str], user_id: str) -> str:
+        assessment_id = create_assessment(
+            connection,
+            business_name="New draft",
+            purpose=spec["purpose"],
+            tier="explore",
+            pilot_label="Customer draft. Not a completed assessment.",
+            owner_user_id=user_id,
+            venture_path=spec["venture_path"],
+        )
+        record = get_assessment(connection, assessment_id)
+        assert record is not None
+        profile = dict(record["profile"])
+        profile["customer_objective"] = spec["id"]
+        start_conversation(profile, spec["label"])
+        save_profile(connection, assessment_id, profile)
+        return assessment_id
+
+    def _adviser_turn(
+        self,
+        connection: Any,
+        record: dict[str, Any],
+        parts: list[str],
+        form: dict[str, str],
+    ) -> None:
+        if record.get("read_only"):
+            self._html(
+                layout(
+                    "Not allowed",
+                    "<h1>Not allowed</h1><p>The official baseline cannot be changed from the adviser.</p>",
+                ),
+                status=403,
+            )
+            return
+        profile = dict(record["profile"])
+        step = parts[3] if len(parts) > 3 else "message"
+        if step == "apply":
+            if form.get("decision") == "discard":
+                discard_proposal(profile)
+            else:
+                apply_proposal(profile)
+        else:
+            receive_answer(profile, form.get("message") or "")
+            analyst = get_analyst()
+            if getattr(analyst, "uses_network", False):
+                try:
+                    lines = analyst.reply(
+                        record,
+                        record.get("result") if isinstance(record.get("result"), dict) else None,
+                        form.get("message") or "",
+                    )
+                    note_provider_reply(profile, lines)
+                except Exception:
+                    note_provider_failure(profile)
+        profile["human_review_approved"] = False
+        save_profile(connection, record["id"], profile)
+        self._redirect(f"/assessments/{record['id']}#adviser")
 
     def _assistant_post(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
         question = (form.get("starter") or form.get("question") or "").strip()[:500]

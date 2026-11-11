@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 158 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 160 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -491,3 +491,10 @@ Further work on production authentication, real market data, an approved scoring
 - One dismissible suggestion appears when demand evidence is missing, monthly fields are blank, or Analyze has not been run. Dismissing it does not clear a flag or change a figure.
 - The signed-in dashboard explains which modules are available and which are demonstration only. Key engine figures keep their stored numbers and add a plain-language sentence.
 - The unittest suite is 158 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.
+
+## Progress — 2026-11-10 Explore journey
+
+- The home page asks what the customer wants to accomplish. Each choice opens a saved draft for that account. A signed-out visitor is asked to sign in before the workspace is created.
+- The AI Business Adviser on that draft asks one question at a time. An answer is stored only after Save this answer. With `ANALYST_PROVIDER` unset, the screen says no external service is connected. A failed provider does not invent a reply.
+- Preliminary notes name what was saved, the monthly blanks, and one educational Durable Value theme. No pillar score is calculated. Continue to Analyze opens the monthly fields. The official baseline stays do-not-proceed.
+- The unittest suite is 160 tests, all passing. The checkpoint before this work is `ccd9b0e`.

@@ -8,7 +8,9 @@ from urllib.parse import urlencode
 
 from app import APP_VERSION
 from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, get_analyst
+from app.adviser_flow import THEMES
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
+from app.objectives import OBJECTIVES, objective_label
 from app.store import (
     HYPOTHETICAL_DEMO_LABEL,
     RESTAURANT_ID,
@@ -193,6 +195,12 @@ summary {{ cursor: pointer; }}
 .start-here li {{ margin: 0.35rem 0; }}
 .nudge {{ border-left: 4px solid var(--bronze); }}
 .nudge[hidden] {{ display: none; }}
+.objectives {{ list-style: none; padding: 0; margin: 0.4rem 0 0; }}
+.objectives li {{ margin: 0.45rem 0; }}
+.objectives button {{ width: 100%; text-align: left; }}
+.adviser-log {{ list-style: none; padding: 0; margin: 0.4rem 0; }}
+.adviser-log li {{ background: white; border: 1px solid var(--stone); border-left: 4px solid var(--bronze); padding: 0.55rem 0.7rem; margin: 0.35rem 0; }}
+.adviser-log .you {{ border-left-color: var(--slate); }}
 .figure-notes {{ margin-top: 0; }}
 #results-lead, #advisor-sheet, #market-provenance {{ border-top: 4px solid var(--bronze); }}
 #results-lead {{ padding: 1.25rem 1.4rem 1.4rem; }}
@@ -283,6 +291,7 @@ def _guest_dashboard() -> str:
 <p><a class="button" href="/login">Log in</a>
 <a class="button" href="/register">Register</a></p>
 </div>
+{_objective_chooser()}
 {_SURFACE_NOTE}
 <p class="muted">Sign in to see your own assessments. This screen does not list anyone else's drafts.</p>
 """
@@ -362,6 +371,7 @@ def dashboard(
     body = f"""
 {heading}
 <p>This page is the home for this account. Each card shows the stage, the stored status, and one primary action.</p>
+{_objective_chooser()}
 {_SURFACE_NOTE}
 {_pilot_purpose()}
 <p class="muted">These are the assessments this account created. This list does not grant investor-ready status. An indicative assessment is shown after Analyze. It does not override engine flags or human review. No feasibility score is calculated. An owner can create a read-only share. The shared page cannot edit or approve the assessment.</p>
@@ -937,6 +947,7 @@ def assessment_form(
 <h1>{escape(record['business_name'])}</h1>
 {_SURFACE_NOTE}
 {banner}
+{_explore_workspace(record)}
 {_journey_progress(_journey_stage(record))}
 {_adviser_nudge(record, "intake")}
 {_your_next_step(record)}
@@ -1989,6 +2000,108 @@ def assistant_page(record: dict[str, Any], lines: list[str], question: str = "")
     return layout("Assistant", body)
 
 
+def _objective_chooser() -> str:
+    """Real starting choices. Each one posts to a workspace. None of them approve a file."""
+    items = []
+    for item in OBJECTIVES:
+        items.append(
+            "<li>"
+            f'<form method="post" action="/start">'
+            f'<input type="hidden" name="objective" value="{escape(item["id"])}">'
+            f'<button type="submit">{escape(item["label"])}</button>'
+            f'<p class="muted"><strong>{escape(item["availability"])}.</strong> {escape(item["note"])}</p>'
+            "</form></li>"
+        )
+    return f"""
+<section class="card" id="customer-objectives">
+<h2>What would you like to accomplish with your business?</h2>
+<p>Choose one. A signed-in account opens a workspace and keeps it. The choice does not grant investor-ready status and does not clear a flag.</p>
+<ul class="objectives">{''.join(items)}</ul>
+</section>
+"""
+
+
+def _explore_workspace(record: dict[str, Any]) -> str:
+    """Conversation, approved notes, and the path into Analyze."""
+    profile = record.get("profile") if isinstance(record.get("profile"), dict) else {}
+    objective = str((profile or {}).get("customer_objective") or "")
+    if not objective or record.get("read_only"):
+        return ""
+    assessment_id = escape(str(record.get("id") or ""))
+    messages = profile.get("adviser_messages") if isinstance(profile.get("adviser_messages"), list) else []
+    rows = []
+    for item in messages:
+        if not isinstance(item, dict):
+            continue
+        role = "you" if item.get("role") == "customer" else "adviser"
+        who = "You" if role == "you" else "Adviser"
+        rows.append(
+            f'<li class="{role}"><strong>{who}:</strong> {escape(str(item.get("text") or ""))}</li>'
+        )
+    log = "".join(rows) or "<li>No messages yet.</li>"
+    proposal = profile.get("adviser_proposal") if isinstance(profile.get("adviser_proposal"), dict) else None
+    if proposal:
+        decision = f"""
+<form method="post" action="/assessments/{assessment_id}/adviser/apply">
+<p><strong>Review before saving.</strong> {escape(str(proposal.get("label") or "Answer"))}: {escape(str(proposal.get("value") or ""))}</p>
+<button type="submit" name="decision" value="save">Save this answer</button>
+<button type="submit" name="decision" value="discard">Discard</button>
+</form>
+<p class="muted">Saving writes one user-supplied assumption. It does not clear a flag, run the engine, or set human_review_approved.</p>
+"""
+    else:
+        decision = f"""
+<form method="post" action="/assessments/{assessment_id}/adviser">
+<label>Your reply</label>
+<textarea name="message" maxlength="500" required></textarea>
+<button type="submit">Send</button>
+</form>
+"""
+    theme = THEMES.get(objective, ("Leave It Stronger", "This note is educational guidance, not a DVT evaluation and not a score."))
+    saved_bits = []
+    for key, label in (
+        ("concept", "Business concept"),
+        ("customers", "Target customers"),
+        ("revenue_model", "Revenue model"),
+        ("industry", "Industry"),
+        ("market", "Geographic market"),
+        ("competition", "Competition"),
+    ):
+        value = str(profile.get(key) or "").strip()
+        saved_bits.append(f"<li><strong>{escape(label)}:</strong> {escape(value or 'not entered')}</li>")
+    monthly = _missing_labels(profile, _MONTHLY_REQUIRED)
+    monthly_line = (
+        "Monthly fields still blank: " + ", ".join(monthly) + ". No figure is invented."
+        if monthly
+        else "The four monthly fields have text. They stay user-supplied until Analyze runs."
+    )
+    market_link = ""
+    if objective == "research-market":
+        market_link = '<p><a class="button" href="/market">Open Market Intelligence</a></p>'
+    if objective == "monitor":
+        market_link = '<p><a class="button" href="/market-pulse">Open Market Pulse</a></p><p class="muted">Monitoring is not active. This link does not retrieve a current finding.</p>'
+    return f"""
+<section class="card" id="adviser">
+<h2>AI Business Adviser</h2>
+<p>You chose {escape(objective_label(objective))}. {escape(ASSISTANCE_LABEL)}</p>
+<p class="muted">Demonstration Adviser when ANALYST_PROVIDER is unset. A configured provider may add a reply. Neither one writes a field until you choose Save this answer. Streaming is not available in this local prototype.</p>
+<ul class="adviser-log">{log}</ul>
+{decision}
+</section>
+<section class="card" id="preliminary-assessment">
+<h2>Preliminary notes</h2>
+<p>These are the answers saved on this draft. They are not an engine result and they are not a feasibility score.</p>
+<ul>{''.join(saved_bits)}</ul>
+<p>{escape(monthly_line)}</p>
+<p>Demand evidence stays missing until a verified record is saved on the intake. This page does not create that record.</p>
+<p><strong>{escape(theme[0])}.</strong> {escape(theme[1])} Educational guidance — not a DVT evaluation. No pillar score is calculated.</p>
+{market_link}
+<p><a class="button primary" href="#monthly-engine">Continue to Analyze</a></p>
+<p class="muted">Continue to Analyze moves you to the monthly fields. Run Analyze on this page when you want the engine to calculate. The adviser does not calculate a figure.</p>
+</section>
+"""
+
+
 def _module_guide() -> str:
     """Name the modules a customer can open. It does not change a stored result."""
     return """
@@ -2934,15 +3047,27 @@ def _reviewer_sign_in_form(next_path: str) -> str:
 """
 
 
-def login_page(next_path: str = "/", message: str = "") -> str:
+def login_page(next_path: str = "/", message: str = "", objective: str = "") -> str:
+    from app.objectives import objective_by_id
+
     notice = f"<p class=\"flag\">{escape(message)}</p>" if message else ""
+    spec = objective_by_id(objective)
+    hidden = f'<input type="hidden" name="objective" value="{escape(spec["id"])}">' if spec else ""
+    chosen = (
+        f"<p>Sign in to open <strong>{escape(spec['label'])}</strong>. "
+        "This does not grant investor-ready status.</p>"
+        if spec
+        else ""
+    )
     body = f"""
 <h1>Login</h1>
 {_SURFACE_NOTE}
 <div class="banner">Local pilot account. Not production authentication. This screen does not grant investor-ready status.</div>
 {notice}
+{chosen}
 <form method="post" action="/login">
 <input type="hidden" name="next" value="{escape(next_path)}">
+{hidden}
 <label>Email</label>
 <input name="email" type="email" autocomplete="username" required>
 <label>Password</label>
