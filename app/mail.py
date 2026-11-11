@@ -31,9 +31,8 @@ def deliver(to: str, subject: str, body: str) -> None:
     if echo:
         print(
             "RUGD mail fallback. SMTP is not configured, or the SMTP send failed.\n"
-            f"To: {to}\n"
             f"Subject: {subject}\n"
-            f"{body}",
+            "The message was captured for local delivery. The address and the link are not written here.",
             file=sys.stderr,
         )
 

@@ -385,6 +385,23 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         form = self._form()
+        if self._cross_site_post():
+            with self._db() as connection:
+                record_audit_event(
+                    connection,
+                    action="csrf_rejected",
+                    actor_id="unknown",
+                    session_token=self._cookies().get(SESSION_COOKIE, ""),
+                    detail="origin",
+                )
+            self._html(
+                layout(
+                    "Not allowed",
+                    "<h1>Not allowed</h1><p>This form was not sent from this site.</p>",
+                ),
+                status=403,
+            )
+            return
         if "human_review_approved" in form:
             self._html(
                 layout(
@@ -1352,8 +1369,25 @@ class AppHandler(BaseHTTPRequestHandler):
         self._redirect(self._safe_next(form.get("next") or "", default), session["token"])
 
     def _account_sign_out(self, connection: Any, form: dict[str, str]) -> None:
-        close_reviewer_session(connection, self._cookies().get(SESSION_COOKIE, ""))
+        token = self._cookies().get(SESSION_COOKIE, "")
+        state = self._account_state(connection)
+        record_audit_event(
+            connection,
+            action="sign_out",
+            actor_id=str(state.get("user_id") or "unknown"),
+            session_token=token,
+            detail="signed_out",
+        )
+        close_reviewer_session(connection, token)
         self._redirect(self._safe_next(form.get("next") or "", "/"), clear_session=True)
+
+    def _cross_site_post(self) -> bool:
+        """Reject a browser POST whose Origin names another site. Clients that omit Origin are unchanged."""
+        origin = (self.headers.get("Origin") or "").strip()
+        if not origin:
+            return False
+        host = (self.headers.get("Host") or "").strip().lower()
+        return urlparse(origin).netloc.lower() != host
 
     def _reviewer_session_state(self, connection: Any) -> dict[str, Any]:
         return reviewer_session_state(connection, self._cookies().get(SESSION_COOKIE, ""))

@@ -30,6 +30,7 @@ from app.store import (
     record_reviewer_event,
     session_storage_key,
     set_email_verified,
+    end_user_sessions,
     update_password_hash,
 )
 
@@ -318,6 +319,7 @@ def reset_password(
     role_before = user["role"]
     _check_password(password)
     update_password_hash(connection, user["id"], hash_password(password))
+    end_user_sessions(connection, user["id"])
     updated = get_user_by_id(connection, user["id"])
     if updated is None or updated["role"] != role_before:
         raise AccountError("This link is not valid.")

@@ -650,3 +650,11 @@ Owner input required before replacing `billing_hooks`:
 - One request opens one connection, commits on success, rolls back on failure, and closes the connection. Schema changes commit before the request uses the connection. A second request in the same process waits five seconds for a lock.
 - Backup writes a different file and checks integrity. Restore refuses the default `data/analyze.sqlite` path. A partial file is removed when the copy fails. The Render disk is not restored by the application.
 - One SQLite file supports one application process. A second process is not a supported deployment. Moving to a server database would be a separate owner decision.
+
+## Decision: Session rotation and foreign-origin posts
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not add a paid identity provider, and it does not change the 0.1 engine formulas or the official baseline.
+- A successful sign-in deletes that account's older sessions and stores one new session. Logout deletes the presented session. An expired session is treated as signed out. Password reset stores a new hash and deletes existing sessions.
+- A reset or verification link is captured for local delivery. The server log records the subject and does not record the address or the link. SMTP stays unset unless the owner configures it.
+- A POST whose Origin names another host is refused and audited as `csrf_rejected`. A client that omits Origin, including the local test client, is unchanged. The session cookie remains HttpOnly and SameSite=Lax.

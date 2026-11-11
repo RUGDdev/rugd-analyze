@@ -1842,6 +1842,17 @@ def end_reviewer_session(connection: sqlite3.Connection, token: str) -> None:
     connection.commit()
 
 
+def end_user_sessions(connection: sqlite3.Connection, user_id: str) -> None:
+    """Drop every session for this account. Login and password reset start a new one."""
+    if not user_id:
+        return
+    connection.execute(
+        "DELETE FROM reviewer_sessions WHERE user_id = ?",
+        (user_id,),
+    )
+    connection.commit()
+
+
 def _remaining_seconds(expires_at: str | None) -> int | None:
     if not expires_at:
         return None

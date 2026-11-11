@@ -10,6 +10,7 @@ from app.analysis import analyze_intake, analyze_record
 from app.store import (
     BASELINE_ID,
     end_reviewer_session,
+    end_user_sessions,
     get_account_session,
     get_assessment,
     get_reviewer_session,
@@ -47,6 +48,7 @@ def open_account_session(
         user = authenticate_user(connection, email=email, password=password)
     except AccountError as exc:
         raise ReviewError(str(exc)) from exc
+    end_user_sessions(connection, str(user["id"]))
     session = start_reviewer_session(
         connection,
         token=secrets.token_urlsafe(32),
