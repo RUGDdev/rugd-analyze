@@ -33,6 +33,26 @@ from app.export import (
 )
 from app.adviser_context import build_adviser_context
 from app.adviser_workspace import ask_adviser
+from app.research import (
+    MAX_EVIDENCE,
+    MAX_MONITORS,
+    MAX_PROJECTS,
+    MAX_PULSE,
+    adviser_research_view,
+    prepare_development,
+    prepare_evidence,
+    prepare_monitor,
+    prepare_project,
+    prepare_summary_snapshot,
+    research_note,
+    synthesize,
+)
+from app.research_pages import (
+    assessment_research_page,
+    intelligence_index,
+    project_page,
+    pulse_page,
+)
 from app.adviser_flow import (
     apply_proposal,
     discard_proposal,
@@ -140,24 +160,42 @@ from app.store import (
     get_business_plan,
     get_pitch_deck,
     get_adviser_conversation,
+    get_evidence_record,
+    get_monitoring_config,
+    get_pulse_development,
+    get_research_project,
     insert_adviser_conversation,
     list_adviser_conversations,
     set_adviser_suggestion,
+    set_research_note,
     update_adviser_conversation,
     get_saved_report,
     insert_action_item,
     insert_business_plan,
+    insert_evidence_record,
+    insert_monitoring_config,
     insert_pitch_deck,
+    insert_pulse_development,
+    insert_research_project,
     insert_saved_report,
     list_action_items,
     list_business_plans,
+    list_evidence_for_assessment,
+    list_evidence_records,
+    list_monitoring_configs,
     list_pitch_decks,
+    list_pulse_developments,
+    list_research_projects,
     list_saved_reports,
     set_deck_proposal,
     set_plan_proposal,
     update_business_plan,
     update_pitch_deck,
     update_action_item,
+    update_evidence_record,
+    update_monitoring_config,
+    update_pulse_development,
+    update_research_project,
     list_approvals,
     list_assessments,
     list_reviewer_events,
@@ -225,6 +263,8 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(partner_page())
         elif path == "/market-pulse":
             self._html(market_pulse_page())
+        elif path == "/intelligence":
+            self._html(self._intelligence_index(connection))
         elif path == "/market/export":
             query = parse_qs(urlparse(self.path).query)
             industry = (query.get("industry") or [""])[-1]
@@ -504,6 +544,10 @@ class AppHandler(BaseHTTPRequestHandler):
             self._decks_get(connection, record, parts)
         elif action == "advice":
             self._advice_get(connection, record, parts)
+        elif action == "intelligence":
+            self._intelligence_get(connection, record, parts)
+        elif action == "pulse":
+            self._pulse_get(connection, record)
         elif action == "actions":
             self._actions_get(connection, record)
         elif action == "advisor":
@@ -777,6 +821,12 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if action == "actions":
             self._save_action(connection, record, parts, form)
+            return
+        if action == "intelligence":
+            self._intelligence_post(connection, record, parts, form)
+            return
+        if action == "pulse":
+            self._pulse_post(connection, record, form)
             return
         self._html(layout("Not found", "<h1>Not found</h1>"), status=404)
 
@@ -1492,6 +1542,224 @@ class AppHandler(BaseHTTPRequestHandler):
             if may_see_attachment(state, record, str(item.get("created_by") or ""))
         ]
 
+    def _visible_projects(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_research_projects(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _intelligence_index(self, connection: Any) -> str:
+        state = self._account_state(connection)
+        records = self._visible_assessments(connection)
+        grouped = {str(item["id"]): self._visible_projects(connection, state, item) for item in records}
+        return intelligence_index(records, grouped)
+
+    def _intelligence_get(self, connection: Any, record: dict[str, Any], parts: list[str]) -> None:
+        state = self._account_state(connection)
+        writable = may_write(state, record)
+        if len(parts) == 3:
+            self._html(
+                assessment_research_page(
+                    record,
+                    self._visible_projects(connection, state, record),
+                    writable=writable,
+                )
+            )
+            return
+        project = get_research_project(connection, parts[3])
+        if not self._research_visible(state, record, project):
+            self._html(layout("Not found", "<h1>Research project not found</h1>"), status=404)
+            return
+        evidence = self._visible_evidence(connection, state, record, str(project["id"]))
+        self._html(
+            project_page(
+                record,
+                project,
+                evidence,
+                synthesize(project, evidence),
+                writable=writable,
+                plans=self._visible_plans(connection, state, record),
+                decks=self._visible_decks(connection, state, record),
+            )
+        )
+
+    def _pulse_get(self, connection: Any, record: dict[str, Any]) -> None:
+        state = self._account_state(connection)
+        self._html(
+            pulse_page(
+                record,
+                self._visible_developments(connection, state, record),
+                self._visible_monitors(connection, state, record),
+                writable=may_write(state, record),
+            )
+        )
+
+    def _intelligence_post(self, connection: Any, record: dict[str, Any], parts: list[str], form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        user_id = self._session_user_id(state)
+        assessment_id = str(record["id"])
+        if len(parts) == 3 and form.get("op") == "create_project":
+            if len(list_research_projects(connection, assessment_id)) >= MAX_PROJECTS:
+                self._html(layout("Research", "<h1>Research</h1><p>This business already has the maximum number of projects.</p>"), status=400)
+                return
+            fields = prepare_project(form)
+            project = insert_research_project(
+                connection,
+                assessment_id=assessment_id,
+                created_by=user_id,
+                title=fields["title"],
+                document={key: fields[key] for key in ("objective", "geography", "segments", "competitors")},
+            )
+            self._redirect(f"/assessments/{assessment_id}/intelligence/{project['id']}")
+            return
+        project = get_research_project(connection, parts[3] if len(parts) > 3 else "")
+        if not self._research_visible(state, record, project):
+            self._html(layout("Not found", "<h1>Research project not found</h1>"), status=404)
+            return
+        op = form.get("op") or ""
+        document = dict(project.get("document") or {})
+        if op == "save_project":
+            fields = prepare_project(form)
+            document.update({key: fields[key] for key in ("objective", "geography", "segments", "competitors")})
+            update_research_project(connection, str(project["id"]), title=fields["title"], document=document)
+        elif op == "save_evidence":
+            evidence_id = str(form.get("evidence_id") or "")
+            current = get_evidence_record(connection, evidence_id) if evidence_id else None
+            payload = prepare_evidence(form)
+            if current is not None and current.get("project_id") == project["id"] and current.get("assessment_id") == assessment_id:
+                update_evidence_record(connection, evidence_id, payload)
+            else:
+                if len(list_evidence_records(connection, str(project["id"]))) >= MAX_EVIDENCE:
+                    self._html(layout("Research", "<h1>Research</h1><p>This project already has the maximum number of evidence records.</p>"), status=400)
+                    return
+                insert_evidence_record(
+                    connection,
+                    assessment_id=assessment_id,
+                    project_id=str(project["id"]),
+                    created_by=user_id,
+                    document=payload,
+                )
+        elif op == "save_summary":
+            evidence = self._visible_evidence(connection, state, record, str(project["id"]))
+            snapshot = prepare_summary_snapshot(
+                synthesize(project, evidence),
+                datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            )
+            summaries = list(document.get("summaries") or [])
+            summaries.append(snapshot)
+            document["summaries"] = summaries[-5:]
+            update_research_project(connection, str(project["id"]), title=str(project.get("title") or "Research"), document=document)
+        elif op == "propose":
+            evidence = self._visible_evidence(connection, state, record, str(project["id"]))
+            target = "deck" if form.get("target") == "deck" else "plan"
+            target_id = str(form.get("deck_id") if target == "deck" else form.get("plan_id") or "")
+            document["proposal"] = {
+                "kind": target,
+                "target_id": target_id,
+                "status": "review",
+                "text": research_note(synthesize(project, evidence)),
+            }
+            update_research_project(connection, str(project["id"]), title=str(project.get("title") or "Research"), document=document)
+        elif op == "decide_proposal":
+            proposal = document.get("proposal") if isinstance(document.get("proposal"), dict) else {}
+            if form.get("decision") == "approve" and proposal:
+                table = "pitch_decks" if proposal.get("kind") == "deck" else "business_plans"
+                target_id = str(proposal.get("target_id") or "")
+                row = get_pitch_deck(connection, target_id) if table == "pitch_decks" else get_business_plan(connection, target_id)
+                if row is not None and row.get("assessment_id") == assessment_id:
+                    set_research_note(connection, table, target_id, str(proposal.get("text") or ""))
+            document["proposal"] = None
+            update_research_project(connection, str(project["id"]), title=str(project.get("title") or "Research"), document=document)
+        elif op == "create_action":
+            evidence = self._visible_evidence(connection, state, record, str(project["id"]))
+            summary = synthesize(project, evidence)
+            question = (summary.get("unanswered_questions") or ["Review the saved evidence before treating it as a finding."])[0]
+            insert_action_item(
+                connection,
+                assessment_id=assessment_id,
+                created_by=user_id,
+                title=str(question)[:180],
+                description="Follow-up from saved research. This action does not clear a recommend-against flag or change the engine result.",
+                status="open",
+                source_flag="research",
+            )
+        self._redirect(f"/assessments/{assessment_id}/intelligence/{project['id']}")
+
+    def _pulse_post(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        user_id = self._session_user_id(state)
+        assessment_id = str(record["id"])
+        op = form.get("op") or ""
+        if op == "create_development":
+            if len(list_pulse_developments(connection, assessment_id)) >= MAX_PULSE:
+                self._html(layout("Research", "<h1>Market Pulse</h1><p>This business already has the maximum number of developments.</p>"), status=400)
+                return
+            insert_pulse_development(
+                connection,
+                assessment_id=assessment_id,
+                created_by=user_id,
+                document=prepare_development(form),
+            )
+        elif op == "review_development":
+            current = get_pulse_development(connection, str(form.get("development_id") or ""))
+            if current is None or current.get("assessment_id") != assessment_id:
+                self._html(layout("Not found", "<h1>Development not found</h1>"), status=404)
+                return
+            if not may_see_attachment(state, record, str(current.get("created_by") or "")):
+                self._deny_assessment()
+                return
+            document = dict(current.get("document") or {})
+            updated = prepare_development({**document, "review_status": form.get("review_status") or ""})
+            updated["title"] = str(current.get("title") or document.get("title") or "Recorded development")
+            update_pulse_development(connection, str(current["id"]), updated)
+        elif op == "save_monitor":
+            payload = prepare_monitor(form)
+            current_id = str(form.get("monitor_id") or "")
+            current = get_monitoring_config(connection, current_id) if current_id else None
+            if current is not None and current.get("assessment_id") == assessment_id:
+                update_monitoring_config(connection, current_id, payload)
+            else:
+                if len(list_monitoring_configs(connection, assessment_id)) >= MAX_MONITORS:
+                    self._html(layout("Research", "<h1>Market Pulse</h1><p>This business already has the maximum number of monitoring topics.</p>"), status=400)
+                    return
+                insert_monitoring_config(
+                    connection,
+                    assessment_id=assessment_id,
+                    created_by=user_id,
+                    document=payload,
+                )
+        self._redirect(f"/assessments/{assessment_id}/pulse")
+
+    def _research_visible(self, state: dict[str, Any], record: dict[str, Any], project: dict[str, Any] | None) -> bool:
+        return bool(
+            project
+            and project.get("assessment_id") == record.get("id")
+            and may_see_attachment(state, record, str(project.get("created_by") or ""))
+        )
+
+    def _visible_evidence(self, connection: Any, state: dict[str, Any], record: dict[str, Any], project_id: str) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_evidence_records(connection, project_id)
+            if item.get("assessment_id") == record.get("id")
+            and may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _visible_developments(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_pulse_developments(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _visible_monitors(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_monitoring_configs(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
     def _plans_get(self, connection: Any, record: dict[str, Any], parts: list[str]) -> None:
         state = self._account_state(connection)
         if len(parts) == 3:
@@ -1837,12 +2105,19 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _advice_context(self, connection: Any, record: dict[str, Any], messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         state = self._account_state(connection)
+        projects = self._visible_projects(connection, state, record)
+        evidence = [
+            item
+            for item in list_evidence_for_assessment(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
         return build_adviser_context(
             record,
             plans=self._visible_plans(connection, state, record),
             decks=self._visible_decks(connection, state, record),
             actions=self._visible_actions(connection, state, record),
             recent_messages=messages or [],
+            research=adviser_research_view(projects, evidence),
         )
 
     def _advice_get(self, connection: Any, record: dict[str, Any], parts: list[str]) -> None:

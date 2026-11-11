@@ -86,6 +86,25 @@ def _deterministic(context: dict[str, Any], question: str) -> str:
         if missing:
             lines.append("Missing items already listed: " + "; ".join(missing[:6]) + ".")
         lines.append("Market size is not treated as verified. This reply does not add a market figure.")
+    research = context.get("research") if isinstance(context.get("research"), dict) else {}
+    projects = research.get("projects") if isinstance(research.get("projects"), list) else []
+    if projects and any(word in folded for word in ("research", "competitor", "pulse", "market", "evidence", "source")):
+        lines.append(str(research.get("label") or "Saved research is separate from the engine result."))
+        for project in projects[:2]:
+            if not isinstance(project, dict):
+                continue
+            findings = project.get("evidence") if isinstance(project.get("evidence"), list) else []
+            if findings and isinstance(findings[0], dict):
+                lines.append(
+                    f"Sourced record ({findings[0].get('class_label')}): {findings[0].get('finding')} "
+                    f"Limitation: {findings[0].get('limitations') or 'not recorded'}."
+                )
+            else:
+                lines.append(f"Research project {project.get('title')} has no saved evidence.")
+        lines.append(
+            "Interpretation is separate from a sourced fact. Saved research does not clear a recommend-against flag "
+            "or change a stored calculation."
+        )
     if "plan" in folded or "deck" in folded or "slide" in folded or "report" in folded or "action" in folded:
         lines.append(_workflow_line(folded, context))
     recommendation = official.get("recommendation")
@@ -144,4 +163,15 @@ def _proposal(question: str, context: dict[str, Any]) -> dict[str, Any] | None:
             f"{name}. Suggested plan narrative from the saved concept: {basis} "
             "Missing evidence stays missing. This does not change a stored figure or the recommendation."
         )
+    research = context.get("research") if isinstance(context.get("research"), dict) else {}
+    projects = research.get("projects") if isinstance(research.get("projects"), list) else []
+    if projects and isinstance(projects[0], dict):
+        findings = projects[0].get("evidence") if isinstance(projects[0].get("evidence"), list) else []
+        if findings and isinstance(findings[0], dict):
+            text += (
+                " Reviewed research, not a new figure: "
+                + str(findings[0].get("class_label") or "Evidence")
+                + ". "
+                + str(findings[0].get("finding") or "")
+            )
     return {"kind": kind, "status": "review", "target_id": target, "text": text[:2000]}

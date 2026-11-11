@@ -65,6 +65,11 @@ NAV = (
         "Market Pulse (demonstration)",
         "See example monitoring cards. Monitoring is not active.",
     ),
+    (
+        "/intelligence",
+        "Research",
+        "Save evidence and developments for a business you can open. This is not a live feed.",
+    ),
     ("/reports", "Reports", "Generate a report from a saved assessment and open it later."),
     ("/plans", "Business plan", "Write a plan from a saved assessment and export it."),
     ("/decks", "Pitch deck", "Build a presentation from a saved business plan and export it."),
@@ -88,6 +93,7 @@ _TITLE_ACTIVE = {
     "Partner": "/partner",
     "Market Intelligence": "/market",
     "Market Pulse": "/market-pulse",
+    "Research": "/intelligence",
     "Reports": "/reports",
     "Saved report": "/reports",
     "Business plan": "/plans",
@@ -1576,6 +1582,7 @@ def results_page(
     body = f"""
 <h1>Results for {escape(record['business_name'])}</h1>
 {_workspace_links(record)}
+<p class="muted">Saved research and Market Pulse stay beside this result. They do not change the financial inputs or the recommendation.</p>
 <p>This page shows the stored engine result, the hard gate, and the next step. It does not grant investor-ready status.</p>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
@@ -3405,6 +3412,8 @@ def market_pulse_page() -> str:
     demonstration="Market Pulse (demonstration)",
 )}
 {_SURFACE_NOTE}
+<p>These cards are examples. Recorded developments and monitoring topics are saved under Research. No check runs from this page.</p>
+<p><a class="button" href="/intelligence">Open Research</a></p>
 {_market_pulse_section()}
 """
     return layout("Market Pulse", body)
@@ -3678,6 +3687,18 @@ def research_brief_page(package: dict[str, Any]) -> str:
     return layout("Research Brief", body, printable=True)
 
 
+def _approved_research_note(document: dict[str, Any]) -> str:
+    note = str(document.get("research_note") or "").strip()
+    if not note:
+        return ""
+    return (
+        '<section class="card" id="research-note"><h2>Approved research note</h2>'
+        f"<p>{escape(note)}</p>"
+        "<p>This note was saved after you approved it. It is not an engine figure, and it does not change the recommendation.</p>"
+        "</section>"
+    )
+
+
 def _workspace_links(record: dict[str, Any]) -> str:
     assessment_id = escape(str(record.get("id") or ""))
     return (
@@ -3685,6 +3706,8 @@ def _workspace_links(record: dict[str, Any]) -> str:
         f'<a class="button" href="/assessments/{assessment_id}/reports">Report</a> '
         f'<a class="button" href="/assessments/{assessment_id}/plans">Business plan</a> '
         f'<a class="button" href="/assessments/{assessment_id}/actions">Action Center</a> '
+        f'<a class="button" href="/assessments/{assessment_id}/intelligence">Research</a> '
+        f'<a class="button" href="/assessments/{assessment_id}/pulse">Market Pulse</a> '
         '<a class="button" href="/history">History</a>'
         "</p>"
     )
@@ -4229,6 +4252,7 @@ def business_plan_page(
 <nav class="plan-nav" aria-label="Business plan sections">{nav}</nav>
 {tools}
 {proposal_block}
+{_approved_research_note(document)}
 {rendered_html}
 """
     return layout("Saved plan", body, printable=printable)
@@ -4405,6 +4429,7 @@ def pitch_deck_page(
 <p class="no-print"><a class="button" href="/assessments/{assessment_id}/decks/{deck_id}/pptx">Export PowerPoint</a>
 <a class="button" href="/assessments/{assessment_id}/decks/{deck_id}/pdf">Export PDF</a></p>
 {proposal_block}
+{_approved_research_note(document)}
 <form method="post" action="/assessments/{assessment_id}/decks/{deck_id}">
 {''.join(cards)}
 <button type="submit">Save deck</button>
@@ -4777,7 +4802,8 @@ def explore_page(
         f"<li><a href=\"/assessments/{escape(item['id'])}\">{escape(item['business_name'])}</a> · "
         f"<a href=\"/assessments/{escape(item['id'])}/reports\">Report</a> · "
         f"<a href=\"/assessments/{escape(item['id'])}/plans\">Business plan</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a></li>"
+        f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a> · "
+        f"<a href=\"/assessments/{escape(item['id'])}/intelligence\">Research</a></li>"
         for item in records
     )
     checklists = "".join(
@@ -4808,6 +4834,7 @@ def explore_page(
 <div class="banner">Explore is an intake and gap check. It is not a completed feasibility study. It does not clear a flag.</div>
 <p>Use a saved draft to clarify the concept, capital assumptions, and missing evidence. Run Analyze only when you want the deterministic engine.</p>
 <p>Open a draft to ask the assistant about that assessment. The assistant is assistance only and cannot change the draft.</p>
+<p>Saved research can inform a question. It stays separate from customer assumptions and from the engine result.</p>
 <p><a class="button" href="/assessments/new">Start an Explore draft</a>
 <a class="button" href="/reports">Open Reports</a>
 <a class="button" href="/plans">Open Business Plans</a>
@@ -4824,7 +4851,8 @@ def analyze_index(records: list[dict[str, Any]]) -> str:
         f"<li><a href=\"/assessments/{escape(item['id'])}/results\">{escape(item['business_name'])}</a> · "
         f"<a href=\"/assessments/{escape(item['id'])}/reports\">Report</a> · "
         f"<a href=\"/assessments/{escape(item['id'])}/plans\">Business plan</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a></li>"
+        f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a> · "
+        f"<a href=\"/assessments/{escape(item['id'])}/intelligence\">Research</a></li>"
         for item in records
     )
     return layout(

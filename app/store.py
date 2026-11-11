@@ -320,6 +320,56 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS research_projects (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            title TEXT NOT NULL,
+            document_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS evidence_records (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            project_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            document_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pulse_developments (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            document_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS monitoring_configs (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            document_json TEXT NOT NULL
+        )
+        """
+    )
     return connection
 
 
@@ -2370,3 +2420,339 @@ def _conversation_row_from_values(
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _load_document(raw: str) -> dict[str, Any]:
+    try:
+        document = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return document if isinstance(document, dict) else {}
+
+
+def _research_row(row: sqlite3.Row, *, project: bool = False) -> dict[str, Any]:
+    item = {
+        "id": row["id"],
+        "assessment_id": row["assessment_id"],
+        "created_by": row["created_by"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+        "document": _load_document(row["document_json"]),
+    }
+    if project or "title" in row.keys():
+        item["title"] = row["title"] if "title" in row.keys() else ""
+    if "project_id" in row.keys():
+        item["project_id"] = row["project_id"]
+        item.update(item["document"])
+    elif not project:
+        item.update(item["document"])
+    else:
+        item.update(item["document"])
+    return item
+
+
+def insert_research_project(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    created_by: str,
+    title: str,
+    document: dict[str, Any],
+) -> dict[str, Any]:
+    project_id = str(uuid.uuid4())
+    now = _now()
+    connection.execute(
+        """
+        INSERT INTO research_projects (
+            id, assessment_id, created_by, created_at, updated_at, title, document_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (project_id, assessment_id, created_by, now, now, title, json.dumps(document)),
+    )
+    connection.commit()
+    stored = get_research_project(connection, project_id)
+    assert stored is not None
+    return stored
+
+
+def update_research_project(
+    connection: sqlite3.Connection,
+    project_id: str,
+    *,
+    title: str,
+    document: dict[str, Any],
+) -> dict[str, Any] | None:
+    connection.execute(
+        """
+        UPDATE research_projects
+        SET title = ?, document_json = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (title, json.dumps(document), _now(), project_id),
+    )
+    connection.commit()
+    return get_research_project(connection, project_id)
+
+
+def list_research_projects(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, title, document_json
+        FROM research_projects
+        WHERE assessment_id = ?
+        ORDER BY created_at, id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_research_row(row, project=True) for row in rows]
+
+
+def get_research_project(connection: sqlite3.Connection, project_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, title, document_json
+        FROM research_projects
+        WHERE id = ?
+        """,
+        (project_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _research_row(row, project=True)
+
+
+def insert_evidence_record(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    project_id: str,
+    created_by: str,
+    document: dict[str, Any],
+) -> dict[str, Any]:
+    evidence_id = str(uuid.uuid4())
+    now = _now()
+    connection.execute(
+        """
+        INSERT INTO evidence_records (
+            id, assessment_id, project_id, created_by, created_at, updated_at, document_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (evidence_id, assessment_id, project_id, created_by, now, now, json.dumps(document)),
+    )
+    connection.commit()
+    stored = get_evidence_record(connection, evidence_id)
+    assert stored is not None
+    return stored
+
+
+def update_evidence_record(
+    connection: sqlite3.Connection,
+    evidence_id: str,
+    document: dict[str, Any],
+) -> dict[str, Any] | None:
+    connection.execute(
+        "UPDATE evidence_records SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), evidence_id),
+    )
+    connection.commit()
+    return get_evidence_record(connection, evidence_id)
+
+
+def list_evidence_records(connection: sqlite3.Connection, project_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, project_id, created_by, created_at, updated_at, document_json
+        FROM evidence_records
+        WHERE project_id = ?
+        ORDER BY created_at, id
+        """,
+        (project_id,),
+    ).fetchall()
+    return [_research_row(row) for row in rows]
+
+
+def list_evidence_for_assessment(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, project_id, created_by, created_at, updated_at, document_json
+        FROM evidence_records
+        WHERE assessment_id = ?
+        ORDER BY created_at, id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_research_row(row) for row in rows]
+
+
+def get_evidence_record(connection: sqlite3.Connection, evidence_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, project_id, created_by, created_at, updated_at, document_json
+        FROM evidence_records
+        WHERE id = ?
+        """,
+        (evidence_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _research_row(row)
+
+
+def insert_pulse_development(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    created_by: str,
+    document: dict[str, Any],
+) -> dict[str, Any]:
+    development_id = str(uuid.uuid4())
+    now = _now()
+    connection.execute(
+        """
+        INSERT INTO pulse_developments (
+            id, assessment_id, created_by, created_at, updated_at, document_json
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (development_id, assessment_id, created_by, now, now, json.dumps(document)),
+    )
+    connection.commit()
+    stored = get_pulse_development(connection, development_id)
+    assert stored is not None
+    return stored
+
+
+def update_pulse_development(
+    connection: sqlite3.Connection,
+    development_id: str,
+    document: dict[str, Any],
+) -> dict[str, Any] | None:
+    connection.execute(
+        "UPDATE pulse_developments SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), development_id),
+    )
+    connection.commit()
+    return get_pulse_development(connection, development_id)
+
+
+def list_pulse_developments(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, document_json
+        FROM pulse_developments
+        WHERE assessment_id = ?
+        ORDER BY created_at, id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_research_row(row) for row in rows]
+
+
+def get_pulse_development(connection: sqlite3.Connection, development_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, document_json
+        FROM pulse_developments
+        WHERE id = ?
+        """,
+        (development_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _research_row(row)
+
+
+def insert_monitoring_config(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    created_by: str,
+    document: dict[str, Any],
+) -> dict[str, Any]:
+    monitor_id = str(uuid.uuid4())
+    now = _now()
+    stored_document = dict(document)
+    stored_document["last_checked_at"] = None
+    stored_document["checks_completed"] = 0
+    stored_document["collected_findings"] = 0
+    stored_document["status"] = "configured"
+    connection.execute(
+        """
+        INSERT INTO monitoring_configs (
+            id, assessment_id, created_by, created_at, updated_at, document_json
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (monitor_id, assessment_id, created_by, now, now, json.dumps(stored_document)),
+    )
+    connection.commit()
+    stored = get_monitoring_config(connection, monitor_id)
+    assert stored is not None
+    return stored
+
+
+def update_monitoring_config(
+    connection: sqlite3.Connection,
+    monitor_id: str,
+    document: dict[str, Any],
+) -> dict[str, Any] | None:
+    stored_document = dict(document)
+    stored_document["last_checked_at"] = None
+    stored_document["checks_completed"] = 0
+    stored_document["collected_findings"] = 0
+    stored_document["status"] = "configured"
+    connection.execute(
+        "UPDATE monitoring_configs SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(stored_document), _now(), monitor_id),
+    )
+    connection.commit()
+    return get_monitoring_config(connection, monitor_id)
+
+
+def list_monitoring_configs(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, document_json
+        FROM monitoring_configs
+        WHERE assessment_id = ?
+        ORDER BY created_at, id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_research_row(row) for row in rows]
+
+
+def get_monitoring_config(connection: sqlite3.Connection, monitor_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, document_json
+        FROM monitoring_configs
+        WHERE id = ?
+        """,
+        (monitor_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _research_row(row)
+
+
+def set_research_note(
+    connection: sqlite3.Connection,
+    table: str,
+    row_id: str,
+    note: str,
+) -> None:
+    """Store an approved research note beside a plan or deck. Sections and figures stay as saved."""
+    if table not in {"business_plans", "pitch_decks"}:
+        raise ValueError("A research note can be stored only on a plan or a deck.")
+    row = connection.execute(
+        f"SELECT document_json FROM {table} WHERE id = ?",
+        (row_id,),
+    ).fetchone()
+    if row is None:
+        return
+    document = _load_document(row["document_json"])
+    document["research_note"] = str(note or "")[:1500]
+    connection.execute(
+        f"UPDATE {table} SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), row_id),
+    )
+    connection.commit()

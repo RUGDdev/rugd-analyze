@@ -585,3 +585,14 @@ Owner input required before replacing `billing_hooks`:
 - A suggestion for a plan or a deck is stored only after the customer approves it. Rejection leaves the saved records unchanged. The adviser cannot set `human_review_approved` or clear `INSUFFICIENT_DEMAND_EVIDENCE`.
 - A failed provider call records a category only: timeout, dns, tls, connection, or an HTTP status class. The provider body is discarded. The customer still sees the generic fallback.
 - The Claude default is `claude-sonnet-5-5`. `ANALYST_MODEL` can still name another model. The dated Sonnet 4.5 id stays available only through that override. A Sonnet 5.5 request turns off up-front thinking so the existing output cap applies to the reply.
+
+## Decision: Saved market research
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline.
+- A research project, an evidence record, a summary, a Market Pulse development, and a monitoring topic belong to the assessment owner. Another customer cannot open them.
+- Evidence entered by a customer is source-backed but unverified, or an explicit customer observation. A URL is not retrieved and does not verify a claim. Missing dates stay missing. A customer observation is labeled a hypothesis in the summary.
+- The summary cites saved evidence. It does not calculate a market size or a growth rate, and it does not change the official recommendation.
+- A monitoring topic stores a preference only. `last_checked_at` stays empty until a check actually runs. This milestone does not run a check.
+- A research note is written onto a plan or a deck only after the customer approves it. Rejection leaves the saved sections and slides unchanged.
+- The synthetic market snapshot and the hypothetical Market Pulse cards remain demonstrations. They are not saved research.

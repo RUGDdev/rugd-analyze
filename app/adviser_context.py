@@ -44,6 +44,7 @@ def build_adviser_context(
     decks: list[dict[str, Any]] | None = None,
     actions: list[dict[str, Any]] | None = None,
     recent_messages: list[dict[str, Any]] | None = None,
+    research: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Labeled context for one authorized assessment. Other customers' data is not accepted here."""
     profile = _without_secrets(record.get("profile") or {})
@@ -111,6 +112,13 @@ def build_adviser_context(
             if isinstance(item, dict) and str(item.get("text") or "").strip()
         ],
         "ai_suggestions": "Suggestions in the conversation are not saved facts until the customer approves them.",
+        "research": research
+        if isinstance(research, dict)
+        else {
+            "label": "No saved research was supplied. This is not a live market feed.",
+            "projects": [],
+            "does_not_change_recommendation": True,
+        },
     }
     encoded = json.dumps(context, default=str)
     if len(encoded) > MAX_USER_CHARS:

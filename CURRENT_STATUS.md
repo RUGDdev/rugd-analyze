@@ -4,7 +4,7 @@ Updated: 2026-11-11
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 183 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 188 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -560,3 +560,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Claude model default
 
 - The Claude adviser default is `claude-sonnet-5-5`. `ANALYST_MODEL` still overrides it. Sonnet 4.5 remains deprecated and is no longer the default. A Sonnet 5.5 request uses the current Messages API version and turns off up-front thinking so the existing output cap covers the reply. The unittest suite remains 183 tests. Live connectivity remains unverified. This work has not been deployed.
+
+## Progress — 2026-11-11 Market research records
+
+- Customers can save a research project, evidence, a cited summary, a Market Pulse development, and a monitoring topic on a business they can change. A URL is stored as text and is not fetched. A customer cannot mark a claim verified. A monitoring topic does not record a check. Research does not change engine figures, clear `INSUFFICIENT_DEMAND_EVIDENCE`, or set `human_review_approved`. The market snapshot and the Market Pulse cards stay labeled demonstrations. The unittest suite is 188 tests, all passing. This work has not been deployed.
