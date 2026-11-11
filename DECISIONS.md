@@ -621,3 +621,10 @@ Owner input required before replacing `billing_hooks`:
 - Source comparison, conflicts, quality, relevance, and age are written from saved evidence fields. A missing geography, industry, or date stays missing. Two different finding texts in one category are reported as a conflict, and neither is selected as correct.
 - A proposed rule saved beside a final rule stays labeled as not an enacted requirement. The synthesis does not invent a market size, a growth rate, or a citation.
 - A research update is held for review. Approval saves the summary. Rejection leaves the earlier summaries unchanged. The adviser can quote the comparison. Asking the adviser does not run because a summary was prepared.
+
+## Decision: One workflow across the existing pages
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline.
+- An assessment shows the same links for Explore, Research, Analyze, Business plan, Pitch deck, Reports, Action Center, Adviser, and Market Pulse. The sentence on that navigation says research can inform an assumption the customer chooses to enter, and a scenario is a separate engine run.
+- The links do not write the assessment. An approved research note remains the only research text copied onto a plan or a deck. Longarc_Platform stays a separate codebase.

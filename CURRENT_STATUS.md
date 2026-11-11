@@ -4,7 +4,7 @@ Updated: 2026-11-11
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 196 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 197 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -576,3 +576,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Evidence synthesis
 
 - A research summary compares saved sources, names conflicting finding text, quotes limitations, and checks geography, industry, and age from the stored dates. Fewer than two sources produces no comparison. A research update is stored only after the customer approves it. The adviser quotes that comparison and does not add a source or a statistic. The unittest suite is 196 tests, all passing. This work has not been deployed.
+
+## Progress — 2026-11-11 Business workflow
+
+- Explore, Research, Analyze, Business plan, Pitch deck, Reports, Action Center, Adviser, and Market Pulse share one workflow navigation on the assessment. The navigation says saved research can inform an assumption the customer enters, and a financial scenario does not replace the official result. Opening the workflow does not change the assessment. The unittest suite is 197 tests, all passing. This work has not been deployed.

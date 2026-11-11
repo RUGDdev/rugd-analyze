@@ -3702,14 +3702,20 @@ def _approved_research_note(document: dict[str, Any]) -> str:
 def _workspace_links(record: dict[str, Any]) -> str:
     assessment_id = escape(str(record.get("id") or ""))
     return (
-        '<p class="no-print" id="workspace-links">'
-        f'<a class="button" href="/assessments/{assessment_id}/reports">Report</a> '
-        f'<a class="button" href="/assessments/{assessment_id}/plans">Business plan</a> '
-        f'<a class="button" href="/assessments/{assessment_id}/actions">Action Center</a> '
-        f'<a class="button" href="/assessments/{assessment_id}/intelligence">Research</a> '
-        f'<a class="button" href="/assessments/{assessment_id}/pulse">Market Pulse</a> '
-        '<a class="button" href="/history">History</a>'
-        "</p>"
+        '<nav class="no-print" id="journey-nav" aria-label="Business workflow">'
+        f'<a href="/assessments/{assessment_id}">Explore</a> '
+        f'<a href="/assessments/{assessment_id}/intelligence">Research</a> '
+        f'<a href="/assessments/{assessment_id}/results">Analyze</a> '
+        f'<a href="/assessments/{assessment_id}/plans">Business plan</a> '
+        f'<a href="/assessments/{assessment_id}/decks">Pitch deck</a> '
+        f'<a href="/assessments/{assessment_id}/reports">Reports</a> '
+        f'<a href="/assessments/{assessment_id}/actions">Action Center</a> '
+        f'<a href="/assessments/{assessment_id}/advice">Adviser</a> '
+        f'<a href="/assessments/{assessment_id}/pulse">Market Pulse</a>'
+        "</nav>"
+        '<p class="muted" id="journey-context">Saved research can inform an assumption you choose to enter. '
+        "A financial scenario is a separate engine run and does not replace the official result. "
+        "Opening this workflow does not change the assessment.</p>"
     )
 
 
@@ -3785,6 +3791,7 @@ def assessment_reports_page(
         form = "<p><a class=\"button\" href=\"/login\">Sign in to save a report</a></p>"
     body = f"""
 <h1>Reports for {escape(str(record.get('business_name') or 'Assessment'))}</h1>
+{_workspace_links(record)}
 {_SURFACE_NOTE}
 {banner}
 <p>Generating a report copies the saved business information and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>
@@ -3975,6 +3982,7 @@ def assessment_actions_page(
         create = "<p class=\"muted\">This session cannot save an action on this record.</p>"
     body = f"""
 <h1>Action Center for {escape(str(record.get('business_name') or 'Assessment'))}</h1>
+{_workspace_links(record)}
 {_SURFACE_NOTE}
 {banner}
 <p>Stored recommendation flags are listed below. Creating an action does not verify evidence, clear a flag, or change the recommendation.</p>
@@ -4116,6 +4124,7 @@ def assessment_plans_page(
         generate = '<p><a class="button" href="/login">Sign in to save a business plan</a></p>'
     body = f"""
 <h1>Business plans for {escape(str(record.get('business_name') or 'Assessment'))}</h1>
+{_workspace_links(record)}
 {banner}
 <p>A business plan copies the saved intake and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>
 {generate}
@@ -4245,6 +4254,7 @@ def business_plan_page(
         )
     body = f"""
 <h1>{escape(str(plan.get('title') or 'Business plan'))}</h1>
+{_workspace_links(record)}
 {banner}
 <p id="plan-source">{escape(str(document.get('narrative_source') or ASSEMBLED))}</p>
 <p>Saved {escape(str(plan.get('created_at') or ''))}. Updated {escape(str(plan.get('updated_at') or ''))}. Narrative edits do not change the copied financial figures or the assessment. Completing this plan does not set human_review_approved and does not grant investor-ready status.</p>
@@ -4344,6 +4354,7 @@ def assessment_decks_page(
         listing = "<li>No pitch deck is saved yet.</li>"
     body = f"""
 <h1>Pitch decks for {escape(str(record.get("business_name") or "Assessment"))}</h1>
+{_workspace_links(record)}
 {banner}
 <p>Each generated deck keeps its own copy of the plan figures. A later Analyze run does not change an earlier deck.</p>
 {generator}
@@ -4421,6 +4432,7 @@ def pitch_deck_page(
         )
     body = f"""
 <h1>{escape(str(deck.get('title') or 'Pitch deck'))}</h1>
+{_workspace_links(record)}
 {banner}
 <p id="deck-source">{escape(str(document.get('narrative_source') or ASSEMBLED))}</p>
 <p>{escape(str(document.get('disclaimer') or DISCLAIMER))}</p>
@@ -4607,6 +4619,7 @@ def adviser_conversation_page(
     )
     body = f"""
 <h1>{escape(title)}</h1>
+{_workspace_links(record)}
 {banner}
 <p id="adviser-mode">{escape(mode_line)}</p>
 <p>Business: {escape(str(facts.get("business_name") or record.get("business_name") or "Assessment"))}. A reply explains stored information. It does not change the official result.</p>

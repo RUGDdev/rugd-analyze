@@ -5,7 +5,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from app.pages import layout
+from app.pages import _workspace_links, layout
 from app.federal_register import DOCUMENT_CLASSES, SOURCE_NAME as REGISTER_NAME
 from app.public_retrieval import GEOGRAPHY_CHOICES, INDUSTRY_CHOICES, RETRIEVAL_YEARS, SOURCE_NAME
 from app.research import (
@@ -98,6 +98,7 @@ def assessment_research_page(
         form = "<p>This file cannot be changed from research.</p>"
     body = f"""
 <h1>Research for {escape(str(record.get("business_name") or "Assessment"))}</h1>
+{_workspace_links(record)}
 {banner}
 <p>{_NOTE}</p>
 <ul>{saved}</ul>
@@ -285,6 +286,7 @@ def project_page(
     ) or "<li>No earlier summary is saved.</li>"
     body = f"""
 <h1>{escape(str(project.get("title") or "Research project"))}</h1>
+{_workspace_links(record)}
 {banner}
 <p>{_NOTE}</p>
 <p>Objective: {escape(objective_label(str(document.get("objective") or "")))}.
@@ -479,6 +481,7 @@ def pulse_page(
 """
     body = f"""
 <h1>Market Pulse for {escape(str(record.get("business_name") or "Assessment"))}</h1>
+{_workspace_links(record)}
 {banner}
 <p>Recorded developments are not the demonstration cards. Monitoring is not running.</p>
 <h2>Recorded developments</h2>
