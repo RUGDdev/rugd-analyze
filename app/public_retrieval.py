@@ -27,6 +27,8 @@ SOURCE_NAME = "U.S. Bureau of Labor Statistics, Quarterly Census of Employment a
 RETRIEVAL_YEARS = ("2024", "2023")
 MAX_BODY = 5_000_000
 MAX_BATCHES = 3
+SOURCE_BATCH_LIMIT = 3
+ACCOUNT_BATCH_LIMIT = 8
 TIMEOUT_SECONDS = 15
 ALLOWED_FIPS = {spec[0] for spec in _GEOGRAPHIES.values()}
 INDUSTRY_CHOICES = tuple(_INDUSTRIES)
@@ -49,6 +51,12 @@ class _RejectRedirect(urllib.request.HTTPRedirectHandler):
 
 def retrieval_allowed(existing_batches: int) -> bool:
     return existing_batches < MAX_BATCHES
+
+
+def retrieval_blocked(project_batches: list[dict[str, Any]], source: str, account_count: int) -> bool:
+    """True when this source or this account has used its retrieval budget."""
+    source_count = sum(1 for item in project_batches if str(item.get("source") or "") == source)
+    return source_count >= SOURCE_BATCH_LIMIT or account_count >= ACCOUNT_BATCH_LIMIT
 
 
 def assert_allowed_url(url: str) -> None:
@@ -95,9 +103,8 @@ def _is_blocked_host(host: str) -> bool:
     )
 
 
-def guarded_fetch(url: str) -> str:
-    """One HTTPS GET. Redirects are not followed and the body is size-capped."""
-    assert_allowed_url(url)
+def open_public(url: str) -> str:
+    """One HTTPS GET after the caller has allowlisted the address."""
     opener = urllib.request.build_opener(_RejectRedirect)
     request = urllib.request.Request(url, headers={"User-Agent": "RUGD-Analyze-prototype"})
     try:
@@ -114,6 +121,12 @@ def guarded_fetch(url: str) -> str:
     if len(payload) > MAX_BODY:
         raise PublicRetrievalError("too_large")
     return payload.decode("utf-8", "replace")
+
+
+def guarded_fetch(url: str) -> str:
+    """One HTTPS GET of the documented QCEW file. Redirects are not followed."""
+    assert_allowed_url(url)
+    return open_public(url)
 
 
 def _http_category(exc: urllib.error.HTTPError) -> str:
@@ -196,8 +209,10 @@ def retrieve_qcew(
                 "geographic_coverage": str(item.get("geographic_coverage") or ""),
                 "industry_classification": str(item.get("industry_classification") or ""),
                 "limitations": str(item.get("limitations") or _PUBLIC_LIMITATION),
-                "source": PUBLIC_SOURCE,
+                "source": SOURCE_ID,
+                "source_name": SOURCE_NAME,
                 "source_url": source_url,
+                "identity": f"qcew:{source_url}:{item.get('measure') or ''}",
             }
         )
     notice = (
@@ -240,5 +255,6 @@ def evidence_from_observation(record: dict[str, Any], retrieved_on: str) -> dict
         ),
         "excerpt": "",
         "source_type": "official public retrieval",
+        "source_identity": str(record.get("identity") or ""),
         "limitations": str(record.get("limitations") or _PUBLIC_LIMITATION),
     }

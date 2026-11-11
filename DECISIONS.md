@@ -604,3 +604,12 @@ Owner input required before replacing `billing_hooks`:
 - The only retrieval destination is the public BLS QCEW annual CSV on `data.bls.gov` for 2024 or 2023 and a mapped industry and geography. The address is built by RUGD. A customer URL is ignored. HTTPS only. Redirects are not followed. Private and local addresses are rejected. One request is sent, with a 15-second timeout and a five-million-byte cap. A project keeps at most three retrieval batches. A fourth attempt does not send a request.
 - Returned rows stay in a review batch until the customer imports one. Rejection clears the unsaved rows. Imported evidence is class `retrieved_public`, category industry trends, and it records the retrieval date, source, and the limitation that covered employment is not demand for this business. It is not a verified conclusion and it is not a material business event.
 - The evidence form still stores a typed URL as text and does not fetch it. `retrieve_external_source` still refuses an open fetch. The adviser cites an imported record as a sourced fact, separate from interpretation, and does not call a model because a retrieval finished. Monitoring `last_checked_at` stays empty.
+
+## Decision: Federal Register retrieval
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline.
+- The second retrieval destination is `https://www.federalregister.gov/api/v1/documents.json`. The query is fixed to a cleaned search term, one document class, five results, and a fixed field list. No API key is sent. A customer URL is ignored.
+- Document classes are proposed rule, final rule, and notice. A proposed rule or a notice is labeled as not an enacted requirement. A final rule is not treated as verified for this business. A returned type that does not match the requested class is dropped.
+- Publication date and retrieval date are stored separately. A publication date more than 18 months before retrieval is marked stale. A missing publication date is marked incomplete.
+- Each source may be requested three times on one project. An account may store eight retrieval batches across projects. A fourth source request or a ninth account request does not send a network call. Importing the same document number again does not create a second evidence record.

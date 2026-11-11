@@ -33,10 +33,11 @@ from app.export import (
 )
 from app.adviser_context import build_adviser_context
 from app.adviser_workspace import ask_adviser
+from app.federal_register import evidence_from_register, retrieve_register
 from app.public_retrieval import (
     PublicRetrievalError,
     evidence_from_observation,
-    retrieval_allowed,
+    retrieval_blocked,
     retrieve_qcew,
 )
 from app.research import (
@@ -195,6 +196,7 @@ from app.store import (
     list_monitoring_configs,
     list_pitch_decks,
     list_pulse_developments,
+    count_retrieval_batches_for_creator,
     list_research_projects,
     list_retrieval_batches,
     list_saved_reports,
@@ -1825,27 +1827,39 @@ class AppHandler(BaseHTTPRequestHandler):
         project_id = str(project["id"])
         existing = list_retrieval_batches(connection, project_id)
         retrieved_on = datetime.now(timezone.utc).date().isoformat()
-        if not retrieval_allowed(len(existing)):
+        source = form.get("source") or "bls-qcew"
+        if source not in {"bls-qcew", "federal-register"}:
+            source = ""
+        account_count = count_retrieval_batches_for_creator(connection, user_id)
+        if not source or retrieval_blocked(existing, source, account_count):
             document = {
-                "source": "bls-qcew",
+                "source": source or "bls-qcew",
                 "status": "failed",
                 "records": [],
                 "retrieved_on": retrieved_on,
-                "error_category": "rate_limited",
-                "notice": "The retrieval limit for this project has been reached. No request was sent.",
+                "error_category": "rate_limited" if source else "not_allowed",
+                "notice": "The retrieval limit for this account or source has been reached. No request was sent.",
             }
         else:
             try:
-                document = retrieve_qcew(
-                    form.get("industry") or "",
-                    form.get("geography") or "",
-                    form.get("year") or "",
-                    transport=public_transport,
-                    retrieved_on=retrieved_on,
-                )
+                if source == "federal-register":
+                    document = retrieve_register(
+                        form.get("term") or "",
+                        form.get("document_class") or "",
+                        transport=public_transport,
+                        retrieved_on=retrieved_on,
+                    )
+                else:
+                    document = retrieve_qcew(
+                        form.get("industry") or "",
+                        form.get("geography") or "",
+                        form.get("year") or "",
+                        transport=public_transport,
+                        retrieved_on=retrieved_on,
+                    )
             except PublicRetrievalError as exc:
                 document = {
-                    "source": "bls-qcew",
+                    "source": source,
                     "status": "failed",
                     "records": [],
                     "retrieved_on": retrieved_on,
@@ -1878,12 +1892,23 @@ class AppHandler(BaseHTTPRequestHandler):
         if len(list_evidence_records(connection, str(project["id"]))) >= MAX_EVIDENCE:
             self._html(layout("Research", "<h1>Research</h1><p>This project already has the maximum number of evidence records.</p>"), status=400)
             return
+        chosen = records[index]
+        saved = self._visible_evidence(connection, state, record, str(project["id"]))
+        identity = str(chosen.get("identity") or "")
+        if identity and any(str(item.get("source_identity") or "") == identity for item in saved):
+            document = dict(batch.get("document") or {})
+            document["notice"] = "This record is already saved. It was not imported again."
+            document["status"] = "review"
+            update_retrieval_batch(connection, str(batch["id"]), document)
+            self._redirect(f"/assessments/{record['id']}/intelligence/{project['id']}")
+            return
+        builder = evidence_from_register if chosen.get("source") == "federal-register" else evidence_from_observation
         insert_evidence_record(
             connection,
             assessment_id=str(record["id"]),
             project_id=str(project["id"]),
             created_by=user_id,
-            document=evidence_from_observation(records[index], str(batch.get("retrieved_on") or "")),
+            document=builder(chosen, str(batch.get("retrieved_on") or "")),
         )
         remaining = [item for position, item in enumerate(records) if position != index]
         document = dict(batch.get("document") or {})

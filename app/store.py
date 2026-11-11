@@ -2821,6 +2821,16 @@ def list_retrieval_batches(connection: sqlite3.Connection, project_id: str) -> l
     return [_research_row(row) for row in rows]
 
 
+def count_retrieval_batches_for_creator(connection: sqlite3.Connection, created_by: str) -> int:
+    if not created_by:
+        return 0
+    row = connection.execute(
+        "SELECT COUNT(*) FROM retrieval_batches WHERE created_by = ?",
+        (created_by,),
+    ).fetchone()
+    return int(row[0] if row else 0)
+
+
 def get_retrieval_batch(connection: sqlite3.Connection, batch_id: str) -> dict[str, Any] | None:
     row = connection.execute(
         """

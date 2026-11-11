@@ -6,6 +6,7 @@ from html import escape
 from typing import Any
 
 from app.pages import layout
+from app.federal_register import DOCUMENT_CLASSES, SOURCE_NAME as REGISTER_NAME
 from app.public_retrieval import GEOGRAPHY_CHOICES, INDUSTRY_CHOICES, RETRIEVAL_YEARS, SOURCE_NAME
 from app.research import (
     CLASS_LABELS,
@@ -295,6 +296,9 @@ def _retrieval_section(
     industries = "".join(f"<option>{escape(name)}</option>" for name in INDUSTRY_CHOICES)
     geographies = "".join(f"<option>{escape(name)}</option>" for name in GEOGRAPHY_CHOICES)
     years = "".join(f"<option>{escape(year)}</option>" for year in RETRIEVAL_YEARS)
+    classes = "".join(
+        f'<option value="{escape(key)}">{escape(label)}</option>' for key, label in DOCUMENT_CLASSES
+    )
     review = ""
     error = ""
     if retrieval and retrieval.get("error_category"):
@@ -310,6 +314,10 @@ def _retrieval_section(
                 + escape(str(item.get("measure") or "Record"))
                 + ": "
                 + escape(str(item.get("value") or ""))
+                + ". Published "
+                + escape(str(item.get("published_on") or "date not recorded"))
+                + ". "
+                + escape(str(item.get("freshness") or ""))
                 + f"<form method=\"post\" action=\"/assessments/{assessment_id}/intelligence/{project_id}\">"
                 "<input type=\"hidden\" name=\"op\" value=\"import_public\">"
                 f"<input type=\"hidden\" name=\"batch_id\" value=\"{escape(str(retrieval.get('id') or ''))}\">"
@@ -339,13 +347,15 @@ def _retrieval_section(
     return f"""
 <section class="card" id="public-retrieval">
 <h2>Retrieve public information</h2>
-<p>One request is sent to {escape(SOURCE_NAME)} when you choose Retrieve. The address is chosen by RUGD from the lists below. A typed web address is not used. Results stay unsaved until you import them.</p>
+<p>One request is sent when you choose Retrieve. The address is chosen by RUGD. A typed web address is not used. Results stay unsaved until you import them. A proposed rule or a notice is not an enacted requirement.</p>
 <form method="post" action="/assessments/{assessment_id}/intelligence/{project_id}">
 <input type="hidden" name="op" value="retrieve_public">
-<label>Official source <input name="source" value="{escape(SOURCE_NAME)}" readonly></label>
+<label>Official source <select name="source"><option value="bls-qcew">{escape(SOURCE_NAME)}</option><option value="federal-register">{escape(REGISTER_NAME)}</option></select></label>
 <label>Industry <select name="industry">{industries}</select></label>
 <label>Geography <select name="geography">{geographies}</select></label>
 <label>Year <select name="year">{years}</select></label>
+<label>Federal Register search <input name="term" maxlength="80"></label>
+<label>Document class <select name="document_class">{classes}</select></label>
 <button type="submit">Retrieve public information</button>
 </form>
 {error}
@@ -421,6 +431,7 @@ def pulse_page(
 <label>Affected business or market <input name="affected" maxlength="200"></label>
 <label>Relevance <textarea name="relevance" maxlength="500"></textarea></label>
 <label>Potential implications <textarea name="implications" maxlength="500"></textarea></label>
+<p>A linked public record keeps its source. A proposed rule or a notice is not an enacted requirement, and a retrieved record is not a material business event.</p>
 <label>Link an approved public evidence record
 <select name="evidence_id"><option value="">None</option>{''.join(
     f'<option value="{escape(str(item.get("id") or ""))}">{escape(str(item.get("finding") or "Retrieved record")[:80])}</option>'

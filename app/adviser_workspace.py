@@ -116,6 +116,14 @@ def _deterministic(context: dict[str, Any], question: str) -> str:
                 "A retrieved public figure is cited from its source record. It is not a market-size conclusion, "
                 "and an older measurement period is incomplete for a current decision."
             )
+            if any(
+                "not an enacted requirement" in str(finding.get("finding") or "")
+                for project in projects
+                if isinstance(project, dict)
+                for finding in (project.get("evidence") or [])
+                if isinstance(finding, dict)
+            ):
+                lines.append("A proposed rule or a notice is not an enacted requirement.")
     if "plan" in folded or "deck" in folded or "slide" in folded or "report" in folded or "action" in folded:
         lines.append(_workflow_line(folded, context))
     recommendation = official.get("recommendation")
