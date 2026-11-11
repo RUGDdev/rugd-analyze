@@ -44,6 +44,11 @@ _ALIASES = {
     "xai": "grok",
 }
 Transport = Callable[[str, dict[str, str], dict[str, Any]], dict[str, Any]]
+MAX_OUTPUT_TOKENS = 600
+MAX_USER_CHARS = 12000
+MAX_REPLY_CHARS = 4000
+REQUEST_TIMEOUT_SECONDS = 20
+MAX_HISTORY_MESSAGES = 6
 
 
 ASSISTANCE_LABEL = (
@@ -138,6 +143,7 @@ class ExternalAnalyst:
         self._api_key = api_key
         self._model = model
         self._transport = transport or _post_json
+        self.last_usage: dict[str, Any] = {}
 
     def explain(self, record: dict[str, Any], result: dict[str, Any] | None) -> list[str]:
         safe_record = copy.deepcopy(record)
@@ -179,10 +185,12 @@ class ExternalAnalyst:
     def _complete(self, summary: dict[str, Any]) -> str:
         spec = _PROVIDERS[self.provider]
         user = json.dumps(summary, default=str)
+        if len(user) > MAX_USER_CHARS:
+            user = user[:MAX_USER_CHARS]
         if self.provider == "claude":
             payload = {
                 "model": self._model,
-                "max_tokens": 800,
+                "max_tokens": MAX_OUTPUT_TOKENS,
                 "system": SAFETY_PROMPT,
                 "messages": [{"role": "user", "content": user}],
             }
@@ -194,6 +202,7 @@ class ExternalAnalyst:
         else:
             payload = {
                 "model": self._model,
+                "max_tokens": MAX_OUTPUT_TOKENS,
                 "messages": [
                     {"role": "system", "content": SAFETY_PROMPT},
                     {"role": "user", "content": user},
@@ -204,7 +213,20 @@ class ExternalAnalyst:
                 "authorization": f"Bearer {self._api_key}",
             }
         response = self._transport(spec["url"], headers, payload)
-        return _response_text(self.provider, response)
+        self.last_usage = _usage(response)
+        return _response_text(self.provider, response)[:MAX_REPLY_CHARS]
+
+    def complete_context(self, context: dict[str, Any], question: str) -> str:
+        """One bounded provider call. A failure is left for the caller to handle. There is no retry."""
+        history = context.get("recent_messages") if isinstance(context.get("recent_messages"), list) else []
+        packet = {
+            "context": {key: value for key, value in context.items() if key != "recent_messages"},
+            "recent_messages": [
+                item for item in history[:MAX_HISTORY_MESSAGES] if isinstance(item, dict)
+            ],
+            "question": str(question or "")[:500],
+        }
+        return self._complete(packet)
 
 
 def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[str, Any]:
@@ -275,6 +297,43 @@ def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[s
         "href": href,
         "link_label": link_label,
         "questions": questions,
+    }
+
+
+def provider_status(environ: Any | None = None) -> dict[str, Any]:
+    """Report configuration without calling a provider or returning a credential."""
+    env = os.environ if environ is None else environ
+    raw = str(env.get("ANALYST_PROVIDER") or "").strip().lower()
+    if raw in {"", "demo", "demonstration", "none"}:
+        return {
+            "provider": "",
+            "mode": "deterministic",
+            "credential_present": False,
+            "adapter_implemented": True,
+            "live_connectivity": "unverified",
+            "max_output_tokens": MAX_OUTPUT_TOKENS,
+            "timeout_seconds": REQUEST_TIMEOUT_SECONDS,
+        }
+    provider = _ALIASES.get(raw)
+    if provider is None:
+        return {
+            "provider": raw,
+            "mode": "fallback",
+            "credential_present": False,
+            "adapter_implemented": False,
+            "live_connectivity": "unverified",
+            "max_output_tokens": MAX_OUTPUT_TOKENS,
+            "timeout_seconds": REQUEST_TIMEOUT_SECONDS,
+        }
+    present = bool(str(env.get(_PROVIDERS[provider]["key"]) or "").strip())
+    return {
+        "provider": provider,
+        "mode": "configured" if present else "fallback",
+        "credential_present": present,
+        "adapter_implemented": True,
+        "live_connectivity": "unverified",
+        "max_output_tokens": MAX_OUTPUT_TOKENS,
+        "timeout_seconds": REQUEST_TIMEOUT_SECONDS,
     }
 
 
@@ -595,6 +654,22 @@ def _summary(record: dict[str, Any], result: dict[str, Any] | None) -> dict[str,
     }
 
 
+def _usage(payload: dict[str, Any]) -> dict[str, Any]:
+    """Token counts from a provider body. Credentials are not part of this object."""
+    raw = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    usage: dict[str, Any] = {}
+    for source, target in (
+        ("input_tokens", "input_tokens"),
+        ("output_tokens", "output_tokens"),
+        ("prompt_tokens", "input_tokens"),
+        ("completion_tokens", "output_tokens"),
+    ):
+        value = raw.get(source)
+        if isinstance(value, int) and not isinstance(value, bool):
+            usage[target] = value
+    return usage
+
+
 def _response_text(provider: str, payload: dict[str, Any]) -> str:
     if provider == "claude":
         parts = payload.get("content") or []
@@ -624,7 +699,7 @@ def _post_json(url: str, headers: dict[str, str], payload: dict[str, Any]) -> di
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.URLError as exc:
         raise RuntimeError("analyst provider request failed") from exc

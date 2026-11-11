@@ -68,6 +68,7 @@ NAV = (
     ("/reports", "Reports", "Generate a report from a saved assessment and open it later."),
     ("/plans", "Business plan", "Write a plan from a saved assessment and export it."),
     ("/decks", "Pitch deck", "Build a presentation from a saved business plan and export it."),
+    ("/adviser", "Adviser", "Ask about a saved assessment. A suggestion is stored only after you approve it."),
     ("/actions", "Action Center", "Save follow-up items for an assessment you can change."),
     ("/history", "History", "See saved assessments, reports, and action status."),
     ("/login", "Login", "Sign in with a local email and password."),
@@ -93,6 +94,8 @@ _TITLE_ACTIVE = {
     "Saved plan": "/plans",
     "Pitch deck": "/decks",
     "Saved deck": "/decks",
+    "Adviser": "/adviser",
+    "Adviser conversation": "/adviser",
     "Action Center": "/actions",
     "History": "/history",
     "Research Brief": "/reports",
@@ -4011,6 +4014,7 @@ def history_page(entries: list[dict[str, Any]]) -> str:
                 f"<h3>Reports</h3><ul>{report_lines}</ul>"
                 f"<h3>Business plans</h3><ul>{plan_lines}</ul>"
                 f"<h3>Pitch decks</h3><ul>{deck_lines}</ul>"
+                f"<h3>Adviser</h3><ul>{_history_conversations(record, entry.get('conversations') or [])}</ul>"
                 f"<h3>Actions</h3><ul>{action_lines}</ul>"
                 "</section>"
             )
@@ -4433,6 +4437,164 @@ def _fact_list(snapshot: dict[str, Any], key: str) -> str:
 def _graphics_html(snapshot: dict[str, Any]) -> str:
     graphics = snapshot.get("graphics") if isinstance(snapshot.get("graphics"), dict) else {}
     return "".join(str(graphics.get(key) or "") for key in ("revenue", "break_even", "comparison", "allocation", "trend"))
+
+
+def _history_conversations(record: dict[str, Any], conversations: list[dict[str, Any]]) -> str:
+    if not conversations:
+        return "<li>No adviser conversation is saved.</li>"
+    return "".join(
+        f"<li><a href=\"/assessments/{escape(str(record.get('id') or ''))}/advice/{escape(str(item.get('id') or ''))}\">"
+        f"{escape(str(item.get('title') or 'Adviser'))}</a> · {escape(str(item.get('updated_at') or ''))}</li>"
+        for item in conversations
+    )
+
+
+def adviser_index_page(
+    records: list[dict[str, Any]],
+    conversations_by_assessment: dict[str, list[dict[str, Any]]] | None = None,
+    *,
+    signed_in: bool = False,
+    provider: dict[str, Any] | None = None,
+) -> str:
+    conversations_by_assessment = conversations_by_assessment or {}
+    provider = provider or {}
+    mode = str(provider.get("mode") or "deterministic")
+    if mode == "configured":
+        status = (
+            "A live adviser provider is configured. This screen has not verified a live connection. "
+            "A question is sent only when you choose Ask the adviser."
+        )
+    elif mode == "fallback":
+        status = "The selected adviser provider is not available. Replies stay on the deterministic adviser."
+    else:
+        status = "Deterministic adviser. No live model is called until a provider and a server-side credential are configured."
+    if not records:
+        items = "<li>No authorized assessment is available. Sign in, then save an assessment.</li>"
+    else:
+        rows = []
+        for item in records:
+            assessment_id = str(item.get("id") or "")
+            conversations = conversations_by_assessment.get(assessment_id) or []
+            if conversations:
+                summary = "".join(
+                    f"<li><a href=\"/assessments/{escape(assessment_id)}/advice/{escape(str(conversation.get('id') or ''))}\">"
+                    f"{escape(str(conversation.get('title') or 'Adviser'))}</a></li>"
+                    for conversation in conversations
+                )
+            else:
+                summary = "<li>No conversation is saved yet.</li>"
+            rows.append(
+                "<li>"
+                f"<a href=\"/assessments/{escape(assessment_id)}/advice\">"
+                f"{escape(str(item.get('business_name') or 'Assessment'))}</a>"
+                f"<ul>{summary}</ul></li>"
+            )
+        items = "".join(rows)
+    sign_in = "" if signed_in else "<p>Sign in to ask the adviser.</p>"
+    body = f"""
+<h1>Adviser</h1>
+{_section_welcome("Welcome to the RUGD Adviser", "The adviser reads one saved assessment and explains what is already stored.", "A suggestion does not change a figure, a flag, or investor readiness.")}
+<p id="adviser-mode">{escape(status)}</p>
+{_SURFACE_NOTE}
+{sign_in}
+<ul>{items}</ul>
+"""
+    return layout("Adviser", body)
+
+
+def adviser_conversation_page(
+    record: dict[str, Any],
+    conversation: dict[str, Any] | None,
+    context: dict[str, Any],
+    *,
+    notice: str = "",
+    can_ask: bool = False,
+    provider: dict[str, Any] | None = None,
+    conversations: list[dict[str, Any]] | None = None,
+) -> str:
+    provider = provider or {}
+    document = conversation.get("document") if isinstance(conversation, dict) and isinstance(conversation.get("document"), dict) else {}
+    messages = document.get("messages") if isinstance(document.get("messages"), list) else []
+    log = []
+    for item in messages:
+        if not isinstance(item, dict):
+            continue
+        role = "you" if item.get("role") == "customer" else "adviser"
+        source = escape(str(item.get("source") or ""))
+        log.append(
+            f'<li class="{role}"><p>{escape(str(item.get("text") or ""))}</p>'
+            f'<p class="muted">{source}</p></li>'
+        )
+    proposal = document.get("proposal") if isinstance(document.get("proposal"), dict) else None
+    proposal_block = ""
+    if proposal and conversation is not None:
+        conversation_id = escape(str(conversation.get("id") or ""))
+        assessment_id = escape(str(record.get("id") or ""))
+        proposal_block = (
+            '<section class="card" id="adviser-proposal"><h2>Proposal for review</h2>'
+            "<p>This suggestion is not saved on the plan or deck until you approve it. "
+            "Rejecting it leaves the saved assessment unchanged.</p>"
+            f"<p>{escape(str(proposal.get('text') or ''))}</p>"
+            f'<form method="post" action="/assessments/{assessment_id}/advice/{conversation_id}/decision">'
+            '<button type="submit" name="decision" value="approve">Approve and save</button> '
+            '<button type="submit" name="decision" value="reject">Reject</button></form></section>'
+        )
+    approved = document.get("approved") if isinstance(document.get("approved"), list) else []
+    approved_block = "".join(
+        f"<li>{escape(str(item.get('text') or ''))}</li>"
+        for item in approved
+        if isinstance(item, dict)
+    )
+    facts = context.get("customer_facts") if isinstance(context.get("customer_facts"), dict) else {}
+    calculations = context.get("verified_calculations") if isinstance(context.get("verified_calculations"), dict) else {}
+    fact_lines = "".join(f"<li>{escape(key)}: {escape(str(value))}</li>" for key, value in facts.items()) or "<li>No Explore note is stored.</li>"
+    calc_lines = "".join(
+        f"<li>{escape(key)}: {escape(str(value))}. Stored calculation.</li>" for key, value in calculations.items()
+    ) or "<li>No stored engine figure is available.</li>"
+    flags = context.get("risk_flags") if isinstance(context.get("risk_flags"), list) else []
+    flag_lines = "".join(f"<li>{escape(str(item))}</li>" for item in flags) or "<li>No recommend-against flag is listed.</li>"
+    banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
+    assessment_id = escape(str(record.get("id") or ""))
+    mode = str(provider.get("mode") or "deterministic")
+    if mode == "configured":
+        mode_line = "A provider is configured. Live connectivity is unverified. Ask sends one request."
+    else:
+        mode_line = "Deterministic adviser. No live model was called by opening this page."
+    ask = ""
+    if can_ask:
+        action = f"/assessments/{assessment_id}/advice"
+        if conversation is not None:
+            action = f"/assessments/{assessment_id}/advice/{escape(str(conversation.get('id') or ''))}"
+        ask = (
+            f'<form method="post" action="{action}">'
+            '<label for="question">Question</label>'
+            '<textarea id="question" name="question"></textarea>'
+            '<button type="submit">Ask the adviser</button></form>'
+        )
+    else:
+        ask = "<p>Sign in on an assessment you can change before asking the adviser.</p>"
+    title = str(conversation.get("title") or "Adviser") if conversation else "Adviser"
+    others = "".join(
+        f"<li><a href=\"/assessments/{assessment_id}/advice/{escape(str(item.get('id') or ''))}\">"
+        f"{escape(str(item.get('title') or 'Adviser'))}</a></li>"
+        for item in (conversations or [])
+        if isinstance(item, dict)
+    )
+    body = f"""
+<h1>{escape(title)}</h1>
+{banner}
+<p id="adviser-mode">{escape(mode_line)}</p>
+<p>Business: {escape(str(facts.get("business_name") or record.get("business_name") or "Assessment"))}. A reply explains stored information. It does not change the official result.</p>
+<section class="card"><h2>Saved context</h2><ul>{fact_lines}</ul><h3>Stored calculations</h3><ul>{calc_lines}</ul><h3>Flags</h3><ul>{flag_lines}</ul></section>
+<ul class="adviser-log">{''.join(log) or '<li>No message is saved yet.</li>'}</ul>
+{proposal_block}
+<h2>Approved suggestions</h2>
+<ul>{approved_block or '<li>No suggestion has been approved.</li>'}</ul>
+<h2>Saved conversations</h2>
+<ul>{others or '<li>No conversation is saved yet.</li>'}</ul>
+{ask}
+"""
+    return layout("Adviser conversation", body)
 
 
 def settings_page(user: dict[str, Any] | None = None) -> str:

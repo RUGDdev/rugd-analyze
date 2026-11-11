@@ -307,6 +307,19 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS adviser_conversations (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            title TEXT NOT NULL,
+            document_json TEXT NOT NULL
+        )
+        """
+    )
     return connection
 
 
@@ -2216,6 +2229,136 @@ def _deck_row_from_values(
 ) -> dict[str, Any]:
     return {
         "id": deck_id,
+        "assessment_id": assessment_id,
+        "created_by": created_by,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "title": title,
+        "document": document,
+    }
+
+
+def insert_adviser_conversation(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    created_by: str,
+    title: str,
+) -> dict[str, Any]:
+    conversation_id = str(uuid.uuid4())
+    created_at = _now()
+    document = {"messages": [], "proposal": None, "approved": [], "usage": []}
+    connection.execute(
+        """
+        INSERT INTO adviser_conversations (
+            id, assessment_id, created_by, created_at, updated_at, title, document_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (conversation_id, assessment_id, created_by, created_at, created_at, title, json.dumps(document)),
+    )
+    connection.commit()
+    return _conversation_row_from_values(
+        conversation_id, assessment_id, created_by, created_at, created_at, title, document
+    )
+
+
+def update_adviser_conversation(
+    connection: sqlite3.Connection,
+    conversation_id: str,
+    document: dict[str, Any],
+) -> None:
+    connection.execute(
+        "UPDATE adviser_conversations SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), conversation_id),
+    )
+    connection.commit()
+
+
+def list_adviser_conversations(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, title, document_json
+        FROM adviser_conversations
+        WHERE assessment_id = ?
+        ORDER BY created_at, id
+        """,
+        (assessment_id,),
+    ).fetchall()
+    return [_conversation_row(row) for row in rows]
+
+
+def get_adviser_conversation(connection: sqlite3.Connection, conversation_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, created_by, created_at, updated_at, title, document_json
+        FROM adviser_conversations
+        WHERE id = ?
+        """,
+        (conversation_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _conversation_row(row)
+
+
+def set_adviser_suggestion(
+    connection: sqlite3.Connection,
+    table: str,
+    row_id: str,
+    note: str,
+) -> None:
+    """Store an approved suggestion beside a plan or deck. Figures and narratives stay as saved."""
+    if table not in {"business_plans", "pitch_decks"}:
+        raise ValueError("An adviser suggestion can be stored only on a plan or a deck.")
+    row = connection.execute(
+        f"SELECT document_json FROM {table} WHERE id = ?",
+        (row_id,),
+    ).fetchone()
+    if row is None:
+        return
+    try:
+        document = json.loads(row["document_json"])
+    except json.JSONDecodeError:
+        document = {}
+    if not isinstance(document, dict):
+        document = {}
+    document["adviser_suggestion"] = str(note or "")[:2000]
+    connection.execute(
+        f"UPDATE {table} SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), row_id),
+    )
+    connection.commit()
+
+
+def _conversation_row(row: sqlite3.Row) -> dict[str, Any]:
+    try:
+        document = json.loads(row["document_json"])
+    except json.JSONDecodeError:
+        document = None
+    if not isinstance(document, dict):
+        document = None
+    return _conversation_row_from_values(
+        row["id"],
+        row["assessment_id"],
+        row["created_by"],
+        row["created_at"],
+        row["updated_at"],
+        row["title"],
+        document,
+    )
+
+
+def _conversation_row_from_values(
+    conversation_id: str,
+    assessment_id: str,
+    created_by: str,
+    created_at: str,
+    updated_at: str,
+    title: str,
+    document: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {
+        "id": conversation_id,
         "assessment_id": assessment_id,
         "created_by": created_by,
         "created_at": created_at,

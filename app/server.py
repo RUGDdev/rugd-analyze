@@ -31,6 +31,8 @@ from app.export import (
     export_research_package,
     research_package_markdown,
 )
+from app.adviser_context import build_adviser_context
+from app.adviser_workspace import ask_adviser
 from app.adviser_flow import (
     apply_proposal,
     discard_proposal,
@@ -39,7 +41,7 @@ from app.adviser_flow import (
     receive_answer,
     start_conversation,
 )
-from app.analyst import answer, explain, get_analyst
+from app.analyst import answer, explain, get_analyst, provider_status
 from app.objectives import objective_by_id
 from app.pages import (
     analyst_page,
@@ -73,6 +75,8 @@ from app.pages import (
     actions_page,
     assessment_actions_page,
     history_page,
+    adviser_index_page,
+    adviser_conversation_page,
     advisor_summary_page,
     research_brief_page,
     results_page,
@@ -135,6 +139,11 @@ from app.store import (
     get_action_item,
     get_business_plan,
     get_pitch_deck,
+    get_adviser_conversation,
+    insert_adviser_conversation,
+    list_adviser_conversations,
+    set_adviser_suggestion,
+    update_adviser_conversation,
     get_saved_report,
     insert_action_item,
     insert_business_plan,
@@ -175,6 +184,9 @@ def _keep_venture_path(profile: dict[str, str], original: dict[str, Any]) -> Non
     else:
         profile.pop("venture_path", None)
     profile.pop("human_review_approved", None)
+
+
+analyst_transport = None
 
 
 class AppHandler(BaseHTTPRequestHandler):
@@ -248,6 +260,8 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(self._plans_index(connection))
         elif path == "/decks":
             self._html(self._decks_index(connection))
+        elif path == "/adviser":
+            self._html(self._adviser_index(connection))
         elif path == "/actions":
             self._html(self._actions_index(connection))
         elif path == "/history":
@@ -488,6 +502,8 @@ class AppHandler(BaseHTTPRequestHandler):
             self._plans_get(connection, record, parts)
         elif action == "decks":
             self._decks_get(connection, record, parts)
+        elif action == "advice":
+            self._advice_get(connection, record, parts)
         elif action == "actions":
             self._actions_get(connection, record)
         elif action == "advisor":
@@ -636,6 +652,19 @@ class AppHandler(BaseHTTPRequestHandler):
                     status=403,
                 )
                 return
+        elif action == "advice":
+            if not may_read(state, record):
+                self._deny_assessment()
+                return
+            if not may_save_report(state, record):
+                self._html(
+                    layout(
+                        "Sign in required",
+                        "<h1>Sign in required</h1><p>Sign in to ask the adviser.</p>",
+                    ),
+                    status=403,
+                )
+                return
         elif action == "preview":
             if not may_read(state, record):
                 self._deny_assessment()
@@ -677,6 +706,9 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if action == "adviser":
             self._adviser_turn(connection, record, parts, form)
+            return
+        if action == "advice":
+            self._advice_post(connection, record, parts, form)
             return
         if action == "scenarios":
             self._save_scenario(connection, record, form)
@@ -1273,6 +1305,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 "reports": self._visible_reports(connection, state, item),
                 "plans": self._visible_plans(connection, state, item),
                 "decks": self._visible_decks(connection, state, item),
+                "conversations": self._visible_conversations(connection, state, item),
                 "actions": self._visible_actions(connection, state, item),
             }
             for item in records
@@ -1781,6 +1814,155 @@ class AppHandler(BaseHTTPRequestHandler):
         start_conversation(profile, spec["label"])
         save_profile(connection, assessment_id, profile)
         return assessment_id
+
+    def _adviser_index(self, connection: Any) -> str:
+        records = self._visible_assessments(connection)
+        state = self._account_state(connection)
+        grouped = {
+            str(item["id"]): self._visible_conversations(connection, state, item) for item in records
+        }
+        return adviser_index_page(
+            records,
+            grouped,
+            signed_in=bool(self._session_user_id(state)),
+            provider=provider_status(),
+        )
+
+    def _visible_conversations(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_adviser_conversations(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _advice_context(self, connection: Any, record: dict[str, Any], messages: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        state = self._account_state(connection)
+        return build_adviser_context(
+            record,
+            plans=self._visible_plans(connection, state, record),
+            decks=self._visible_decks(connection, state, record),
+            actions=self._visible_actions(connection, state, record),
+            recent_messages=messages or [],
+        )
+
+    def _advice_get(self, connection: Any, record: dict[str, Any], parts: list[str]) -> None:
+        state = self._account_state(connection)
+        conversations = self._visible_conversations(connection, state, record)
+        conversation = None
+        if len(parts) > 3:
+            conversation = get_adviser_conversation(connection, parts[3])
+            if conversation is None or conversation["assessment_id"] != record["id"]:
+                self._html(layout("Not found", "<h1>Adviser conversation not found</h1>"), status=404)
+                return
+            if not may_see_attachment(state, record, str(conversation.get("created_by") or "")):
+                self._deny_assessment()
+                return
+        document = conversation.get("document") if isinstance(conversation, dict) and isinstance(conversation.get("document"), dict) else {}
+        messages = document.get("messages") if isinstance(document.get("messages"), list) else []
+        notice = "Adviser reply saved." if self._query_value("saved") == "1" else ""
+        self._html(
+            adviser_conversation_page(
+                record,
+                conversation,
+                self._advice_context(connection, record, messages),
+                notice=notice,
+                can_ask=may_save_report(state, record) and not record.get("read_only"),
+                provider=provider_status(),
+                conversations=conversations,
+            )
+        )
+
+    def _advice_post(self, connection: Any, record: dict[str, Any], parts: list[str], form: dict[str, str]) -> None:
+        if record.get("read_only"):
+            self._html(
+                layout(
+                    "Not allowed",
+                    "<h1>Not allowed</h1><p>The official baseline cannot be changed from the adviser.</p>",
+                ),
+                status=403,
+            )
+            return
+        state = self._account_state(connection)
+        user_id = self._session_user_id(state)
+        if len(parts) > 4 and parts[4] == "decision":
+            self._advice_decision(connection, record, parts[3], form)
+            return
+        conversation = None
+        if len(parts) > 3:
+            conversation = get_adviser_conversation(connection, parts[3])
+            if conversation is None or conversation["assessment_id"] != record["id"]:
+                self._html(layout("Not found", "<h1>Adviser conversation not found</h1>"), status=404)
+                return
+            if not may_see_attachment(state, record, str(conversation.get("created_by") or "")):
+                self._deny_assessment()
+                return
+        else:
+            name = str(record.get("business_name") or "Assessment")
+            conversation = insert_adviser_conversation(
+                connection,
+                assessment_id=str(record["id"]),
+                created_by=user_id,
+                title=f"{name} adviser",
+            )
+        document = conversation.get("document") if isinstance(conversation.get("document"), dict) else {}
+        document = dict(document)
+        messages = list(document.get("messages") or [])
+        context = self._advice_context(connection, record, messages)
+        outcome = ask_adviser(context, form.get("question") or "", get_analyst(transport=analyst_transport))
+        messages.append({"role": "customer", "text": str(form.get("question") or "")[:500], "source": "customer"})
+        messages.append({"role": "adviser", "text": outcome["text"], "source": outcome["source"]})
+        document["messages"] = messages[-40:]
+        if outcome.get("proposal"):
+            document["proposal"] = outcome["proposal"]
+        if outcome.get("usage"):
+            usage = list(document.get("usage") or [])
+            usage.append(outcome["usage"])
+            document["usage"] = usage[-10:]
+        update_adviser_conversation(connection, str(conversation["id"]), document)
+        self._redirect(f"/assessments/{record['id']}/advice/{conversation['id']}?saved=1")
+
+    def _advice_decision(self, connection: Any, record: dict[str, Any], conversation_id: str, form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        conversation = get_adviser_conversation(connection, conversation_id)
+        if conversation is None or conversation["assessment_id"] != record["id"]:
+            self._html(layout("Not found", "<h1>Adviser conversation not found</h1>"), status=404)
+            return
+        if not may_see_attachment(state, record, str(conversation.get("created_by") or "")):
+            self._deny_assessment()
+            return
+        document = conversation.get("document") if isinstance(conversation.get("document"), dict) else {}
+        document = dict(document)
+        proposal = document.get("proposal") if isinstance(document.get("proposal"), dict) else None
+        if form.get("decision") == "approve" and proposal:
+            note = str(proposal.get("text") or "")
+            target = str(proposal.get("target_id") or "")
+            kind = str(proposal.get("kind") or "")
+            if target and kind in {"plan", "deck"}:
+                row = get_business_plan(connection, target) if kind == "plan" else get_pitch_deck(connection, target)
+                if (
+                    row is not None
+                    and row.get("assessment_id") == record["id"]
+                    and may_see_attachment(state, record, str(row.get("created_by") or ""))
+                ):
+                    table = "business_plans" if kind == "plan" else "pitch_decks"
+                    set_adviser_suggestion(connection, table, target, note)
+            approved = list(document.get("approved") or [])
+            approved.append({"kind": kind, "text": note, "status": "approved"})
+            document["approved"] = approved[-10:]
+            document["proposal"] = None
+        else:
+            document["proposal"] = None
+            messages = list(document.get("messages") or [])
+            messages.append(
+                {
+                    "role": "adviser",
+                    "text": "That suggestion was not saved. The assessment, plan, and deck were left unchanged.",
+                    "source": "deterministic",
+                }
+            )
+            document["messages"] = messages[-40:]
+        update_adviser_conversation(connection, conversation_id, document)
+        self._redirect(f"/assessments/{record['id']}/advice/{conversation_id}?saved=1")
 
     def _adviser_turn(
         self,
