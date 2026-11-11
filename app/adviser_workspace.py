@@ -105,6 +105,17 @@ def _deterministic(context: dict[str, Any], question: str) -> str:
             "Interpretation is separate from a sourced fact. Saved research does not clear a recommend-against flag "
             "or change a stored calculation."
         )
+        if any(
+            "Retrieved public source" in str(finding.get("class_label") or "")
+            for project in projects
+            if isinstance(project, dict)
+            for finding in (project.get("evidence") or [])
+            if isinstance(finding, dict)
+        ):
+            lines.append(
+                "A retrieved public figure is cited from its source record. It is not a market-size conclusion, "
+                "and an older measurement period is incomplete for a current decision."
+            )
     if "plan" in folded or "deck" in folded or "slide" in folded or "report" in folded or "action" in folded:
         lines.append(_workflow_line(folded, context))
     recommendation = official.get("recommendation")

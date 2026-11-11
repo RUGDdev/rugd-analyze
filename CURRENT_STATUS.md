@@ -4,7 +4,7 @@ Updated: 2026-11-11
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 188 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 192 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -564,3 +564,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Market research records
 
 - Customers can save a research project, evidence, a cited summary, a Market Pulse development, and a monitoring topic on a business they can change. A URL is stored as text and is not fetched. A customer cannot mark a claim verified. A monitoring topic does not record a check. Research does not change engine figures, clear `INSUFFICIENT_DEMAND_EVIDENCE`, or set `human_review_approved`. The market snapshot and the Market Pulse cards stay labeled demonstrations. The unittest suite is 188 tests, all passing. This work has not been deployed.
+
+## Progress — 2026-11-11 Public QCEW retrieval
+
+- An authorized customer can request one allowlisted BLS Quarterly Census of Employment and Wages annual file from a research project, review the rows, and import a selection. Rejected rows are not saved as evidence. A typed web address is not requested. A retrieved figure can be linked from a Market Pulse development and is available to the adviser as an untrusted source record. It does not change engine figures, clear `INSUFFICIENT_DEMAND_EVIDENCE`, set `human_review_approved`, or record a monitoring check. The unittest suite is 192 tests, all passing. This work has not been deployed.

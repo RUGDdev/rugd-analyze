@@ -6,6 +6,7 @@ from html import escape
 from typing import Any
 
 from app.pages import layout
+from app.public_retrieval import GEOGRAPHY_CHOICES, INDUSTRY_CHOICES, RETRIEVAL_YEARS, SOURCE_NAME
 from app.research import (
     CLASS_LABELS,
     MONITOR_NOTICE,
@@ -137,6 +138,7 @@ def project_page(
     writable: bool,
     plans: list[dict[str, Any]],
     decks: list[dict[str, Any]],
+    retrieval: dict[str, Any] | None = None,
     notice: str = "",
 ) -> str:
     assessment_id = escape(str(record.get("id") or ""))
@@ -272,6 +274,7 @@ Segments: {escape(str(document.get("segments") or "not recorded"))}.</p>
 {_summary_block(summary)}
 <h2>Saved evidence</h2>
 {evidence_html}
+{_retrieval_section(assessment_id, project_id, retrieval, writable=writable)}
 <h2>Earlier summaries</h2>
 <ul>{history}</ul>
 {edit}
@@ -280,12 +283,84 @@ Segments: {escape(str(document.get("segments") or "not recorded"))}.</p>
     return layout("Research", body)
 
 
+def _retrieval_section(
+    assessment_id: str,
+    project_id: str,
+    retrieval: dict[str, Any] | None,
+    *,
+    writable: bool,
+) -> str:
+    if not writable:
+        return "<p>Public retrieval is not available for a file this session cannot change.</p>"
+    industries = "".join(f"<option>{escape(name)}</option>" for name in INDUSTRY_CHOICES)
+    geographies = "".join(f"<option>{escape(name)}</option>" for name in GEOGRAPHY_CHOICES)
+    years = "".join(f"<option>{escape(year)}</option>" for year in RETRIEVAL_YEARS)
+    review = ""
+    error = ""
+    if retrieval and retrieval.get("error_category"):
+        error = (
+            "<p id=\"retrieval-error\">The public retrieval did not return records. "
+            f"Category: {escape(str(retrieval.get('error_category') or ''))}.</p>"
+        )
+    if retrieval and retrieval.get("status") == "review":
+        records = retrieval.get("records") if isinstance(retrieval.get("records"), list) else []
+        if records:
+            choices = "".join(
+                "<li>"
+                + escape(str(item.get("measure") or "Record"))
+                + ": "
+                + escape(str(item.get("value") or ""))
+                + f"<form method=\"post\" action=\"/assessments/{assessment_id}/intelligence/{project_id}\">"
+                "<input type=\"hidden\" name=\"op\" value=\"import_public\">"
+                f"<input type=\"hidden\" name=\"batch_id\" value=\"{escape(str(retrieval.get('id') or ''))}\">"
+                f"<input type=\"hidden\" name=\"selected\" value=\"{escape(str(index))}\">"
+                "<button type=\"submit\">Import this record</button></form></li>"
+                for index, item in enumerate(records)
+                if isinstance(item, dict)
+            )
+            review = (
+                "<section class=\"card\" id=\"retrieval-review\">"
+                f"<h2>Review public records</h2><p>Retrieved {escape(str(retrieval.get('retrieved_on') or 'date not recorded'))}. "
+                f"Source: {escape(str(retrieval.get('source_name') or SOURCE_NAME))}.</p>"
+                f"<p>{escape(str(retrieval.get('limitations') or ''))}</p>"
+                f"<p>{escape(str(retrieval.get('notice') or ''))}</p>"
+                f"<ul>{choices}</ul>"
+                f"<form method=\"post\" action=\"/assessments/{assessment_id}/intelligence/{project_id}\">"
+                "<input type=\"hidden\" name=\"op\" value=\"reject_public\">"
+                f"<input type=\"hidden\" name=\"batch_id\" value=\"{escape(str(retrieval.get('id') or ''))}\">"
+                "<button type=\"submit\">Reject these results</button></form></section>"
+            )
+        else:
+            review = (
+                "<section class=\"card\" id=\"retrieval-review\"><h2>Review public records</h2>"
+                f"<p>{escape(str(retrieval.get('notice') or 'No public observation was returned for this industry and geography.'))}</p>"
+                f"<p>Retrieved {escape(str(retrieval.get('retrieved_on') or 'date not recorded'))}.</p></section>"
+            )
+    return f"""
+<section class="card" id="public-retrieval">
+<h2>Retrieve public information</h2>
+<p>One request is sent to {escape(SOURCE_NAME)} when you choose Retrieve. The address is chosen by RUGD from the lists below. A typed web address is not used. Results stay unsaved until you import them.</p>
+<form method="post" action="/assessments/{assessment_id}/intelligence/{project_id}">
+<input type="hidden" name="op" value="retrieve_public">
+<label>Official source <input name="source" value="{escape(SOURCE_NAME)}" readonly></label>
+<label>Industry <select name="industry">{industries}</select></label>
+<label>Geography <select name="geography">{geographies}</select></label>
+<label>Year <select name="year">{years}</select></label>
+<button type="submit">Retrieve public information</button>
+</form>
+{error}
+{review}
+</section>
+"""
+
+
 def pulse_page(
     record: dict[str, Any],
     developments: list[dict[str, Any]],
     monitors: list[dict[str, Any]],
     *,
     writable: bool,
+    evidence: list[dict[str, Any]] | None = None,
     notice: str = "",
 ) -> str:
     assessment_id = escape(str(record.get("id") or ""))
@@ -314,6 +389,7 @@ def pulse_page(
             f"<p>Relevance: {escape(str(item.get('relevance') or ''))}</p>"
             f"<p>Implications: {escape(str(item.get('implications') or ''))}</p>"
             f"<p>Limitations: {escape(str(item.get('limitations') or ''))}</p>"
+            f"<p>Evidence reference: {escape(str(item.get('evidence_id') or 'none'))}. A retrieved record is not a material business event.</p>"
             f"{controls}</article>"
         )
     development_html = "".join(cards) or "<p>No development is recorded.</p>"
@@ -345,6 +421,13 @@ def pulse_page(
 <label>Affected business or market <input name="affected" maxlength="200"></label>
 <label>Relevance <textarea name="relevance" maxlength="500"></textarea></label>
 <label>Potential implications <textarea name="implications" maxlength="500"></textarea></label>
+<label>Link an approved public evidence record
+<select name="evidence_id"><option value="">None</option>{''.join(
+    f'<option value="{escape(str(item.get("id") or ""))}">{escape(str(item.get("finding") or "Retrieved record")[:80])}</option>'
+    for item in (evidence or [])
+    if item.get("evidence_class") == "retrieved_public"
+)}</select>
+</label>
 <button type="submit">Save development</button>
 </form>
 </section>

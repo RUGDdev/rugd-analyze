@@ -32,6 +32,7 @@ CUSTOMER_CLASSES = ("source_backed_unverified", "customer_provided")
 CLASS_LABELS = {
     "verified_source": "Verified source-backed information",
     "source_backed_unverified": "Source-backed, not verified",
+    "retrieved_public": "Retrieved public source. Not a verified conclusion about this business.",
     "customer_provided": "Customer-provided information",
     "ai_interpretation": "AI-generated interpretation",
     "missing": "Missing or insufficient evidence",
@@ -174,7 +175,12 @@ def cite_evidence(item: dict[str, Any]) -> str:
         gaps.append("publication date not recorded")
     if not str(item.get("retrieved_on") or "").strip():
         gaps.append("retrieval date not recorded")
-    prefix = "Hypothesis. " if evidence_class == "customer_provided" else ""
+    if evidence_class == "customer_provided":
+        prefix = "Hypothesis. "
+    elif evidence_class == "retrieved_public":
+        prefix = "Retrieved fact. Not an interpretation and not a verified business conclusion. "
+    else:
+        prefix = ""
     gap = ("; ".join(gaps) + ". ") if gaps else ""
     marker = clip(item.get("id"), 8)
     return f"{prefix}{label}. {gap}{finding} Evidence {marker}."

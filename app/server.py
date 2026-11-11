@@ -33,6 +33,12 @@ from app.export import (
 )
 from app.adviser_context import build_adviser_context
 from app.adviser_workspace import ask_adviser
+from app.public_retrieval import (
+    PublicRetrievalError,
+    evidence_from_observation,
+    retrieval_allowed,
+    retrieve_qcew,
+)
 from app.research import (
     MAX_EVIDENCE,
     MAX_MONITORS,
@@ -62,6 +68,8 @@ from app.adviser_flow import (
     start_conversation,
 )
 from app.analyst import answer, explain, get_analyst, provider_status
+
+public_transport = None
 from app.objectives import objective_by_id
 from app.pages import (
     analyst_page,
@@ -164,6 +172,7 @@ from app.store import (
     get_monitoring_config,
     get_pulse_development,
     get_research_project,
+    get_retrieval_batch,
     insert_adviser_conversation,
     list_adviser_conversations,
     set_adviser_suggestion,
@@ -177,6 +186,7 @@ from app.store import (
     insert_pitch_deck,
     insert_pulse_development,
     insert_research_project,
+    insert_retrieval_batch,
     insert_saved_report,
     list_action_items,
     list_business_plans,
@@ -186,6 +196,7 @@ from app.store import (
     list_pitch_decks,
     list_pulse_developments,
     list_research_projects,
+    list_retrieval_batches,
     list_saved_reports,
     set_deck_proposal,
     set_plan_proposal,
@@ -196,6 +207,7 @@ from app.store import (
     update_monitoring_config,
     update_pulse_development,
     update_research_project,
+    update_retrieval_batch,
     list_approvals,
     list_assessments,
     list_reviewer_events,
@@ -1581,6 +1593,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 writable=writable,
                 plans=self._visible_plans(connection, state, record),
                 decks=self._visible_decks(connection, state, record),
+                retrieval=self._open_retrieval(connection, state, record, str(project["id"])),
             )
         )
 
@@ -1592,6 +1605,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._visible_developments(connection, state, record),
                 self._visible_monitors(connection, state, record),
                 writable=may_write(state, record),
+                evidence=self._visible_project_evidence(connection, state, record),
             )
         )
 
@@ -1671,6 +1685,15 @@ class AppHandler(BaseHTTPRequestHandler):
                     set_research_note(connection, table, target_id, str(proposal.get("text") or ""))
             document["proposal"] = None
             update_research_project(connection, str(project["id"]), title=str(project.get("title") or "Research"), document=document)
+        elif op == "retrieve_public":
+            self._retrieve_public(connection, record, project, user_id, form)
+            return
+        elif op == "import_public":
+            self._import_public(connection, record, project, user_id, form)
+            return
+        elif op == "reject_public":
+            self._reject_public(connection, state, record, project, form)
+            return
         elif op == "create_action":
             evidence = self._visible_evidence(connection, state, record, str(project["id"]))
             summary = synthesize(project, evidence)
@@ -1695,11 +1718,20 @@ class AppHandler(BaseHTTPRequestHandler):
             if len(list_pulse_developments(connection, assessment_id)) >= MAX_PULSE:
                 self._html(layout("Research", "<h1>Market Pulse</h1><p>This business already has the maximum number of developments.</p>"), status=400)
                 return
+            payload = prepare_development(form)
+            evidence = get_evidence_record(connection, payload.get("evidence_id") or "")
+            if (
+                evidence is None
+                or evidence.get("assessment_id") != assessment_id
+                or evidence.get("evidence_class") != "retrieved_public"
+                or not may_see_attachment(state, record, str(evidence.get("created_by") or ""))
+            ):
+                payload["evidence_id"] = ""
             insert_pulse_development(
                 connection,
                 assessment_id=assessment_id,
                 created_by=user_id,
-                document=prepare_development(form),
+                document=payload,
             )
         elif op == "review_development":
             current = get_pulse_development(connection, str(form.get("development_id") or ""))
@@ -1759,6 +1791,127 @@ class AppHandler(BaseHTTPRequestHandler):
             for item in list_monitoring_configs(connection, str(record["id"]))
             if may_see_attachment(state, record, str(item.get("created_by") or ""))
         ]
+
+    def _open_retrieval(self, connection: Any, state: dict[str, Any], record: dict[str, Any], project_id: str) -> dict[str, Any] | None:
+        visible = [
+            item
+            for item in list_retrieval_batches(connection, project_id)
+            if item.get("assessment_id") == record.get("id")
+            and may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+        if not visible:
+            return None
+        review = next((item for item in reversed(visible) if item.get("status") == "review"), None)
+        latest = visible[-1]
+        if review is not None:
+            if latest is not review and latest.get("error_category"):
+                shown = dict(review)
+                shown["error_category"] = latest.get("error_category")
+                return shown
+            return review
+        if latest.get("status") == "failed" or latest.get("error_category"):
+            return latest
+        return None
+
+    def _visible_project_evidence(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in list_evidence_for_assessment(connection, str(record["id"]))
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _retrieve_public(self, connection: Any, record: dict[str, Any], project: dict[str, Any], user_id: str, form: dict[str, str]) -> None:
+        assessment_id = str(record["id"])
+        project_id = str(project["id"])
+        existing = list_retrieval_batches(connection, project_id)
+        retrieved_on = datetime.now(timezone.utc).date().isoformat()
+        if not retrieval_allowed(len(existing)):
+            document = {
+                "source": "bls-qcew",
+                "status": "failed",
+                "records": [],
+                "retrieved_on": retrieved_on,
+                "error_category": "rate_limited",
+                "notice": "The retrieval limit for this project has been reached. No request was sent.",
+            }
+        else:
+            try:
+                document = retrieve_qcew(
+                    form.get("industry") or "",
+                    form.get("geography") or "",
+                    form.get("year") or "",
+                    transport=public_transport,
+                    retrieved_on=retrieved_on,
+                )
+            except PublicRetrievalError as exc:
+                document = {
+                    "source": "bls-qcew",
+                    "status": "failed",
+                    "records": [],
+                    "retrieved_on": retrieved_on,
+                    "error_category": exc.category,
+                    "notice": "The public retrieval did not return records.",
+                }
+        insert_retrieval_batch(
+            connection,
+            assessment_id=assessment_id,
+            project_id=project_id,
+            created_by=user_id,
+            document=document,
+        )
+        self._redirect(f"/assessments/{assessment_id}/intelligence/{project_id}")
+
+    def _import_public(self, connection: Any, record: dict[str, Any], project: dict[str, Any], user_id: str, form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        batch = get_retrieval_batch(connection, str(form.get("batch_id") or ""))
+        if not self._batch_visible(state, record, project, batch) or batch.get("status") != "review":
+            self._html(layout("Not found", "<h1>Retrieval not found</h1>"), status=404)
+            return
+        records = batch.get("records") if isinstance(batch.get("records"), list) else []
+        try:
+            index = int(form.get("selected") or "-1")
+        except ValueError:
+            index = -1
+        if index < 0 or index >= len(records) or not isinstance(records[index], dict):
+            self._redirect(f"/assessments/{record['id']}/intelligence/{project['id']}")
+            return
+        if len(list_evidence_records(connection, str(project["id"]))) >= MAX_EVIDENCE:
+            self._html(layout("Research", "<h1>Research</h1><p>This project already has the maximum number of evidence records.</p>"), status=400)
+            return
+        insert_evidence_record(
+            connection,
+            assessment_id=str(record["id"]),
+            project_id=str(project["id"]),
+            created_by=user_id,
+            document=evidence_from_observation(records[index], str(batch.get("retrieved_on") or "")),
+        )
+        remaining = [item for position, item in enumerate(records) if position != index]
+        document = dict(batch.get("document") or {})
+        document["records"] = remaining
+        document["status"] = "review" if remaining else "imported"
+        document["error_category"] = ""
+        update_retrieval_batch(connection, str(batch["id"]), document)
+        self._redirect(f"/assessments/{record['id']}/intelligence/{project['id']}")
+
+    def _reject_public(self, connection: Any, state: dict[str, Any], record: dict[str, Any], project: dict[str, Any], form: dict[str, str]) -> None:
+        batch = get_retrieval_batch(connection, str(form.get("batch_id") or ""))
+        if not self._batch_visible(state, record, project, batch):
+            self._html(layout("Not found", "<h1>Retrieval not found</h1>"), status=404)
+            return
+        document = dict(batch.get("document") or {})
+        document["records"] = []
+        document["status"] = "rejected"
+        document["error_category"] = ""
+        update_retrieval_batch(connection, str(batch["id"]), document)
+        self._redirect(f"/assessments/{record['id']}/intelligence/{project['id']}")
+
+    def _batch_visible(self, state: dict[str, Any], record: dict[str, Any], project: dict[str, Any], batch: dict[str, Any] | None) -> bool:
+        return bool(
+            batch
+            and batch.get("assessment_id") == record.get("id")
+            and batch.get("project_id") == project.get("id")
+            and may_see_attachment(state, record, str(batch.get("created_by") or ""))
+        )
 
     def _plans_get(self, connection: Any, record: dict[str, Any], parts: list[str]) -> None:
         state = self._account_state(connection)

@@ -370,6 +370,19 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS retrieval_batches (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            project_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            document_json TEXT NOT NULL
+        )
+        """
+    )
     return connection
 
 
@@ -2756,3 +2769,67 @@ def set_research_note(
         (json.dumps(document), _now(), row_id),
     )
     connection.commit()
+
+
+def insert_retrieval_batch(
+    connection: sqlite3.Connection,
+    *,
+    assessment_id: str,
+    project_id: str,
+    created_by: str,
+    document: dict[str, Any],
+) -> dict[str, Any]:
+    batch_id = str(uuid.uuid4())
+    now = _now()
+    connection.execute(
+        """
+        INSERT INTO retrieval_batches (
+            id, assessment_id, project_id, created_by, created_at, updated_at, document_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (batch_id, assessment_id, project_id, created_by, now, now, json.dumps(document)),
+    )
+    connection.commit()
+    stored = get_retrieval_batch(connection, batch_id)
+    assert stored is not None
+    return stored
+
+
+def update_retrieval_batch(
+    connection: sqlite3.Connection,
+    batch_id: str,
+    document: dict[str, Any],
+) -> dict[str, Any] | None:
+    connection.execute(
+        "UPDATE retrieval_batches SET document_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(document), _now(), batch_id),
+    )
+    connection.commit()
+    return get_retrieval_batch(connection, batch_id)
+
+
+def list_retrieval_batches(connection: sqlite3.Connection, project_id: str) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT id, assessment_id, project_id, created_by, created_at, updated_at, document_json
+        FROM retrieval_batches
+        WHERE project_id = ?
+        ORDER BY rowid
+        """,
+        (project_id,),
+    ).fetchall()
+    return [_research_row(row) for row in rows]
+
+
+def get_retrieval_batch(connection: sqlite3.Connection, batch_id: str) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT id, assessment_id, project_id, created_by, created_at, updated_at, document_json
+        FROM retrieval_batches
+        WHERE id = ?
+        """,
+        (batch_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    return _research_row(row)
