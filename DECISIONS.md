@@ -536,3 +536,20 @@ Owner input required before replacing `billing_hooks`:
 - The home page offers eleven objectives. Each one creates a draft owned by the signed-in account. Prepare for Sale or Exit uses the unsupported acquisition purpose, so Analyze does not invent a recommendation for it. Monitor My Business or Industry is marked Demonstration because no monitoring job runs.
 - The adviser asks for one missing note at a time. The customer must choose Save this answer before that text is written. A configured provider may add a reply. If that call fails, the screen says no live reply was invented.
 - The checkpoint before this work is `ccd9b0e`.
+
+## Decision: Interactive Analyze charts
+
+- Date: 2026-11-10
+- Status: Accepted for the local pilot. This does not change the 0.1 engine formulas, a recommend-against flag, or the official baseline.
+- Monthly fields are checked before they are stored. A blank stays missing. Zero is an entered assumption. Text that is not a finite number does not reach the engine.
+- Charts on the results page copy stored engine numbers. The engine does not return a separate expense total, so no expense bar is drawn. The Downside case remains one extra engine run and does not replace the official result.
+- The Explore checkpoint is `49ad52e`. The reading is the Demonstration Analyst unless `ANALYST_PROVIDER` and its key are set.
+
+## Decision: Customer access checks
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This reuses the local account session. It does not add a second permissions system, and it does not change the 0.1 engine.
+- A record with an owner can be read or changed by that customer or by a reviewer. Another customer, and a visitor who is not signed in, receives a generic refusal. The refusal does not include the business name or the stored figures.
+- The official baseline and the seeded restaurant demonstrations stay public prototype records. The baseline cannot be written. Restaurant demonstrations remain writable, as they were.
+- An unclaimed draft is left unassigned. A signed-in customer cannot read or change it. A visitor who is not signed in still can. That remaining local-prototype path is recorded in `CURRENT_STATUS.md`.
+- Choosing another customer’s business profile on a new draft is refused unless every assessment linked to that profile can be changed by this session.

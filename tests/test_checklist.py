@@ -247,17 +247,23 @@ class TestEvidenceChecklist(unittest.TestCase):
                     "check_verified-demand": "1",
                 }
             ).encode("utf-8")
-            baseline_page = _post(base + f"/assessments/{BASELINE_ID}/checklist", baseline_body)
-            self.assertIn("Recommendation:</strong> do-not-proceed", baseline_page)
-            self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE:</strong> present", baseline_page)
-            self.assertIn("Investor readiness:</strong> internal", baseline_page)
-            self.assertIn("Checklist status:</strong> Noted", baseline_page)
+            baseline_request = urllib.request.Request(
+                base + f"/assessments/{BASELINE_ID}/checklist",
+                data=baseline_body,
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as baseline_refusal:
+                urllib.request.urlopen(baseline_request)
+            self.assertEqual(baseline_refusal.exception.code, 403)
+            baseline_page = baseline_refusal.exception.read().decode("utf-8")
+            self.assertIn("not available to this session", baseline_page)
+            self.assertNotIn("Checklist status:</strong> Noted", baseline_page)
             baseline = get_assessment(self.connection, BASELINE_ID)
             assert baseline is not None
             self.assertEqual(json.dumps(baseline["intake"], sort_keys=True), baseline_intake)
             self.assertIsNone(baseline["result"])
             self.assertFalse(baseline["human_review_approved"])
-            self.assertTrue(baseline["checklist"]["verified-demand"])
+            self.assertFalse((baseline.get("checklist") or {}).get("verified-demand"))
 
             blocked = urllib.request.Request(
                 base + f"/assessments/{self.assessment_id}/checklist",

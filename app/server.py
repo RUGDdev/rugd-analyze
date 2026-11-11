@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from app.analysis import analyze_record
+from app.inputs import monthly_problems
 from app.config import (
     SECURITY_HEADERS,
     bind_host,
@@ -83,6 +84,7 @@ from app.accounts import (
     send_verification,
 )
 import app.mail as account_mail
+from app.access import DENIAL, may_read, may_write, visible_records
 from app.share import ShareError, active_share_links, can_manage_share, issue_share_link, open_share, revoke_share
 from app.review import (
     SESSION_COOKIE,
@@ -156,13 +158,13 @@ class AppHandler(BaseHTTPRequestHandler):
         if path == "/":
             self._html(self._dashboard_page(connection))
         elif path == "/explore":
-            records = list_assessments(connection)
+            records = self._visible_assessments(connection)
             notes = {
                 item["id"]: list_guidance_notes(connection, item["id"]) for item in records
             }
             self._html(explore_page(records, notes))
         elif path == "/analyze":
-            self._html(analyze_index(list_assessments(connection)))
+            self._html(analyze_index(self._visible_assessments(connection)))
         elif path == "/validate":
             self._html(validate_page(None))
         elif path == "/partner":
@@ -191,7 +193,7 @@ class AppHandler(BaseHTTPRequestHandler):
             tier = (query.get("tier") or ["explore"])[-1]
             self._html(
                 market_page(
-                    list_assessments(connection),
+                    self._visible_assessments(connection),
                     industry,
                     geographic_market,
                     provider=get_market_provider(),
@@ -199,7 +201,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 )
             )
         elif path == "/reports":
-            self._html(reports_page(list_assessments(connection)))
+            self._html(reports_page(self._visible_assessments(connection)))
         elif path == "/settings":
             with_user = None
             state = self._account_state(connection)
@@ -222,18 +224,17 @@ class AppHandler(BaseHTTPRequestHandler):
         elif path == "/assessments":
             self._html(self._dashboard_page(connection, surface="assessments"))
         elif path == "/assessments/export":
-            payload = json.dumps(export_drafts(list_assessments(connection)), indent=2).encode("utf-8")
+            payload = json.dumps(
+                export_drafts(self._visible_assessments(connection)),
+                indent=2,
+            ).encode("utf-8")
             self._bytes(
                 payload,
                 "application/json",
                 disposition=f'attachment; filename="rugd-drafts-{_today()}.json"',
             )
         elif path == "/assessments/new":
-            self._html(
-                new_assessment_page(
-                    list_business_profiles(connection, isolation=ISOLATION_CUSTOMER)
-                )
-            )
+            self._html(new_assessment_page(self._visible_customer_profiles(connection)))
         elif path == "/reviewer" or path.startswith("/reviewer/"):
             self._reviewer_get(connection, path)
         elif path.startswith("/assessments/"):
@@ -274,14 +275,23 @@ class AppHandler(BaseHTTPRequestHandler):
             if posted_path and posted_path not in {"startup", "existing"}:
                 self._html(
                     new_assessment_page(
-                        list_business_profiles(connection, isolation=ISOLATION_CUSTOMER),
+                        self._visible_customer_profiles(connection),
                         "Choose a startup idea or an existing or expanding business.",
                     ),
                     status=403,
                 )
                 return
             try:
+                state = self._account_state(connection)
                 if profile_id:
+                    linked = [
+                        item
+                        for item in list_assessments(connection)
+                        if item.get("business_profile_id") == profile_id
+                    ]
+                    if not linked or not all(may_write(state, item) for item in linked):
+                        self._deny_assessment()
+                        return
                     business = get_business_profile(connection, profile_id)
                     if business is None or business["isolation"] != ISOLATION_CUSTOMER:
                         raise PermissionError(
@@ -390,6 +400,9 @@ class AppHandler(BaseHTTPRequestHandler):
         if record is None:
             self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
             return
+        if not may_read(self._account_state(connection), record):
+            self._deny_assessment()
+            return
         action = parts[2] if len(parts) > 2 else ""
         if action == "results":
             stored = record.get("result") or {"engine_ran": False, "message": "Analyze has not been run."}
@@ -496,6 +509,14 @@ class AppHandler(BaseHTTPRequestHandler):
         if record is None:
             self._html(layout("Not found", "<h1>Assessment not found</h1>"), status=404)
             return
+        state = self._account_state(connection)
+        if action in {"assistant", "share"}:
+            if not may_read(state, record):
+                self._deny_assessment()
+                return
+        elif not may_write(state, record):
+            self._deny_assessment()
+            return
         if action == "linked":
             try:
                 linked_id = create_linked_assessment(
@@ -532,12 +553,19 @@ class AppHandler(BaseHTTPRequestHandler):
             return
         if action == "save":
             if record["read_only"]:
-                self._html(assessment_form(record, "This baseline cannot be edited."), status=403)
+                self._deny_assessment()
                 return
             profile = dict(record["profile"])
             profile.update(form)
             profile["inputs_are_measured"] = form.get("inputs_are_measured") == "true"
             _keep_venture_path(profile, record["profile"])
+            problems = monthly_problems(profile)
+            if problems:
+                self._html(
+                    assessment_form(record, " ".join(problems) + " The draft was not changed and the engine was not run."),
+                    status=400,
+                )
+                return
             save_profile(connection, assessment_id, profile)
             self._redirect(f"/assessments/{assessment_id}")
             return
@@ -548,6 +576,16 @@ class AppHandler(BaseHTTPRequestHandler):
                     profile.update({key: value for key, value in form.items() if key != "human_review_approved"})
                     profile["inputs_are_measured"] = form.get("inputs_are_measured") == "true"
                     _keep_venture_path(profile, record["profile"])
+                    problems = monthly_problems(profile)
+                    if problems:
+                        self._html(
+                            assessment_form(
+                                record,
+                                " ".join(problems) + " The draft was not changed and the engine was not run.",
+                            ),
+                            status=400,
+                        )
+                        return
                     save_profile(connection, assessment_id, profile)
                     record = get_assessment(connection, assessment_id)
             assert record is not None
@@ -665,6 +703,9 @@ class AppHandler(BaseHTTPRequestHandler):
     def _save_scenario(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
         from app.scenarios import update_scenarios
 
+        if not may_write(self._account_state(connection), record):
+            self._deny_assessment()
+            return
         stored = record.get("result") if isinstance(record.get("result"), dict) else None
         if not stored or not stored.get("engine_ran"):
             self._html(
@@ -1038,6 +1079,27 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _account_state(self, connection: Any) -> dict[str, Any]:
         return self._reviewer_session_state(connection)
+
+    def _visible_assessments(self, connection: Any) -> list[dict[str, Any]]:
+        return visible_records(self._account_state(connection), list_assessments(connection))
+
+    def _visible_customer_profiles(self, connection: Any) -> list[dict[str, Any]]:
+        allowed = {
+            item.get("business_profile_id")
+            for item in self._visible_assessments(connection)
+            if item.get("business_profile_id")
+        }
+        return [
+            profile
+            for profile in list_business_profiles(connection, isolation=ISOLATION_CUSTOMER)
+            if profile.get("id") in allowed
+        ]
+
+    def _deny_assessment(self) -> None:
+        self._html(
+            layout("Not available", f"<h1>Not available</h1><p>{escape(DENIAL)}</p>"),
+            status=403,
+        )
 
     def _start_objective(self, connection: Any, form: dict[str, str]) -> None:
         spec = objective_by_id(form.get("objective") or "")

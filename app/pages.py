@@ -9,6 +9,8 @@ from urllib.parse import urlencode
 from app import APP_VERSION
 from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, get_analyst
 from app.adviser_flow import THEMES
+from app.charts import render_engine_charts, render_scenario_chart
+from app.inputs import MONTHLY_FIELDS, field_state
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
 from app.objectives import OBJECTIVES, objective_label
 from app.store import (
@@ -202,6 +204,10 @@ summary {{ cursor: pointer; }}
 .adviser-log li {{ background: white; border: 1px solid var(--stone); border-left: 4px solid var(--bronze); padding: 0.55rem 0.7rem; margin: 0.35rem 0; }}
 .adviser-log .you {{ border-left-color: var(--slate); }}
 .figure-notes {{ margin-top: 0; }}
+.chart-grid {{ display: grid; gap: 0.8rem; }}
+.chart {{ background: white; border: 1px solid var(--stone); padding: 0.75rem 0.9rem; }}
+.chart h3 {{ margin: 0 0 0.35rem; }}
+.chart svg {{ width: 100%; height: auto; display: block; }}
 #results-lead, #advisor-sheet, #market-provenance {{ border-top: 4px solid var(--bronze); }}
 #results-lead {{ padding: 1.25rem 1.4rem 1.4rem; }}
 .figure-block {{ background: var(--ivory); border: 1px solid var(--stone); padding: 0.15rem 1rem 0.4rem; margin-top: 1rem; }}
@@ -1103,12 +1109,22 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
 
     def text(name: str, label: str, *, area: bool = False) -> str:
         value = escape(str(profile.get(name) or ""))
+        field_id = escape(name)
         control = (
-            f'<textarea name="{name}" {locked}>{value}</textarea>'
+            f'<textarea id="{field_id}" name="{name}" {locked}>{value}</textarea>'
             if area
-            else f'<input name="{name}" value="{value}" {locked}>'
+            else f'<input id="{field_id}" name="{name}" value="{value}" {locked}>'
         )
-        return f"<label>{escape(label)}</label>{control}"
+        hint = ""
+        if name in MONTHLY_FIELDS:
+            state = field_state(profile.get(name))
+            if state == "missing":
+                hint = '<p class="muted">Missing. This blank is not treated as zero.</p>'
+            elif state == "zero":
+                hint = '<p class="muted">Entered as zero. This is a customer assumption, not a missing field.</p>'
+            elif state == "invalid":
+                hint = '<p class="muted">This entry is not a finite number. It will not be sent to the engine.</p>'
+        return f'<label for="{escape(name)}">{escape(label)}</label>{control}{hint}'
 
     def _suggested(name: str, label: str, *, area: bool = False) -> str:
         chips = []
@@ -1232,6 +1248,7 @@ def _fields(profile: dict[str, Any], locked: str, path: str = "startup") -> str:
 {choice("extraction_without_reinvestment", "Do stewardship indicators show extraction without reinvestment?")}
 </details>
 {capital}
+{_saved_explore_context(profile)}
 <details id="monthly-engine">
 <summary>Monthly engine</summary>
 <p class="muted">All four monthly fields are required before the monthly engine calculates. Unchecked measured status keeps the figures unmeasured.</p>
@@ -1445,6 +1462,7 @@ def results_page(
 <h2>Key engine figures</h2>
 <p>These are the stored engine figures. The sentence under a name explains it. The sentence does not change the number.</p>
 <h2>Monthly base and downside</h2>{financial}
+{render_engine_charts(result.get("financial") if isinstance(result.get("financial"), dict) else None, live=bool(getattr(get_analyst(), "uses_network", False)))}
 <h2>Sources and uses, scenarios, and DSCR</h2>
 {_plain("sources_and_uses")}
 {_plain("dscr")}
@@ -1792,6 +1810,28 @@ def _missing_labels(profile: dict[str, Any], fields: tuple[tuple[str, str], ...]
     return [label for key, label in fields if not str(profile.get(key) or "").strip()]
 
 
+def _saved_explore_context(profile: dict[str, Any]) -> str:
+    """Show notes already saved on this draft. They are not calculation outputs."""
+    rows = []
+    for key, label in (
+        ("concept", "Concept"),
+        ("industry", "Industry"),
+        ("market", "Geographic market"),
+        ("customers", "Target customers"),
+        ("revenue_model", "Revenue model"),
+    ):
+        raw = str(profile.get(key) or "").strip()
+        shown = escape(raw) if raw else "not entered"
+        rows.append(f"<li><strong>{label}:</strong> {shown}</li>")
+    return f"""
+<div class="card" id="saved-explore-context">
+<h2>Saved business notes</h2>
+<p>These notes come from this draft. A blank note stays blank. They are user-supplied assumptions, not engine results.</p>
+<ul>{''.join(rows)}</ul>
+</div>
+"""
+
+
 def _projection_view(result: dict[str, Any]) -> str:
     projection = result.get("projection") or {}
     engine_text = f"<details><summary>Engine text</summary><pre>{escape(result.get('projection_text') or '')}</pre></details>"
@@ -1942,6 +1982,7 @@ def _scenario_comparison(record: dict[str, Any], result: dict[str, Any]) -> str:
 {gate_line}
 {table}
 {note}
+{render_scenario_chart(stored)}
 <form method="post" action="/assessments/{assessment_id}/scenarios">
 <button type="submit" name="case" value="base">Save current result as Base</button>
 <button type="submit" name="case" value="downside">Run Downside case</button>

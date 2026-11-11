@@ -13,7 +13,7 @@ from pathlib import Path
 
 from app.accounts import register_account
 from app.export import export_advisor_package
-from app.review import open_account_session
+from app.review import SESSION_COOKIE, open_account_session
 from app.server import make_server
 from app.share import issue_share_link
 from app.store import (
@@ -26,6 +26,7 @@ from app.store import (
     save_profile,
     save_result,
     seed,
+    set_email_verified,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -171,6 +172,7 @@ class TestAdvisorPackage(unittest.TestCase):
         sample_before = hashlib.sha256(SAMPLE.read_bytes()).hexdigest()
         stored = json.dumps(get_assessment(self.connection, self.assessment_id)["result"], sort_keys=True)
         session = open_account_session(self.connection, email=EMAIL, password=PASSWORD)
+        set_email_verified(self.connection, self.owner["id"])
         record = get_assessment(self.connection, self.assessment_id)
         assert record is not None
         issued = issue_share_link(self.connection, record, session, "7d")
@@ -179,8 +181,9 @@ class TestAdvisorPackage(unittest.TestCase):
         thread.start()
         host, port = server.server_address
         base = f"http://{host}:{port}"
+        owned = {"Cookie": f"{SESSION_COOKIE}={session['token']}"}
         try:
-            summary = _get(base + f"/assessments/{self.assessment_id}/advisor")
+            summary = _get(base + f"/assessments/{self.assessment_id}/advisor", owned)
             self.assertIn("Advisor Summary", summary)
             self.assertIn("Gate status:</strong> Blocked", summary)
             self.assertIn("Band:</strong> Blocked", summary)
@@ -193,11 +196,11 @@ class TestAdvisorPackage(unittest.TestCase):
             self.assertIn("human_review_approved:</strong> false", summary)
             self.assertIn('class="sidebar"', summary)
             self.assertNotIn("<form", summary.lower())
-            downloaded = _get(base + f"/assessments/{self.assessment_id}/advisor/download")
+            downloaded = _get(base + f"/assessments/{self.assessment_id}/advisor/download", owned)
             package = json.loads(downloaded)
             self.assertEqual(package["key_flags"], ["INSUFFICIENT_DEMAND_EVIDENCE"])
             self.assertNotIn(issued["token"], downloaded)
-            printed = _get(base + f"/assessments/{self.assessment_id}/advisor/print")
+            printed = _get(base + f"/assessments/{self.assessment_id}/advisor/print", owned)
             self.assertIn("print-view", printed)
             self.assertIn("Provenance", printed)
             shared = _get(base + issued["path"])
@@ -253,6 +256,7 @@ def _engine_result() -> dict:
     }
 
 
-def _get(url: str) -> str:
-    with urllib.request.urlopen(url) as response:
+def _get(url: str, headers: dict[str, str] | None = None) -> str:
+    request = urllib.request.Request(url, headers=headers or {})
+    with urllib.request.urlopen(request) as response:
         return response.read().decode("utf-8")

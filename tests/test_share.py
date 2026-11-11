@@ -119,7 +119,8 @@ class TestReadOnlyShare(unittest.TestCase):
         base = f"http://{host}:{port}"
         try:
             denied = self._post(base + f"/assessments/{self.assessment_id}/share", {"lifetime": "7d"}, 403)
-            self.assertIn("owner or a reviewer", denied)
+            self.assertIn("not available to this session", denied)
+            self.assertNotIn("Share Cafe", denied)
             cookie = self._login(base, CUSTOMER_EMAIL, PASSWORD)
             status, _body, headers = self._raw(
                 base + f"/assessments/{self.assessment_id}/share",

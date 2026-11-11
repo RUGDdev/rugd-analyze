@@ -4,7 +4,7 @@ Updated: 2026-11-09
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 160 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 165 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -498,3 +498,18 @@ Further work on production authentication, real market data, an approved scoring
 - The AI Business Adviser on that draft asks one question at a time. An answer is stored only after Save this answer. With `ANALYST_PROVIDER` unset, the screen says no external service is connected. A failed provider does not invent a reply.
 - Preliminary notes name what was saved, the monthly blanks, and one educational Durable Value theme. No pillar score is calculated. Continue to Analyze opens the monthly fields. The official baseline stays do-not-proceed.
 - The unittest suite is 160 tests, all passing. The checkpoint before this work is `ccd9b0e`.
+
+## Progress — 2026-11-10 Interactive Analyze
+
+- A saved draft shows the Explore notes above the monthly fields. A blank monthly field stays missing. An entered zero stays zero. A value that is not a finite number is refused, and the draft and the engine are left unchanged.
+- Run Analyze still calls the 0.1 engine. The results page draws cash flow, calculated revenue and contribution, and break-even from that stored result. A separate expense total is not drawn. Running Analyze again redraws the charts from the new result.
+- Downside remains one extra engine run. Its chart uses the saved engine metrics. The official recommendation and `INSUFFICIENT_DEMAND_EVIDENCE` stay in place. With `ANALYST_PROVIDER` unset, the reading says no live model was called.
+- An owned draft can be changed by that customer or a reviewer. The Explore checkpoint is `49ad52e`.
+- The unittest suite is 163 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false.
+
+## Progress — 2026-11-11 Customer access checks
+
+- A customer can open and change only a draft that account owns. Another signed-in customer who changes the URL receives “This assessment is not available to this session.” The page does not include the business name or the stored figures. The same check applies to the draft, results, export, report, audit, save, analyze, and scenario routes.
+- Explore, Analyze, Market, Reports, and draft export list only records that session may read. A signed-in customer does not see another customer’s draft or an unclaimed draft. A reviewer still can.
+- An unclaimed draft keeps its empty owner. It is not assigned and it is not deleted. A signed-in customer cannot open it. Someone who is not signed in still can, if they know the id. The official baseline stays readable and cannot be written, including checklist, guidance, and analyze.
+- The unittest suite is 165 tests, all passing. The official baseline stays do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, and `human_review_approved` false. This work has not been deployed.
