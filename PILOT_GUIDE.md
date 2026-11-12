@@ -48,6 +48,8 @@ Use a new assessment for the real pilot case. Do not type the real case into the
 
 The workflow links at the top of the assessment are Explore, Research, Analyze, Business plan, Pitch deck, Reports, Action Center, Adviser, and Market Pulse. Opening a link does not change the saved assessment.
 
+On Explore, the draft asks one group of questions at a time. Save and continue keeps your place on the page. Examples change the field only after you choose Use it. The revenue step names a method for the industry and does not supply an industry average. `GUIDED_EXPERIENCE.md` describes that screen.
+
 On Explore:
 
 1. Describe the business. Industry, stage, customers, and competition stay your assumptions. Example phrases are suggestions. Selecting one does not run the engine.

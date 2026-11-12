@@ -21,6 +21,7 @@ from app.commercial import (
     record_use,
     usage_page,
 )
+from app.guidance import forecast_fields_html, progress_html
 from app.inputs import monthly_problems
 from app.config import (
     SECURITY_HEADERS,
@@ -858,18 +859,34 @@ class AppHandler(BaseHTTPRequestHandler):
             if record["read_only"]:
                 self._deny_assessment()
                 return
+            guided = form.get("guided_save") == "1"
+            posted = {key: value for key, value in form.items() if key != "guided_save"}
             profile = dict(record["profile"])
-            profile.update(form)
-            profile["inputs_are_measured"] = form.get("inputs_are_measured") == "true"
+            profile.update(posted)
+            profile["inputs_are_measured"] = posted.get("inputs_are_measured") == "true"
             _keep_venture_path(profile, record["profile"])
             problems = monthly_problems(profile)
             if problems:
-                self._html(
-                    assessment_form(record, " ".join(problems) + " The draft was not changed and the engine was not run."),
-                    status=400,
-                )
+                message = " ".join(problems) + " The draft was not changed and the engine was not run."
+                if guided:
+                    self._json({"ok": False, "saved": False, "message": message}, status=400)
+                    return
+                self._html(assessment_form(record, message), status=400)
                 return
             save_profile(connection, assessment_id, profile)
+            if guided:
+                saved = get_assessment(connection, assessment_id) or record
+                saved_profile = saved.get("profile") if isinstance(saved.get("profile"), dict) else profile
+                self._json(
+                    {
+                        "ok": True,
+                        "saved": True,
+                        "message": "Saved.",
+                        "forecast_html": forecast_fields_html(saved_profile, ""),
+                        "progress_html": progress_html(saved_profile),
+                    }
+                )
+                return
             self._redirect(f"/assessments/{assessment_id}")
             return
         if action == "analyze":
@@ -2765,6 +2782,9 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def _html(self, page: str, status: int = 200) -> None:
         self._bytes(self._with_verification_banner(page).encode("utf-8"), "text/html; charset=utf-8", status=status)
+
+    def _json(self, payload: dict[str, Any], status: int = 200) -> None:
+        self._bytes(json.dumps(payload).encode("utf-8"), "application/json", status=status)
 
     def _with_verification_banner(self, page: str) -> str:
         if 'id="email-unverified"' in page or "<main>" not in page:

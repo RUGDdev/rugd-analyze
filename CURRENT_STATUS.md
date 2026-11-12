@@ -4,7 +4,7 @@ Updated: 2026-11-12
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 226 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 231 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -614,3 +614,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-12 Owner launch script
 
 - `Start-RUGD-Pilot.ps1` starts the local pilot on `data\analyze.sqlite` at `http://127.0.0.1:8765`. It checks Python 3.12 and the pitch-deck libraries, refuses a second server on port 8765, and does not create an account or print environment values. A launch check opened the home page and the registration page. The registration page still says the local pilot does not ask for a subscription or a payment method. After the server was stopped, the local database still had 6 accounts and 15 assessments. Render was not deployed.
+
+## Progress — 2026-11-12 Guided intake
+
+- The assessment draft shows one question group at a time, with the step list on the left and short progress notes on the right. Save and continue stores the draft without reloading the page. Examples fill a field only after Use it. A restaurant recommendation uses covers and average check. A software recommendation uses paying customers and monthly price. No benchmark value is invented. The deterministic adviser label stays on the intake, and the intake does not call a model. The unittest suite is 231 tests, all passing. Render was not deployed. The official sample is unchanged.

@@ -33,6 +33,7 @@ from app.market import (
     load_market,
     market_framework,
 )
+from app.guidance import client_catalog, forecast_fields_html, progress_html, recommendation
 from app.suggestions import SUGGESTION_NOTE, catalog_json, suggestions_for
 
 _SURFACE_NOTE = (
@@ -234,6 +235,25 @@ summary {{ cursor: pointer; }}
 .slide-actions {{ display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }}
 .plan-section {{ scroll-margin-top: 0.75rem; }}
 .finance-preview {{ margin: 0; }}
+.guided {{ display: grid; grid-template-columns: 12.5rem minmax(0, 1fr) 16rem; gap: 0.8rem; align-items: start; }}
+.guided-nav, .guided-side {{ background: white; border: 1px solid var(--stone); padding: 0.75rem; }}
+.guided-nav {{ display: flex; flex-direction: column; gap: 0.25rem; }}
+.guided-nav button {{ width: 100%; text-align: left; background: white; color: var(--ink); border: 1px solid transparent; margin: 0; }}
+.guided-nav button[aria-current="step"] {{ border-color: var(--bronze); background: var(--gold); }}
+.guided-step {{ display: none; }}
+.guided-step.is-current, .guided-locked .guided-step {{ display: block; }}
+.guided-side ul {{ margin: 0.4rem 0 0.8rem; padding-left: 1.1rem; }}
+.why {{ border-left: 4px solid var(--bronze); padding-left: 0.7rem; }}
+.choice {{ font-weight: 400; }}
+.pending-example {{ background: var(--gold); padding: 0.45rem 0.6rem; }}
+.suggest-toggle {{ background: white; color: var(--ink); border: 1px solid var(--bronze); }}
+.field-suggest.is-open > .suggest {{ display: block; }}
+fieldset {{ border: 1px solid var(--stone); margin: 0.6rem 0; padding: 0.4rem 0.8rem 0.7rem; }}
+@media (max-width: 980px) {{
+  .guided {{ grid-template-columns: 1fr; }}
+  .guided-nav {{ flex-direction: row; flex-wrap: wrap; }}
+  .guided-nav button {{ width: auto; }}
+}}
 .chart-grid {{ display: grid; gap: 0.8rem; }}
 .chart {{ background: white; border: 1px solid var(--stone); padding: 0.75rem 0.9rem; }}
 .chart h3 {{ margin: 0 0 0.35rem; }}
@@ -1262,11 +1282,14 @@ def _fields(
                     f'data-example="{shown}">{shown}</button>'
                 )
         listing = "".join(chips)
+        toggle = "" if locked else '<button type="button" class="suggest-toggle">Examples</button>'
         return (
             '<div class="field-suggest">'
             + text(name, label, area=area)
+            + toggle
             + f'<div class="suggest" data-suggest="{escape(name)}">'
             + '<p class="muted">Examples only.</p>'
+            + '<p class="muted">Illustrative examples. Use one only if you want it in the field.</p>'
             + listing
             + "</div></div>"
         )
@@ -1342,7 +1365,155 @@ def _fields(
 {text("downside_multiplier", "Downside occupancy multiplier")}
 </details>
 """
+    def filled(key: str) -> bool:
+        return bool(str(profile.get(key) or "").strip())
+
+    resume = [
+        ("business", filled("business_name") and filled("concept")),
+        ("place", filled("industry")),
+        ("offer", filled("products")),
+        ("customers", filled("customers")),
+    ]
+    if path != "existing":
+        resume.append(("capital", not startup_missing))
+    resume.append(("forecast", not monthly_missing))
+    start = "notes"
+    for step_id, done in resume:
+        if not done:
+            start = step_id
+            break
+
+    def step(step_id: str, title: str, why: str, body: str, *, optional: bool = False) -> str:
+        current = " is-current" if step_id == start else ""
+        optional_attr = ' data-optional="true"' if optional else ""
+        return (
+            f'<section class="guided-step{current}" id="step-{escape(step_id)}" data-step="{escape(step_id)}" '
+            f'data-title="{escape(title)}" data-why="{escape(why)}"{optional_attr}>'
+            f"<h3>{escape(title)}</h3><p class=\"why\">{escape(why)}</p>{body}</section>"
+        )
+
+    titles = [
+        ("business", "The business"),
+        ("place", "Industry and place"),
+        ("offer", "What you offer"),
+        ("customers", "Customers and competition"),
+        ("demand", "Demand"),
+    ]
+    if path != "existing":
+        titles.append(("capital", "Capacity and startup costs"))
+    titles.extend((("forecast", "Revenue and monthly figures"), ("notes", "Notes")))
+    nav = "".join(
+        f'<button type="button" data-goto="{escape(step_id)}">{escape(title)}</button>'
+        for step_id, title in titles
+    )
+    guide = recommendation(profile)
+    locked_class = " guided-locked" if locked else ""
+    client = "" if locked else _guided_client_script(assessment_id)
+    offer_body = (
+        f'<p class="suggest-note" id="suggestion-note">{escape(SUGGESTION_NOTE)}</p>'
+        + _suggested("stage", "Development stage")
+        + _suggested("products", "Products and services", area=True)
+        + _suggestion_script(locked)
+    )
+    preview_button = ""
+    if assessment_id and not locked:
+        preview_button = (
+            '<button type="submit" formaction="/assessments/'
+            + escape(assessment_id)
+            + '/preview">Update preview</button>'
+        )
+    waiting = (
+        '<p id="preview-waiting">Change a supported assumption, then update the preview. '
+        "A preview is not saved and does not change the official result.</p>"
+    )
+    forecast_body = (
+        forecast_fields_html(profile, locked)
+        + '<div class="finance-workspace" id="financial-workspace"><div class="finance-inputs">'
+        + '<details id="monthly-engine" open><summary>Monthly engine</summary>'
+        + '<p class="muted">All four monthly fields are required before the monthly engine calculates. '
+        + "Unchecked measured status keeps the figures unmeasured. Changing these fields updates the preview only. "
+        + "Run Analyze to store an official result.</p>"
+        + text("initial_capital", "Initial capital")
+        + text("monthly_fixed_costs", "Monthly fixed costs")
+        + text("gross_margin_pct", "Gross margin (enter 0.55 for 55%)")
+        + text("projected_monthly_revenue_base", "Projected monthly base revenue")
+        + (
+            f'<label><input type="checkbox" name="inputs_are_measured" value="true" {measured} {locked}> '
+            "These monthly figures are measured</label>"
+        )
+        + preview_button
+        + "</details></div>"
+        + '<aside class="card finance-preview" id="financial-preview" aria-live="polite">'
+        + "<h2>Financial preview</h2>"
+        + (preview_html or waiting)
+        + "</aside></div>"
+        + _preview_script(assessment_id)
+    )
+    capital_step = ""
+    if path != "existing":
+        capital_step = step(
+            "capital",
+            "Capacity and startup costs",
+            "These fields feed the existing startup formula. A blank stays missing. Percent fields are fractions: 0.60 means 60 percent.",
+            capital,
+        )
+    adviser_link = ""
+    if assessment_id:
+        adviser_link = f'<p><a href="/assessments/{escape(assessment_id)}/advice">Open the Adviser</a></p>'
+    steps = "".join(
+        (
+            step(
+                "business",
+                "The business",
+                "A name and one sentence keep later answers attached to this business. Both stay your assumptions.",
+                text("business_name", "Business name") + text("concept", "Business concept", area=True),
+            ),
+            step(
+                "place",
+                "Industry and place",
+                "Industry and place change the examples and the revenue method. They do not import a benchmark.",
+                text("industry", "Industry") + text("market", "Geographic market"),
+            ),
+            step(
+                "offer",
+                "What you offer",
+                "Stage and offer tell the next questions what kind of business this is. Examples stay optional.",
+                offer_body,
+            ),
+            step(
+                "customers",
+                "Customers and competition",
+                "Naming the customer and the alternatives makes the revenue method easier to judge. You can ignore every example.",
+                _suggested("customers", "Target customers", area=True)
+                + _suggested("competition", "Competition", area=True)
+                + text("revenue_model", "How would this business make money?", area=True),
+            ),
+            step(
+                "demand",
+                "Demand",
+                "A yes here is still your assumption. It does not clear INSUFFICIENT_DEMAND_EVIDENCE.",
+                choice("demand_evidence", "Is there demand evidence? A yes here is still only a user-supplied assumption.")
+                + _verified_demand_fields(profile, locked)
+                + choice("operator_capacity_adequate", "Is operator capacity adequate?")
+                + choice("unresolved_regulatory_or_liability", "Is there an unresolved regulatory or liability issue?")
+                + choice("extraction_without_reinvestment", "Do stewardship indicators show extraction without reinvestment?"),
+                optional=True,
+            ),
+            capital_step,
+            step("forecast", "Revenue and monthly figures", str(guide["method"]["why"]), forecast_body),
+            step(
+                "notes",
+                "Notes",
+                "Add anything the questions did not ask. This note is saved with the draft and is not a source citation.",
+                text("evidence_notes", "Evidence notes", area=True) + _saved_explore_context(profile),
+                optional=True,
+            ),
+        )
+    )
     return f"""
+<div class="guided{locked_class}" id="guided-workspace" data-start="{escape(start)}">
+<nav class="guided-nav" aria-label="Intake steps">{nav}</nav>
+<div class="guided-main">
 <div class="card">
 <p><strong>User-supplied assumptions.</strong> Answers on this form are not verified data.</p>
 <p><strong>Verified data.</strong> Only the separate verified demand record is applied, and only when its source is verified and a rationale is present.</p>
@@ -1350,49 +1521,24 @@ def _fields(
 <p>{escape(startup_note)}</p>
 <p>{escape(monthly_note)}</p>
 </div>
-<details open>
-<summary>Concept</summary>
-{text("business_name", "Business name")}
-{text("concept", "Business concept", area=True)}
-{text("industry", "Industry")}
-{text("market", "Geographic market")}
-<p class="suggest-note" id="suggestion-note">{escape(SUGGESTION_NOTE)}</p>
-{_suggested("stage", "Development stage")}
-{_suggested("products", "Products and services", area=True)}
-{_suggested("customers", "Target customers", area=True)}
-{_suggested("competition", "Competition", area=True)}
-{_suggestion_script(locked)}
-</details>
-<details id="demand-evidence" open>
-<summary>Demand evidence</summary>
-{choice("demand_evidence", "Is there demand evidence? A yes here is still only a user-supplied assumption.")}
-{_verified_demand_fields(profile, locked)}
-{choice("operator_capacity_adequate", "Is operator capacity adequate?")}
-{choice("unresolved_regulatory_or_liability", "Is there an unresolved regulatory or liability issue?")}
-{choice("extraction_without_reinvestment", "Do stewardship indicators show extraction without reinvestment?")}
-</details>
-{capital}
-{_saved_explore_context(profile)}
-<div class="finance-workspace" id="financial-workspace">
-<div class="finance-inputs">
-<details id="monthly-engine" open>
-<summary>Monthly engine</summary>
-<p class="muted">All four monthly fields are required before the monthly engine calculates. Unchecked measured status keeps the figures unmeasured. Changing these fields updates the preview only. Run Analyze to store an official result.</p>
-{text("initial_capital", "Initial capital")}
-{text("monthly_fixed_costs", "Monthly fixed costs")}
-{text("gross_margin_pct", "Gross margin (enter 0.55 for 55%)")}
-{text("projected_monthly_revenue_base", "Projected monthly base revenue")}
-<label><input type="checkbox" name="inputs_are_measured" value="true" {measured} {locked}> These monthly figures are measured</label>
-{"<button type=\"submit\" formaction=\"/assessments/" + escape(assessment_id) + "/preview\">Update preview</button>" if assessment_id and not locked else ""}
-</details>
+{steps}
+<p class="guided-actions">
+<button type="button" id="guided-back">Back</button>
+<button type="button" id="guided-skip">Skip</button>
+<button type="button" id="guided-continue">Save and continue</button>
+</p>
+<p id="guided-save-state" role="status">Save and continue keeps this page in place.</p>
 </div>
-<aside class="card finance-preview" id="financial-preview" aria-live="polite">
-<h2>Financial preview</h2>
-{preview_html or "<p id=\"preview-waiting\">Change a supported assumption, then update the preview. A preview is not saved and does not change the official result.</p>"}
+<aside class="guided-side" aria-label="Progress">
+<h2>Progress</h2>
+<p class="muted" id="guided-adviser-label">Deterministic adviser. No live model was called.</p>
+<p id="guided-why"></p>
+<div id="guided-progress-slot">{progress_html(profile)}</div>
+<p class="muted">Customer assumptions, illustrative examples, and a missing benchmark are labeled separately. This panel does not call a model.</p>
+{adviser_link}
 </aside>
 </div>
-{_preview_script(assessment_id)}
-{text("evidence_notes", "Evidence notes", area=True)}
+{client}
 """
 
 
@@ -1477,17 +1623,57 @@ _SUGGESTION_SCRIPT = """
     });
   }
   document.addEventListener("click", function (event) {
+    var use = event.target.closest ? event.target.closest("[data-use-example]") : null;
+    if (use) {
+      var useName = use.getAttribute("data-use-example");
+      var pending = use.closest ? use.closest("[data-pending-example]") : null;
+      var useField = document.querySelector('[name="' + useName + '"]');
+      if (useField && pending && !useField.disabled) {
+        useField.value = pending.getAttribute("data-pending-example") || "";
+        useField.dispatchEvent(new Event("input", {bubbles: true}));
+        if (useName === "stage") refresh();
+        useField.focus({preventScroll: true});
+      }
+      if (pending) pending.remove();
+      return;
+    }
+    var dismiss = event.target.closest ? event.target.closest("[data-dismiss-example]") : null;
+    if (dismiss) {
+      var row = dismiss.closest ? dismiss.closest("[data-pending-example]") : null;
+      if (row) row.remove();
+      return;
+    }
+    var toggle = event.target.closest ? event.target.closest(".suggest-toggle") : null;
+    if (toggle) {
+      var box = toggle.closest ? toggle.closest(".field-suggest") : null;
+      if (box) box.classList.toggle("is-open");
+      return;
+    }
     var chip = event.target.closest ? event.target.closest("button.chip") : null;
     if (!chip) return;
     var name = chip.getAttribute("data-field");
     if (!allowed[name]) return;
     var field = document.querySelector('[name="' + name + '"]');
     if (!field || field.disabled) return;
-    field.value = chip.getAttribute("data-example") || "";
     var wrap = chip.closest ? chip.closest(".field-suggest") : null;
-    if (wrap) wrap.classList.add("is-closed");
-    field.blur();
-    if (name === "stage") refresh();
+    if (!wrap) return;
+    var existing = wrap.querySelector("[data-pending-example]");
+    if (existing) existing.remove();
+    var ask = document.createElement("p");
+    ask.className = "pending-example";
+    ask.setAttribute("data-pending-example", chip.getAttribute("data-example") || "");
+    ask.textContent = "Use this example? It replaces the field only if you choose Use it. ";
+    var accept = document.createElement("button");
+    accept.type = "button";
+    accept.setAttribute("data-use-example", name);
+    accept.textContent = "Use it";
+    var reject = document.createElement("button");
+    reject.type = "button";
+    reject.setAttribute("data-dismiss-example", name);
+    reject.textContent = "Dismiss";
+    ask.appendChild(accept);
+    ask.appendChild(reject);
+    wrap.appendChild(ask);
   });
   document.addEventListener("mousedown", function (event) {
     var chip = event.target.closest ? event.target.closest("button.chip") : null;
@@ -1517,6 +1703,181 @@ def _suggestion_script(locked: str) -> str:
         + "</script>"
         + _SUGGESTION_SCRIPT
     )
+
+
+def _guided_client_script(assessment_id: str) -> str:
+    """Move between questions without reloading. Saving uses the existing draft endpoint."""
+    if not assessment_id:
+        return ""
+    catalog = json.dumps(client_catalog(), ensure_ascii=True).replace("<", "\\u003c")
+    return (
+        '<script type="application/json" id="guidance-catalog">'
+        + catalog
+        + "</script><script>"
+        + _GUIDED_SCRIPT
+        + "</script>"
+    )
+
+
+_GUIDED_SCRIPT = r"""
+(function () {
+  var root = document.getElementById("guided-workspace");
+  if (!root || root.classList.contains("guided-locked")) return;
+  var form = root.closest("form");
+  if (!form) return;
+  var steps = Array.prototype.slice.call(root.querySelectorAll(".guided-step"));
+  var status = document.getElementById("guided-save-state");
+  var catalogNode = document.getElementById("guidance-catalog");
+  var catalog = catalogNode ? JSON.parse(catalogNode.textContent) : {families: [], general: {}};
+
+  function words(value) {
+    var found = String(value || "").toLowerCase().match(/[a-z0-9]+/g);
+    return found ? found.join(" ") : "";
+  }
+  function familyFor(industry) {
+    var padded = " " + words(industry) + " ";
+    var best = catalog.general || {};
+    var bestLen = 0;
+    (catalog.families || []).forEach(function (family) {
+      (family.phrases || []).forEach(function (phrase) {
+        var needle = " " + words(phrase) + " ";
+        if (needle.trim() && padded.indexOf(needle) !== -1 && needle.length > bestLen) {
+          best = family;
+          bestLen = needle.length;
+        }
+      });
+    });
+    return best;
+  }
+  function indexOfCurrent() {
+    for (var i = 0; i < steps.length; i += 1) {
+      if (steps[i].classList.contains("is-current")) return i;
+    }
+    return 0;
+  }
+  function setStatus(text) {
+    if (status) status.textContent = text;
+  }
+  function show(index, focusIt) {
+    if (!steps.length) return;
+    if (index < 0) index = 0;
+    if (index >= steps.length) index = steps.length - 1;
+    steps.forEach(function (step, i) {
+      step.classList.toggle("is-current", i === index);
+    });
+    var current = steps[index];
+    root.querySelectorAll("[data-goto]").forEach(function (button) {
+      if (button.getAttribute("data-goto") === current.getAttribute("data-step")) button.setAttribute("aria-current", "step");
+      else button.removeAttribute("aria-current");
+    });
+    var why = document.getElementById("guided-why");
+    if (why) why.textContent = current.getAttribute("data-why") || "";
+    var skip = document.getElementById("guided-skip");
+    if (skip) skip.hidden = current.getAttribute("data-optional") !== "true";
+    if (focusIt) {
+      var field = current.querySelector("input, textarea, select");
+      if (field && !field.disabled) field.focus({preventScroll: true});
+    }
+  }
+  function applyChoice() {
+    var checked = form.querySelector('input[name="forecast_choice"]:checked');
+    var choice = checked ? checked.value : "recommended";
+    var panel = document.getElementById("forecast-guidance");
+    var recommended = panel ? panel.getAttribute("data-recommended") : "";
+    var other = form.querySelector('[name="forecast_method"]');
+    form.querySelectorAll(".forecast-inputs").forEach(function (block) {
+      var id = block.getAttribute("data-method");
+      var visible = false;
+      if (choice === "other") visible = other && id === other.value;
+      else if (choice !== "independent") visible = id === recommended;
+      block.hidden = !visible;
+    });
+  }
+  function applyIndustry() {
+    var industry = form.querySelector('[name="industry"]');
+    var family = familyFor(industry ? industry.value : "");
+    var panel = document.getElementById("forecast-guidance");
+    if (panel && family.method_id) panel.setAttribute("data-recommended", family.method_id);
+    var title = document.getElementById("forecast-recommended");
+    var formula = document.getElementById("forecast-formula");
+    if (title && family.name) title.textContent = "Recommended method: " + family.name + ". " + (family.why || "");
+    if (formula && family.formula) formula.textContent = "Formula: " + family.formula;
+    var benchmark = document.getElementById("forecast-benchmark");
+    if (benchmark && catalog.benchmark) benchmark.textContent = catalog.benchmark;
+    applyChoice();
+  }
+  function save() {
+    var body = new URLSearchParams(new FormData(form));
+    body.set("guided_save", "1");
+    setStatus("Saving…");
+    return fetch(form.action, {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+      body: body.toString(),
+      credentials: "same-origin"
+    }).then(function (response) {
+      return response.text().then(function (text) {
+        var payload = {};
+        try { payload = JSON.parse(text); } catch (error) { payload = {}; }
+        if (!response.ok || !payload.saved) {
+          setStatus(payload.message || "Not saved. Your typing is still in the form.");
+          return false;
+        }
+        if (payload.progress_html) {
+          var slot = document.getElementById("guided-progress-slot");
+          if (slot) slot.innerHTML = payload.progress_html;
+        }
+        if (payload.forecast_html) {
+          var panel = document.getElementById("forecast-guidance");
+          if (panel) panel.outerHTML = payload.forecast_html;
+        }
+        setStatus("Saved.");
+        return true;
+      });
+    }).catch(function () {
+      setStatus("Not saved. Your typing is still in the form. Try Save and continue again.");
+      return false;
+    });
+  }
+  root.addEventListener("click", function (event) {
+    var goto = event.target.closest ? event.target.closest("[data-goto]") : null;
+    if (!goto) return;
+    var found = -1;
+    steps.forEach(function (step, i) {
+      if (step.getAttribute("data-step") === goto.getAttribute("data-goto")) found = i;
+    });
+    if (found >= 0) show(found, true);
+  });
+  var back = document.getElementById("guided-back");
+  var skip = document.getElementById("guided-skip");
+  var cont = document.getElementById("guided-continue");
+  if (back) back.addEventListener("click", function () { show(indexOfCurrent() - 1, true); });
+  if (skip) skip.addEventListener("click", function () { show(indexOfCurrent() + 1, true); });
+  if (cont) cont.addEventListener("click", function () {
+    var next = indexOfCurrent() + 1;
+    save().then(function (ok) { if (ok) show(next, true); });
+  });
+  form.addEventListener("input", function (event) {
+    if (event.target && event.target.name === "industry") applyIndustry();
+    setStatus("Unsaved changes are still in the form.");
+  });
+  form.addEventListener("change", function (event) {
+    if (!event.target) return;
+    if (event.target.name === "forecast_choice" || event.target.name === "forecast_method") applyChoice();
+  });
+  document.addEventListener("click", function (event) {
+    var copy = event.target.closest ? event.target.closest("[data-copy-revenue]") : null;
+    if (!copy) return;
+    var field = form.querySelector('[name="projected_monthly_revenue_base"]');
+    if (!field || field.disabled) return;
+    field.value = copy.getAttribute("data-copy-revenue") || "";
+    field.focus({preventScroll: true});
+    setStatus("Copied into monthly revenue. Save to keep it. Analyze has not run.");
+  });
+  applyChoice();
+  show(indexOfCurrent(), false);
+})();
+"""
 
 
 def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:

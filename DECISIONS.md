@@ -702,3 +702,11 @@ Owner input required before replacing `billing_hooks`:
 - `Start-RUGD-Pilot.ps1` is the Windows launch. It runs `python -m app` with Python 3.12, checks that `fpdf` and `pptx` import, and refuses to start when port 8765 is already open.
 - For that window only, the script removes `RUGD_ENV`, `RUGD_DATABASE`, and `RUGD_BILLING_SIMULATION`. The server binds to 127.0.0.1 and uses `data\analyze.sqlite`. The script does not print environment values, create an account, set a password, or delete a business.
 - Stop the server with Ctrl+C in that window. One SQLite file supports one process.
+
+## Decision: Guided intake does not invent a benchmark or change the engine
+
+- Date: 2026-11-12
+- Status: Accepted for the local pilot. This does not change the 0.1 formulas, scoring weights, recommend-against criteria, or the official baseline. It does not deploy and does not call a paid model.
+- The draft shows one question group at a time. Save and continue posts the existing save action and returns JSON, so the page does not reload. A failed check leaves the typed values in the form.
+- An example phrase is written into a field only after Use it. Industry words choose a named revenue method. Illustrative arithmetic uses entered assumptions or the existing seat formula. A missing input is not filled. No publication, date, geography, or operating ratio is invented.
+- The intake panel is labeled deterministic. The Adviser page remains the path that can use a configured provider when the customer sends a question.
