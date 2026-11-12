@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 from app import APP_VERSION
 from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, get_analyst
 from app.adviser_flow import PLACEHOLDER_NAMES, THEMES
+from app.field_help import checkbox_help, label_with_help, schedule_html, section_intro
 from app.charts import render_engine_charts, render_scenario_chart
 from app.inputs import MONTHLY_FIELDS, field_state
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
@@ -271,6 +272,31 @@ main:has(.guided) .card {{ border-radius: 14px; }}
 .guided fieldset {{ border: 0; margin: 0.9rem 0; padding: 0; }}
 .guided legend {{ font-weight: 600; padding: 0; margin-bottom: 0.2rem; }}
 .guided details {{ margin: 0.9rem 0; }}
+.guided .field-label {{ display: block; margin-top: 1rem; }}
+.guided .field-label label {{ display: inline; margin: 0; width: auto; vertical-align: middle; }}
+.guided details.help {{ display: inline; margin: 0 0 0 0.5rem; vertical-align: middle; }}
+.guided details.help > summary {{ list-style: none; cursor: pointer; width: 1.5rem; height: 1.5rem; border-radius: 50%; border: 1.5px solid #8c7a55; background: white; color: #6f5a33; font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; padding: 0; line-height: 1; vertical-align: middle; }}
+.guided details.help > summary::-webkit-details-marker {{ display: none; }}
+.guided details.help > summary:hover, .guided details.help[open] > summary {{ background: #F1E9D8; }}
+.guided details.help > summary:focus-visible, .guided .day input:focus-visible + span, .guided details.help-more > summary:focus-visible {{ outline: 3px solid var(--bronze); outline-offset: 2px; }}
+.help-body {{ display: block; margin: 0.5rem 0 0.2rem; padding: 0.75rem 1rem; background: #FBF9F4; border: 1px solid var(--stone); border-radius: 12px; font-size: 0.92rem; font-weight: 400; color: #33434f; }}
+.help-body p {{ margin: 0.45rem 0; }}
+.help-body .help-yours {{ background: #F1E9D8; border-radius: 8px; padding: 0.35rem 0.6rem; }}
+.guided details.help-more {{ margin: 0.5rem 0 0; }}
+.guided details.help-more > summary {{ font-weight: 600; cursor: pointer; }}
+.section-intro {{ margin: 1.2rem 0 0.2rem; padding: 0.7rem 1rem; background: #FBF9F4; border-left: 4px solid var(--bronze); border-radius: 0 12px 12px 0; }}
+.section-intro h4 {{ margin: 0 0 0.2rem; font-size: 1rem; }}
+.section-intro p {{ margin: 0; font-size: 0.92rem; color: #33434f; }}
+.schedule {{ margin: 1rem 0; padding: 0.9rem 1rem; background: #FBF9F4; border: 1px solid var(--stone); border-radius: 12px; }}
+.schedule h4 {{ margin: 0 0 0.2rem; font-size: 1rem; }}
+.guided fieldset.days {{ display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0; }}
+.guided label.day {{ position: relative; margin: 0; font-weight: 400; width: auto; }}
+.guided .day input {{ position: absolute; opacity: 0; width: 1px; height: 1px; padding: 0; border: 0; margin: 0; }}
+.day span {{ display: inline-block; min-width: 3.1rem; text-align: center; padding: 0.45rem 0.8rem; border: 1px solid #cfc9bb; border-radius: 999px; background: white; cursor: pointer; font-size: 0.9rem; }}
+.day input:checked + span {{ background: var(--ink); color: white; border-color: var(--ink); }}
+.schedule-estimate {{ margin: 0.7rem 0; font-size: 0.92rem; }}
+.schedule button {{ margin: 0; border-radius: 999px; padding: 0.55rem 1.1rem; cursor: pointer; }}
+.schedule button[hidden] {{ display: none; }}
 .guided-actions {{ display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-top: 1.5rem; padding-top: 1.1rem; border-top: 1px solid var(--stone); }}
 .guided-actions button {{ margin: 0; border-radius: 999px; padding: 0.7rem 1.2rem; font-size: 0.95rem; cursor: pointer; }}
 .guided-actions button.ghost {{ background: transparent; color: var(--ink); border: 1px solid #cfc9bb; }}
@@ -1345,7 +1371,7 @@ def _fields(
                 hint = '<p class="muted">Entered as zero. This is a customer assumption, not a missing field.</p>'
             elif state == "invalid":
                 hint = '<p class="muted">This entry is not a finite number. It will not be sent to the engine.</p>'
-        return f'<label for="{escape(name)}">{escape(label)}</label>{control}{hint}'
+        return f"{label_with_help(name, label, profile)}{control}{hint}"
 
     def _suggested(name: str, label: str, *, area: bool = False) -> str:
         chips = []
@@ -1420,17 +1446,23 @@ def _fields(
 <details open>
 <summary>Startup capital</summary>
 <p class="muted">Seats × occupancy × average ticket remains the primary revenue path.</p>
+{section_intro("opening", profile)}
 {text("construction_cost", "Construction cost")}
+{section_intro("sales", profile)}
 {text("seats", "Seats")}
 {text("average_ticket", "Average ticket")}
 {text("weekday_occupancy", "Weekday occupancy (enter 0.60 for 60%)")}
 {text("weekend_occupancy", "Weekend occupancy (enter 0.70 for 70%)")}
 {text("operating_days", "Operating days")}
+<p class="muted">Days per year. The schedule below can suggest a number.</p>
+{schedule_html(profile, locked)}
+{section_intro("margin", profile)}
 {text("contribution_margin", "Contribution margin (enter 0.55 for 55%)")}
 </details>
 <details>
 <summary>Optional startup worksheet lines</summary>
 <p class="muted">These stay your worksheet assumptions, not verified data.</p>
+{section_intro("worksheet", profile)}
 {text("equipment", "Equipment")}
 {text("soft_costs", "Soft costs")}
 {text("preopening_working_capital", "Pre-opening working capital")}
@@ -1551,6 +1583,7 @@ def _fields(
         forecast_fields_html(profile, locked)
         + '<div class="finance-workspace" id="financial-workspace"><div class="finance-inputs">'
         + '<details id="monthly-engine" open><summary>Monthly engine</summary>'
+        + section_intro("monthly", profile)
         + '<p class="muted">All four are required. Changing them updates the preview only. '
         + "Run Analyze to store an official result.</p>"
         + text("initial_capital", "Initial capital")
@@ -1558,8 +1591,11 @@ def _fields(
         + text("gross_margin_pct", "Gross margin (enter 0.55 for 55%)")
         + text("projected_monthly_revenue_base", "Projected monthly base revenue")
         + (
+            '<div class="field-label">'
             f'<label><input type="checkbox" name="inputs_are_measured" value="true" {measured} {locked}> '
             "These monthly figures are measured</label>"
+            + checkbox_help("inputs_are_measured", "These monthly figures are measured", profile)
+            + "</div>"
         )
         + preview_button
         + "</details></div>"
@@ -2145,7 +2181,9 @@ _GUIDED_SCRIPT = r"""
   form.addEventListener("keydown", function (event) {
     if (event.key !== "Enter" || !event.target) return;
     var tag = event.target.tagName;
-    if (tag === "TEXTAREA" || tag === "BUTTON" || tag === "SELECT") return;
+    if (tag !== "INPUT") return;
+    var kind = (event.target.type || "").toLowerCase();
+    if (kind === "checkbox" || kind === "radio" || kind === "button" || kind === "submit") return;
     if (!root.contains(event.target)) return;
     event.preventDefault();
     if (event.target.id === "name-seed") return;
@@ -2170,6 +2208,82 @@ _GUIDED_SCRIPT = r"""
     field.value = copy.getAttribute("data-copy-revenue") || "";
     field.focus({preventScroll: true});
     setStatus("Copied into monthly revenue. Save to keep it. Analyze has not run.");
+  });
+  var schedule = document.getElementById("operating-schedule");
+  function fmt(value) {
+    return Math.floor(value) === value ? String(value) : String(Math.round(value * 100) / 100);
+  }
+  function renderSchedule() {
+    if (!schedule) return;
+    var boxes = Array.prototype.slice.call(schedule.querySelectorAll("[data-day]"));
+    var picked = boxes.filter(function (box) { return box.checked; }).map(function (box) {
+      return box.getAttribute("data-day");
+    });
+    var hidden = schedule.querySelector('[name="operating_schedule"]');
+    if (hidden) hidden.value = picked.join(",");
+    var node = document.getElementById("schedule-estimate");
+    var use = document.getElementById("schedule-use");
+    var rawWeeks = String((document.getElementById("operating_weeks") || {}).value || "").trim();
+    var weeks = null;
+    var text = "";
+    var annual = null;
+    if (rawWeeks !== "") {
+      var parsed = Number(rawWeeks);
+      if (!isFinite(parsed) || parsed <= 0 || parsed > 52) text = "Enter weeks open per year between 1 and 52.";
+      else weeks = parsed;
+    }
+    if (!text && !picked.length) text = "Pick the days you plan to be open to see an estimate.";
+    if (!text) {
+      var used = weeks === null ? 52 : weeks;
+      annual = Math.floor(picked.length * used + 0.5);
+      var monthly = Math.floor(picked.length * used / 12 * 10 + 0.5) / 10;
+      text = "Open " + picked.length + " days a week × " + fmt(used) + " weeks = " + annual +
+        " operating days a year. That is about " + monthly + " operating days a month (" + annual + " ÷ 12).";
+      if (weeks === null) text += " The week count of 52 is assumed. Enter fewer if you will close for weeks.";
+      var weekend = picked.filter(function (code) { return code === "sat" || code === "sun"; }).length;
+      var share = weekend / picked.length;
+      var assumed = parseFloat(schedule.getAttribute("data-assumed-weekend")) || 2 / 7;
+      if (Math.abs(share - assumed) > 0.005) {
+        text += " Weekend days are " + Math.floor(share * 100 + 0.5) + "% of the days you picked. The model always treats 5/7 of operating days as weekdays and 2/7 as weekend days, about " +
+          Math.floor(assumed * 100 + 0.5) + "% weekend, whichever days you open. Enter weekday and weekend occupancy as averages that fit that weighting.";
+      }
+      var current = String((form.querySelector('[name="operating_days"]') || {}).value || "").trim();
+      if (current !== "" && isFinite(Number(current))) {
+        if (Number(current) === annual) text += " This matches your operating days entry (" + current + ").";
+        else text += " Your operating days entry is " + current + ". It stays as it is until you choose Use.";
+      }
+    }
+    if (node) node.textContent = text;
+    if (use) {
+      use.hidden = annual === null;
+      if (annual !== null) {
+        use.setAttribute("data-value", String(annual));
+        use.textContent = "Use " + annual + " as operating days";
+      }
+    }
+  }
+  if (schedule) {
+    schedule.addEventListener("input", renderSchedule);
+    form.addEventListener("input", function (event) {
+      if (event.target && event.target.name === "operating_days") renderSchedule();
+    });
+    var useButton = document.getElementById("schedule-use");
+    if (useButton) useButton.addEventListener("click", function () {
+      var field = form.querySelector('[name="operating_days"]');
+      if (!field || field.disabled) return;
+      field.value = useButton.getAttribute("data-value") || "";
+      field.dispatchEvent(new Event("input", {bubbles: true}));
+      setStatus("Copied into operating days. Save to keep it. Analyze has not run.");
+      renderSchedule();
+    });
+  }
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape" || !event.target || !event.target.closest) return;
+    var open = event.target.closest("details.help");
+    if (!open || !open.open) return;
+    open.open = false;
+    var summary = open.querySelector("summary");
+    if (summary) summary.focus();
   });
   function openHash() {
     var id = (window.location.hash || "").replace("#", "");
@@ -2218,8 +2332,8 @@ def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:
 <p class="muted">Separate from the customer question above. These fields are applied only when the source is verified and a rationale is present. A customer yes, a hypothetical demonstration, and an AI interpretation cannot clear INSUFFICIENT_DEMAND_EVIDENCE. This record does not approve the assessment.</p>
 <label>Source for this record</label>
 <select name="verified_record_source" {locked}>{options(source, source_options)}</select>
-<label>Verified trailing revenue (revenue_trailing_12m)</label>
-<input name="verified_revenue_trailing_12m" value="{revenue}" {locked}>
+{label_with_help("verified_revenue_trailing_12m", "Verified trailing revenue (revenue_trailing_12m)", profile)}
+<input id="verified_revenue_trailing_12m" name="verified_revenue_trailing_12m" value="{revenue}" {locked}>
 <label>Verified demand_evidence</label>
 <select name="verified_demand_evidence" {locked}>{options(claim, claim_options)}</select>
 <label>Rationale for the verified record</label>

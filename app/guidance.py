@@ -266,16 +266,23 @@ def progress_items(profile: dict[str, Any]) -> list[dict[str, str]]:
 
 def forecast_fields_html(profile: dict[str, Any], locked: str) -> str:
     """Method choice and worksheet inputs. The monthly engine fields stay separate."""
+    from app.field_help import label_with_help, section_intro
+
     guide = recommendation(profile)
     family = guide["family"]
     blocks = []
+    seen: set[str] = set()
     for method_id, fields in _WORKSHEETS.items():
         controls = []
         for key, label in fields:
             value = escape(str(profile.get(key) or ""))
+            first = key not in seen
+            seen.add(key)
+            suffix = "" if first else f"-{method_id}"
+            field_id = key if first else f"{key}-{method_id}"
             controls.append(
-                f'<label for="{escape(key)}">{escape(label)}</label>'
-                f'<input id="{escape(key)}" name="{escape(key)}" value="{value}" {locked}>'
+                label_with_help(key, label, profile, for_id=field_id, suffix=suffix)
+                + f'<input id="{escape(field_id)}" name="{escape(key)}" value="{value}" {locked}>'
             )
         hidden = "" if method_id == guide["selected_id"] and guide["choice"] != "independent" else " hidden"
         blocks.append(
@@ -302,6 +309,7 @@ def forecast_fields_html(profile: dict[str, Any], locked: str) -> str:
     return f"""
 <section id="forecast-guidance" data-family="{escape(family)}" data-recommended="{escape(guide["recommended_id"])}">
 <h3>Revenue method</h3>
+{section_intro("forecast", profile)}
 <p id="forecast-recommended"><strong>Recommended method:</strong> {escape(guide["recommended_name"])}. {escape(_METHODS[guide["recommended_id"]]["why"])}</p>
 <p id="forecast-formula"><strong>Formula:</strong> {escape(_METHODS[guide["recommended_id"]]["formula"])}</p>
 <p class="muted" id="forecast-benchmark">{escape(BENCHMARK_NOTE)}</p>
@@ -401,7 +409,9 @@ def _covers_math(profile: dict[str, Any]) -> dict[str, Any] | None:
         "note": (
             "This is the existing seat formula applied to your assumptions for the operating days you entered. "
             "It is a period total, not a monthly figure, and it is not saved as the official result. "
-            "Enter the monthly revenue you want in the monthly field."
+            "Enter the monthly revenue you want in the monthly field. "
+            "The formula counts one cover per occupied seat per operating day. "
+            "Table turns are not a separate input."
         ),
     }
 

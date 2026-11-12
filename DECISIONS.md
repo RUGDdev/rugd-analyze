@@ -717,3 +717,12 @@ Owner input required before replacing `billing_hooks`:
 - Status: Accepted for the local pilot. This does not change the 0.1 formulas, scoring weights, recommend-against criteria, Investor Readiness Gate, or the official baseline. It does not deploy and does not call a paid model.
 - The analyst system prompt is sent only as the provider system message. Display lines carry the reply text and a short label. A reply that repeats the prompt is filtered before display. Safeguards are enforced in application logic, not by prompt text.
 - The intake leads with the guided question. The Adviser conversation and status cards remain available in one collapsed section. Suggestions open only from an Examples button.
+
+
+## Decision: Financial help explains methods and does not supply benchmarks
+
+- Date: 2026-11-12
+- Status: Accepted for the local pilot. This does not change the 0.1 formulas, scoring weights, recommend-against criteria, Investor Readiness Gate, or the official baseline. It does not deploy.
+- Field help is optional, closed by default, and never writes to a field. Examples are labeled Illustration only. Where the model fills a blank optional line with a coded placeholder, the help says so and says it is not an industry standard. RUGD loads no benchmark table, so benchmark guidance names where a customer can find one and what to record.
+- The weekly day selector suggests an operating-day count. It does not write `operating_days` until the customer chooses Use, and a saved value is not reinterpreted.
+- The seat revenue model has no turnover or service-period input and applies 5/7 and 2/7 calendar weights. The limit is stated in the help and the proposal `PROPOSAL_REVENUE_TURNOVER.md`. The engine is unchanged until the owner authorizes a specific option.

@@ -49,3 +49,8 @@ The method list is a local map of industry words, not a licensed industry standa
 ## Visual layout (2026-11-12)
 
 The first question is What should we call your business?. The left column lists the steps and the business name. The right column shows the step, a progress bar, save status, your answers, the next question, and a short deterministic tip. Under 1180 px the columns stack and the progress panel collapses. The Adviser conversation, status, and notes sit in one collapsed section below the questions. Name ideas and examples open only on request and never change a field until Use it. Provider system instructions are never rendered to a customer.
+
+
+## Financial help (2026-11-12)
+
+Each financial input has a ? control beside its label. It opens what the field means, why it matters, an illustrated example, a note built from the customer's own entries when present, and a collapsed section for how to estimate it, common mistakes, the method, and where to find a credible benchmark. Escape closes it. A section introduction opens each money area. A seven-day selector with weeks open per year suggests operating days and changes the field only on Use. The one-cover-per-seat limit and the calendar weights are stated plainly. `PROPOSAL_REVENUE_TURNOVER.md` holds the unauthorized proposal. No industry average or source is supplied.

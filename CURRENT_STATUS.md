@@ -4,7 +4,7 @@ Updated: 2026-11-12
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 234 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 255 tests, all passing.
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
 ## Repository
@@ -622,4 +622,14 @@ Further work on production authentication, real market data, an approved scoring
 
 - Cause of the long Adviser text: the external-provider reply path put the internal system prompt into the lines shown to the customer, and every reply, card, and start message repeated a long limits paragraph. The prompt now goes only to the provider as the system message. A reply that echoes it is filtered. The visible limits line is one short sentence, and the safeguards remain enforced in code.
 - The draft opens on 'What should we call your business?' with Save & Continue, an optional name-ideas box (illustrative patterns, not AI output), a step list with the business name on the left, and a progress panel on the right (step, progress bar, save status, your answers, up next, a short deterministic tip). The panel collapses under 1180 px. The Adviser conversation, status cards, and notes moved into one collapsed section. Examples open only from the Examples button.
-- A browser walk on a temporary database covered the name, idea, industry, offer, customers, demand skip, startup costs, and revenue steps. Save & Continue did not reload the page, answers persisted after reload, and the draft resumed on the first unanswered step. The unittest suite is 234 tests, all passing. Render was not deployed. The official sample is unchanged.
+- A browser walk on a temporary database covered the name, idea, industry, offer, customers, demand skip, startup costs, and revenue steps. Save & Continue did not reload the page, answers persisted after reload, and the draft resumed on the first unanswered step. The unittest suite is 255 tests, all passing. Render was not deployed. The official sample is unchanged.
+
+
+## Progress - 2026-11-12 Financial input guidance and contextual help
+
+- Every financial input in the intake has a keyboard-reachable ? help control (native details element, closed by default, Escape closes it). Each help gives what the field means, why it matters, an example marked Illustration only, how to estimate it, common mistakes, the method, and how to find a credible benchmark. Fields covered: startup cost, seats, average ticket, weekday and weekend occupancy, operating days, contribution margin, the optional worksheet lines, the monthly figures and the measured checkbox, the verified trailing revenue, and the revenue worksheets. Text and examples vary by industry family. A From your answers line appears only when the customer entered the numbers it uses, and it labels the arithmetic as not a forecast.
+- Each major financial section opens with a short plain-language introduction. Coded engine placeholders (contingency 0.10, debt share 0.70, interest 0.08, 20 years, downside multiplier 0.6) are disclosed in the field help as not an industry standard. No benchmark value or citation is invented.
+- A seven-day selector and a weeks-open field suggest an operating-day count (days per week x weeks, and a monthly figure). The `operating_days` field changes only when the customer chooses Use. Saved `operating_days` is never reinterpreted. Schedule keys `operating_schedule` and `operating_weeks` are saved with the draft.
+- Revenue method review: seats x blended occupancy x average ticket x operating days, one cover per occupied seat per day, no turnover or multiple-seating input, 5/7 and 2/7 calendar weights regardless of open days. No formula changed. `PROPOSAL_REVENUE_TURNOVER.md` is a reviewable proposal and is not authorized.
+- Duplicate element ids on the shared forecast_fee worksheet field were made unique. Field names are unchanged.
+- The unittest suite is 255 tests, all passing. A browser walk on a temporary database opened and closed every help control, used Escape, exercised the selector and Use, saved, and reloaded. Render was not deployed. The official sample is unchanged.
