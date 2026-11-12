@@ -600,3 +600,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Plans and usage
 
 - Explore, Analyze, Validate, and Partner are named plans with no prices. An account keeps the included local pilot unless a simulated event is applied. Adviser replies and public retrievals are counted on the account, so a new project or session does not reset them. A mock webhook requires a signature, ignores a repeated event id, and does not apply an older sequence. With `RUGD_BILLING_SIMULATION` unset, a signed event is recorded and does not change access. A simulated plan is not a paid subscription. The billing hook stays disabled. The unittest suite is 223 tests, all passing. One retrieval journey assertion now uses the UTC retrieval date. This work has not been deployed.
+
+## Progress — 2026-11-11 Release readiness
+
+- `PRODUCTION_READINESS.md` records the cycle 3 checks. The unittest suite remains 223 tests, all passing. Ten unclosed-socket ResourceWarnings were still printed. A temporary-account browser walk opened Usage and the signed-in home. Render was not deployed, Auto-Deploy was not changed, and no payment provider was connected. The service is not cleared for production. The official sample hash is unchanged.

@@ -666,3 +666,9 @@ Owner input required before replacing `billing_hooks`:
 - The four plan names are Explore, Analyze, Validate, and Partner. An account without a simulated plan keeps the included local pilot, which is the access the prototype already offers. A simulated downgrade can hide Analyze, the adviser, or public retrieval. Cancel returns the included local pilot.
 - Adviser replies and public retrievals are counted for the account and the UTC month. A new project or a new session uses the same count.
 - `POST /billing/webhook` requires `X-RUGD-Signature` over the raw body using `RUGD_BILLING_WEBHOOK_SECRET`. A repeated event id is not applied again. A sequence older than the stored sequence is recorded and not applied. Card fields are rejected and not stored. With `RUGD_BILLING_SIMULATION` unset, a valid event is recorded and does not change access. A simulated plan is not a paid subscription and creates no charge.
+
+## Decision: Cycle 3 does not clear production
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not deploy, does not enable Render Auto-Deploy, and does not connect a payment provider.
+- `PRODUCTION_READINESS.md` records 223 passing tests and one failed check: ten unclosed-socket ResourceWarnings remain. Render, SMTP, a vulnerability database, load, and a second SQLite process were not run. The service is not cleared for production.
