@@ -45,3 +45,7 @@ The 0.1 formulas, scoring, the official baseline, account isolation, and the unp
 ## Limits
 
 The method list is a local map of industry words, not a licensed industry standard. A live model is not called from the intake. Mobile layout stacks the panels; it was not clicked through on a phone. Research, plans, decks, reports, and exports were not redesigned.
+
+## Visual layout (2026-11-12)
+
+The first question is What should we call your business?. The left column lists the steps and the business name. The right column shows the step, a progress bar, save status, your answers, the next question, and a short deterministic tip. Under 1180 px the columns stack and the progress panel collapses. The Adviser conversation, status, and notes sit in one collapsed section below the questions. Name ideas and examples open only on request and never change a field until Use it. Provider system instructions are never rendered to a customer.

@@ -132,12 +132,14 @@ class TestSuggestions(unittest.TestCase):
         self.assertIn(_chip("products", "Full-service dining"), page)
         self.assertIn('id="suggestion-catalog"', page)
 
-    def test_popover_stays_hidden_until_hover_or_focus(self) -> None:
+    def test_examples_stay_hidden_until_the_examples_button_is_used(self) -> None:
         page = assessment_form(_draft("Restaurant"))
         self.assertIn('class="field-suggest"', page)
         self.assertIn(".suggest { display: none;", page)
-        self.assertIn(".field-suggest:hover > .suggest", page)
-        self.assertIn(".field-suggest:focus-within > .suggest", page)
+        self.assertIn(".field-suggest.is-open > .suggest", page)
+        self.assertNotIn(".field-suggest:hover > .suggest", page)
+        self.assertNotIn(".field-suggest:focus-within > .suggest", page)
+        self.assertIn('class="suggest-toggle"', page)
         self.assertNotIn('class="field-suggest is-open"', page)
         self.assertIn(_chip("products", "Full-service dining"), page)
         self.assertIn(">Examples only.</p>", page)

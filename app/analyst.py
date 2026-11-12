@@ -52,9 +52,29 @@ MAX_HISTORY_MESSAGES = 6
 
 
 ASSISTANCE_LABEL = (
-    "Assistance only. This reply cannot change numbers, clear a recommend-against flag, "
-    "set human_review_approved, or grant investor-ready status."
+    "Assistance only. It cannot change numbers, flags, approval, or investor readiness."
 )
+
+# Internal text. It goes to the provider as the system message and is never shown to a customer.
+_INTERNAL_MARKERS = (
+    "you are the rugd analyst",
+    "explain only the assessment summary you are given",
+    "your reply is an explanation, not a decision",
+)
+
+
+def customer_lines(text: str) -> list[str]:
+    """Split a provider reply into display lines and drop any echo of the internal prompt."""
+    lines: list[str] = []
+    for raw in str(text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        folded = line.lower()
+        if any(marker in folded for marker in _INTERNAL_MARKERS):
+            continue
+        lines.append(line)
+    return lines
 
 STARTER_QUESTIONS = (
     "What does my score mean?",
@@ -136,10 +156,7 @@ class ExternalAnalyst:
 
     def __init__(self, provider: str, api_key: str, model: str, transport: Transport | None = None) -> None:
         self.provider = provider
-        self.label = (
-            f"External analyst ({provider}). Not the Demonstration Analyst. "
-            "This explanation cannot change engine results, flags, approval, or investor readiness."
-        )
+        self.label = f"External analyst ({provider}). Not the Demonstration Analyst."
         self._api_key = api_key
         self._model = model
         self._transport = transport or _post_json
@@ -156,9 +173,7 @@ class ExternalAnalyst:
         except Exception:
             fallback = FallbackAnalyst("The external analyst call failed.")
             return fallback.explain(record, result)
-        lines = [self.label, SAFETY_PROMPT]
-        lines.extend(line.strip() for line in text.splitlines() if line.strip())
-        return lines
+        return [self.label, *customer_lines(text)]
 
     def reply(
         self,
@@ -179,9 +194,7 @@ class ExternalAnalyst:
         except Exception:
             fallback = FallbackAnalyst("The external analyst call failed.")
             return fallback.reply(record, result, question, market_notes)
-        lines = [ASSISTANCE_LABEL, self.label, SAFETY_PROMPT]
-        lines.extend(line.strip() for line in text.splitlines() if line.strip())
-        return lines
+        return [ASSISTANCE_LABEL, self.label, *customer_lines(text)]
 
     def _complete(self, summary: dict[str, Any]) -> str:
         spec = _PROVIDERS[self.provider]
@@ -306,8 +319,7 @@ def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[s
         "current": current,
         "welcome": (
             f"Welcome. This adviser is reading {name}. "
-            "It can point to a gap, explain a stored result, and suggest a next step. "
-            "It cannot change a number, a flag, or an approval."
+            "It can point to a gap, explain a stored result, and suggest a next step."
         ),
         "action": action,
         "href": href,

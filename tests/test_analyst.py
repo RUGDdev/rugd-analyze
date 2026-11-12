@@ -218,7 +218,8 @@ class TestDemonstrationAnalyst(unittest.TestCase):
         )
         self.assertTrue(lines[0].startswith("External analyst (claude)."))
         self.assertIn("Not the Demonstration Analyst", lines[0])
-        self.assertIn(SAFETY_PROMPT, lines[1])
+        self.assertNotIn(SAFETY_PROMPT, " ".join(lines))
+        self.assertNotIn("You are the RUGD analyst", " ".join(lines))
         self.assertIn("do-not-proceed", " ".join(lines))
         self.assertEqual(result, before)
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", result["blocking_flags"])
@@ -370,6 +371,45 @@ class TestDemonstrationAnalyst(unittest.TestCase):
         self.assertNotIn(secret, outcome["text"])
         self.assertNotIn("http_401", outcome["text"])
         self.assertIn("could not be reached", outcome["text"])
+
+
+class TestCustomerVisibleSeparation(unittest.TestCase):
+    """The system prompt goes to the provider. It never appears in customer-visible text."""
+
+    def _analyst(self, text: str, sent: list[dict[str, object]]):
+        from app.analyst import ExternalAnalyst
+
+        def transport(url: str, headers: dict[str, str], payload: dict[str, object]) -> dict[str, object]:
+            sent.append(payload)
+            return {"content": [{"text": text}]}
+
+        return ExternalAnalyst("claude", "claude-test", "model-x", transport)
+
+    def test_reply_and_explain_exclude_the_internal_prompt(self) -> None:
+        from app.analyst import ASSISTANCE_LABEL
+
+        sent: list[dict[str, object]] = []
+        analyst = self._analyst("Cash flow is a stored engine figure.", sent)
+        record = {"id": "x", "business_name": "Milestone Cafe", "profile": {}}
+        replied = analyst.reply(record, None, "What is cash flow?")
+        explained = analyst.explain(record, None)
+        for lines in (replied, explained):
+            joined = " ".join(lines)
+            self.assertNotIn(SAFETY_PROMPT, joined)
+            self.assertNotIn("You are the RUGD analyst", joined)
+            self.assertNotIn("Your reply is an explanation, not a decision", joined)
+        self.assertEqual(replied[0], ASSISTANCE_LABEL)
+        self.assertLess(len(ASSISTANCE_LABEL), 100)
+        self.assertEqual(sent[0]["system"], SAFETY_PROMPT)
+
+    def test_a_model_that_echoes_the_prompt_is_filtered(self) -> None:
+        sent: list[dict[str, object]] = []
+        echoed = SAFETY_PROMPT + "\nThe draft is do-not-proceed."
+        analyst = self._analyst(echoed, sent)
+        lines = analyst.reply({"id": "x", "business_name": "A", "profile": {}}, None, "Why?")
+        joined = " ".join(lines)
+        self.assertNotIn("You are the RUGD analyst", joined)
+        self.assertIn("do-not-proceed", joined)
 
 
 def _http_error(code: int, body: bytes) -> urllib.error.HTTPError:

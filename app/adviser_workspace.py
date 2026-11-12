@@ -28,7 +28,9 @@ def ask_adviser(
     usage: dict[str, Any] = {}
     if analyst.__class__.__name__ == "ExternalAnalyst" and getattr(analyst, "uses_network", False):
         try:
-            text = str(analyst.complete_context(context, asked)).strip()
+            from app.analyst import customer_lines
+
+            text = "\n".join(customer_lines(str(analyst.complete_context(context, asked))))
             if not text:
                 raise ValueError("empty analyst response")
             source = "live"

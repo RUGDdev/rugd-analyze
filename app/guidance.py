@@ -250,6 +250,8 @@ def progress_items(profile: dict[str, Any]) -> list[dict[str, str]]:
         ("revenue_model", "Revenue model"),
     ):
         text = " ".join(str(profile.get(key) or "").split()).strip()
+        if key == "business_name" and text.lower() in {"", "untitled", "new draft"}:
+            text = ""
         if not text:
             rows.append({"kind": "missing", "text": f"{label}: missing"})
         else:

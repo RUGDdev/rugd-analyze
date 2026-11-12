@@ -120,12 +120,7 @@ def start_conversation(profile: dict[str, Any], objective_label: str) -> dict[st
     _add(
         profile,
         "adviser",
-        (
-            f"You chose {objective_label}. "
-            "Demonstration Adviser. No external AI service is connected unless ANALYST_PROVIDER is set. "
-            "An answer is saved only after you approve it. "
-            f"{question}"
-        ),
+        f"{question} Deterministic guidance, no live model. Nothing is saved until you approve it.",
     )
     return profile
 

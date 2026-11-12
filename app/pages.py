@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 
 from app import APP_VERSION
 from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, get_analyst
-from app.adviser_flow import THEMES
+from app.adviser_flow import PLACEHOLDER_NAMES, THEMES
 from app.charts import render_engine_charts, render_scenario_chart
 from app.inputs import MONTHLY_FIELDS, field_state
 from app.analysis import ENGINE_PURPOSES, UNSUPPORTED_PURPOSES
@@ -188,9 +188,8 @@ button:hover, .button:hover {{ background: var(--bronze); color: var(--slate); }
 button.chip, .chip {{ width: auto; background: white; color: var(--ink); border: 1px solid var(--bronze); font-size: 0.88rem; font-weight: 400; padding: 0.28rem 0.65rem; margin: 0.2rem 0.4rem 0.2rem 0; }}
 button.chip:hover {{ background: var(--gold); color: var(--ink); }}
 .field-suggest {{ position: relative; }}
-.suggest {{ display: none; position: absolute; z-index: 5; left: 0; right: 0; top: 100%; background: white; border: 1px solid var(--stone); border-left: 4px solid var(--bronze); padding: 0.35rem 0.75rem 0.55rem; box-shadow: 0 2px 8px rgba(38, 55, 70, 0.16); }}
-.field-suggest:hover > .suggest, .field-suggest:focus-within > .suggest {{ display: block; }}
-.field-suggest.is-closed > .suggest, .field-suggest.is-closed:hover > .suggest, .field-suggest.is-closed:focus-within > .suggest {{ display: none; }}
+.suggest {{ display: none; margin: 0.45rem 0 0.2rem; padding: 0.55rem 0.85rem 0.7rem; background: #FBF9F4; border: 1px solid var(--stone); border-radius: 12px; }}
+.field-suggest.is-open > .suggest {{ display: block; }}
 .suggest-note {{ color: #5c6b76; font-size: 0.86rem; margin: 0.35rem 0 0.6rem; }}
 .muted {{ color: #5c6b76; font-size: 0.92rem; }}
 table {{ width: 100%; border-collapse: collapse; background: white; margin: 0.6rem 0 1rem; }}
@@ -235,24 +234,90 @@ summary {{ cursor: pointer; }}
 .slide-actions {{ display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }}
 .plan-section {{ scroll-margin-top: 0.75rem; }}
 .finance-preview {{ margin: 0; }}
-.guided {{ display: grid; grid-template-columns: 12.5rem minmax(0, 1fr) 16rem; gap: 0.8rem; align-items: start; }}
-.guided-nav, .guided-side {{ background: white; border: 1px solid var(--stone); padding: 0.75rem; }}
-.guided-nav {{ display: flex; flex-direction: column; gap: 0.25rem; }}
-.guided-nav button {{ width: 100%; text-align: left; background: white; color: var(--ink); border: 1px solid transparent; margin: 0; }}
-.guided-nav button[aria-current="step"] {{ border-color: var(--bronze); background: var(--gold); }}
+main #journey-nav {{ flex-direction: row; flex-wrap: wrap; gap: 0.35rem; padding: 0; margin: 0.2rem 0 0.5rem; }}
+main #journey-nav a {{ color: var(--ink); background: white; border: 1px solid var(--stone); border-radius: 999px; padding: 0.2rem 0.75rem; font-size: 0.88rem; }}
+main #journey-nav a:hover {{ background: #F1E9D8; color: var(--ink); }}
+#journey-context {{ font-size: 0.82rem; margin: 0.2rem 0 0.4rem; }}
+main:has(.guided) {{ max-width: 1200px; }}
+main:has(.guided) .banner {{ border-radius: 12px; padding: 0.6rem 0.9rem; font-size: 0.9rem; }}
+main:has(.guided) .card {{ border-radius: 14px; }}
+.sr-only {{ position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }}
+:is(button, a, input, select, textarea, summary):focus-visible {{ outline: 3px solid var(--bronze); outline-offset: 2px; }}
+.guided {{ display: grid; grid-template-columns: 13rem minmax(0, 1fr) 17.5rem; gap: 1.25rem; align-items: start; margin: 0.6rem 0 1rem; }}
+.guided-nav, .guided-card, .guided .side-card, .about-answers {{ background: white; border: 1px solid var(--stone); border-radius: 16px; }}
+.guided-nav {{ display: flex; flex-direction: column; gap: 0.15rem; padding: 0.9rem 0.6rem; position: sticky; top: 0.75rem; }}
+.guided-context {{ padding: 0 0.6rem 0.7rem; margin-bottom: 0.4rem; border-bottom: 1px solid var(--stone); }}
+.guided-context strong {{ display: block; font-size: 1rem; overflow-wrap: anywhere; }}
+.guided-context span {{ color: #5c6b76; font-size: 0.8rem; }}
+.guided-nav button {{ display: flex; align-items: center; gap: 0.6rem; width: 100%; text-align: left; background: transparent; color: var(--ink); border: 0; border-radius: 10px; padding: 0.45rem 0.6rem; margin: 0; font-size: 0.9rem; cursor: pointer; }}
+.guided-nav button:hover {{ background: var(--ivory); color: var(--ink); }}
+.guided-nav button[aria-current="step"] {{ background: #F1E9D8; font-weight: 600; }}
+.guided-nav .dot {{ flex: 0 0 1.4rem; height: 1.4rem; border-radius: 50%; border: 1.5px solid #b9b2a3; background: white; color: #4d5b66; font-size: 0.72rem; display: grid; place-items: center; }}
+.guided-nav .is-done .dot {{ background: var(--ink); border-color: var(--ink); color: white; }}
 .guided-step {{ display: none; }}
 .guided-step.is-current, .guided-locked .guided-step {{ display: block; }}
-.guided-side ul {{ margin: 0.4rem 0 0.8rem; padding-left: 1.1rem; }}
-.why {{ border-left: 4px solid var(--bronze); padding-left: 0.7rem; }}
-.choice {{ font-weight: 400; }}
-.pending-example {{ background: var(--gold); padding: 0.45rem 0.6rem; }}
-.suggest-toggle {{ background: white; color: var(--ink); border: 1px solid var(--bronze); }}
-.field-suggest.is-open > .suggest {{ display: block; }}
-fieldset {{ border: 1px solid var(--stone); margin: 0.6rem 0; padding: 0.4rem 0.8rem 0.7rem; }}
-@media (max-width: 980px) {{
+.guided-locked .guided-step {{ margin-bottom: 1.5rem; }}
+.guided-card {{ padding: 1.75rem 2rem 1.3rem; }}
+.guided .eyebrow {{ margin: 0; font-size: 0.74rem; letter-spacing: 0.07em; text-transform: uppercase; color: #6f5a33; font-weight: 600; }}
+.guided-step h3.q {{ font-size: 1.6rem; letter-spacing: -0.015em; margin: 0.25rem 0 0.35rem; line-height: 1.2; }}
+.guided-step .lead {{ color: #4d5b66; margin: 0 0 1.1rem; font-size: 1.02rem; }}
+.optional-tag {{ margin-left: 0.4rem; padding: 0.05rem 0.5rem; border: 1px solid var(--stone); border-radius: 999px; letter-spacing: 0; text-transform: none; color: #4d5b66; font-weight: 400; }}
+.guided input, .guided select, .guided textarea {{ border: 1px solid #cfc9bb; border-radius: 10px; padding: 0.7rem 0.85rem; font-size: 1rem; }}
+.guided textarea {{ min-height: 6rem; }}
+.guided label {{ font-weight: 600; font-size: 0.9rem; color: #33434f; margin-top: 1rem; }}
+.guided label.choice {{ font-weight: 400; display: flex; align-items: center; gap: 0.65rem; border: 1px solid #cfc9bb; border-radius: 12px; padding: 0.65rem 0.9rem; margin: 0.45rem 0; font-size: 0.95rem; cursor: pointer; }}
+.guided label.choice input {{ width: auto; margin: 0; accent-color: var(--ink); }}
+.guided label.choice:has(input:checked) {{ border-color: var(--bronze); background: #FBF6EA; }}
+.guided fieldset {{ border: 0; margin: 0.9rem 0; padding: 0; }}
+.guided legend {{ font-weight: 600; padding: 0; margin-bottom: 0.2rem; }}
+.guided details {{ margin: 0.9rem 0; }}
+.guided-actions {{ display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-top: 1.5rem; padding-top: 1.1rem; border-top: 1px solid var(--stone); }}
+.guided-actions button {{ margin: 0; border-radius: 999px; padding: 0.7rem 1.2rem; font-size: 0.95rem; cursor: pointer; }}
+.guided-actions button.ghost {{ background: transparent; color: var(--ink); border: 1px solid #cfc9bb; }}
+.guided-actions button.ghost:hover {{ background: var(--ivory); color: var(--ink); }}
+.guided-actions button.primary {{ margin-left: auto; padding: 0.7rem 1.6rem; font-weight: 600; }}
+.guided-actions button.primary:hover {{ background: #34495a; color: white; }}
+.guided-actions button[hidden], .guided-locked .guided-actions, .guided-locked #guided-save-state {{ display: none; }}
+.guided-card > #guided-save-state {{ margin: 0.5rem 0 0; font-size: 0.85rem; }}
+.pending-example {{ background: #F1E9D8; padding: 0.5rem 0.75rem; border-radius: 10px; font-size: 0.9rem; }}
+.pending-example button {{ margin: 0 0 0 0.5rem; border-radius: 999px; padding: 0.2rem 0.75rem; font-size: 0.85rem; }}
+.suggest-toggle {{ background: transparent; color: #4d5b66; border: 0; padding: 0.3rem 0; font-size: 0.88rem; text-decoration: underline; cursor: pointer; }}
+.suggest-toggle:hover {{ background: transparent; color: var(--ink); }}
+.suggest label {{ margin-top: 0.2rem; }}
+.guided button.chip, .guided .chip {{ border-radius: 999px; border-color: #cfc9bb; }}
+.about-answers {{ margin: 0.9rem 0 0; padding: 0.3rem 1.2rem; font-size: 0.9rem; color: #4d5b66; }}
+.about-answers summary {{ padding: 0.5rem 0; font-weight: 600; }}
+.guided-side details {{ margin: 0; }}
+.guided-side .side-summary {{ display: none; padding: 0.7rem 1rem; background: white; border: 1px solid var(--stone); border-radius: 16px; font-weight: 600; }}
+.guided .side-card {{ padding: 0.9rem 1.05rem; margin: 0 0 0.8rem; }}
+.guided .side-card h3 {{ margin: 0 0 0.4rem; font-size: 0.74rem; letter-spacing: 0.07em; text-transform: uppercase; color: #4d5b66; font-weight: 600; }}
+.guided .side-card p {{ margin: 0.25rem 0; font-size: 0.92rem; }}
+.side-title {{ font-size: 1.1rem; font-weight: 600; margin: 0.15rem 0 0.6rem; }}
+.meter {{ height: 0.45rem; background: var(--stone); border-radius: 999px; overflow: hidden; }}
+.meter span {{ display: block; height: 100%; width: 0; background: var(--bronze); transition: width 0.25s; }}
+.save-pill {{ display: inline-block; margin-top: 0.6rem; padding: 0.1rem 0.65rem; border: 1px solid var(--stone); border-radius: 999px; color: #4d5b66; font-size: 0.82rem; }}
+.tag {{ display: inline-block; margin-left: 0.3rem; padding: 0 0.5rem; border: 1px solid var(--stone); border-radius: 999px; letter-spacing: 0; text-transform: none; font-weight: 400; font-size: 0.72rem; }}
+.small {{ font-size: 0.8rem; }}
+#guided-progress {{ list-style: none; margin: 0; padding: 0; font-size: 0.88rem; }}
+#guided-progress li {{ padding: 0.3rem 0; border-bottom: 1px solid #f0ede6; overflow-wrap: anywhere; }}
+#guided-progress li:last-child {{ border-bottom: 0; }}
+#guided-progress li[data-kind="missing"] {{ color: #66737d; }}
+.side-link {{ margin-bottom: 0; }}
+.draft-footer {{ display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin: 0.4rem 0 0.6rem; }}
+.draft-footer details.settings {{ flex: 1 1 100%; margin: 0; }}
+.draft-footer button {{ margin: 0; border-radius: 999px; padding: 0.6rem 1.15rem; cursor: pointer; }}
+.draft-footer button.ghost {{ background: white; color: var(--ink); border: 1px solid #cfc9bb; }}
+.draft-footer button.ghost:hover {{ background: #F1E9D8; color: var(--ink); }}
+details.more {{ background: white; border: 1px solid var(--stone); border-radius: 16px; padding: 0.3rem 1.2rem; margin: 1.2rem 0; }}
+details.more > summary {{ padding: 0.7rem 0; font-weight: 600; }}
+@media (max-width: 1180px) {{
   .guided {{ grid-template-columns: 1fr; }}
-  .guided-nav {{ flex-direction: row; flex-wrap: wrap; }}
+  .guided-nav {{ position: static; flex-direction: row; flex-wrap: wrap; padding: 0.6rem; }}
+  .guided-context {{ flex: 1 1 100%; margin-bottom: 0.2rem; }}
   .guided-nav button {{ width: auto; }}
+  .guided-side {{ order: 3; }}
+  .guided-side .side-summary {{ display: block; margin-bottom: 0.6rem; }}
+  .guided-card {{ padding: 1.25rem 1.1rem 1rem; }}
 }}
 .chart-grid {{ display: grid; gap: 0.8rem; }}
 .chart {{ background: white; border: 1px solid var(--stone); padding: 0.75rem 0.9rem; }}
@@ -997,12 +1062,18 @@ def assessment_form(
         action = f"""
 <form method="post" action="/assessments/{escape(record['id'])}/save">
 {fields}
+<div class="draft-footer">
+<details class="settings">
+<summary>Draft settings</summary>
 <label>Service tier</label>
 <select name="tier">{''.join(tiers)}</select>
 <label>Assessment purpose</label>
 <select name="purpose">{''.join(purposes)}</select>
-<button type="submit">Save draft</button>
-<button type="submit" formaction="/assessments/{escape(record['id'])}/analyze">Run Analyze</button>
+</details>
+<button type="submit" class="ghost">Save draft</button>
+<button type="submit" class="ghost" formaction="/assessments/{escape(record['id'])}/analyze">Run Analyze</button>
+<span class="muted">Run Analyze when you are ready. The engine writes the result.</span>
+</div>
 </form>
 """
     else:
@@ -1015,6 +1086,12 @@ def assessment_form(
 {_workspace_links(record)}
 {_SURFACE_NOTE}
 {banner}
+<h2 id="intake" class="sr-only">Intake</h2>
+{action}
+<p class="muted"><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a>
+<a href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
+<details class="more" id="more-about-draft">
+<summary>Adviser conversation, status, and notes for this draft</summary>
 {_explore_workspace(record)}
 {_journey_progress(_journey_stage(record))}
 {_adviser_nudge(record, "intake")}
@@ -1031,12 +1108,9 @@ def assessment_form(
 {_intake_status(record)}
 {_business_profile_card(record)}
 <p class="muted">Tier {escape(record['tier'])}. Changing tier does not change a recommendation. Entered answers stay user-supplied assumptions.</p>
-<h2 id="intake">Explore intake</h2>
 {_intake_start()}
-{action}
-<p><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a>
-<a href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
 {_guidance_section("explore", notes=notes, record=record)}
+</details>
 """
     return layout(record["business_name"], body)
 
@@ -1252,7 +1326,10 @@ def _fields(
     examples = suggestions_for(str(profile.get("industry") or ""), str(profile.get("stage") or ""))
 
     def text(name: str, label: str, *, area: bool = False) -> str:
-        value = escape(str(profile.get(name) or ""))
+        raw_value = str(profile.get(name) or "")
+        if name == "business_name" and raw_value.strip().lower() in PLACEHOLDER_NAMES:
+            raw_value = ""
+        value = escape(raw_value)
         field_id = escape(name)
         control = (
             f'<textarea id="{field_id}" name="{name}" {locked}>{value}</textarea>'
@@ -1342,7 +1419,7 @@ def _fields(
         capital = f"""
 <details open>
 <summary>Startup capital</summary>
-<p class="muted">The primary revenue path remains seats × occupancy × average ticket. Required fields are construction cost, seats, average ticket, weekday occupancy, weekend occupancy, operating days, and contribution margin.</p>
+<p class="muted">Seats × occupancy × average ticket remains the primary revenue path.</p>
 {text("construction_cost", "Construction cost")}
 {text("seats", "Seats")}
 {text("average_ticket", "Average ticket")}
@@ -1353,7 +1430,7 @@ def _fields(
 </details>
 <details>
 <summary>Optional startup worksheet lines</summary>
-<p class="muted">Values already in these fields are stored with the draft. They are user-supplied worksheet assumptions, not verified data.</p>
+<p class="muted">These stay your worksheet assumptions, not verified data.</p>
 {text("equipment", "Equipment")}
 {text("soft_costs", "Soft costs")}
 {text("preopening_working_capital", "Pre-opening working capital")}
@@ -1368,8 +1445,10 @@ def _fields(
     def filled(key: str) -> bool:
         return bool(str(profile.get(key) or "").strip())
 
+    named = filled("business_name") and str(profile.get("business_name") or "").strip().lower() not in PLACEHOLDER_NAMES
     resume = [
-        ("business", filled("business_name") and filled("concept")),
+        ("name", named and any(filled(key) for key in ("concept", "industry", "products", "customers"))),
+        ("concept", filled("concept")),
         ("place", filled("industry")),
         ("offer", filled("products")),
         ("customers", filled("customers")),
@@ -1383,28 +1462,70 @@ def _fields(
             start = step_id
             break
 
-    def step(step_id: str, title: str, why: str, body: str, *, optional: bool = False) -> str:
+    startup_fields = ",".join(key for key, _label in _STARTUP_REQUIRED)
+    monthly_fields = ",".join(key for key, _label in _MONTHLY_REQUIRED)
+    required_by_step = {
+        "name": "business_name",
+        "concept": "concept",
+        "place": "industry",
+        "offer": "products",
+        "customers": "customers",
+        "demand": "demand_evidence",
+        "capital": startup_fields,
+        "forecast": monthly_fields,
+        "notes": "evidence_notes",
+    }
+
+    def step(
+        step_id: str,
+        title: str,
+        question: str,
+        lead: str,
+        tip: str,
+        body: str,
+        *,
+        optional: bool = False,
+    ) -> str:
         current = " is-current" if step_id == start else ""
         optional_attr = ' data-optional="true"' if optional else ""
+        tag = '<span class="optional-tag">Optional</span>' if optional else ""
         return (
             f'<section class="guided-step{current}" id="step-{escape(step_id)}" data-step="{escape(step_id)}" '
-            f'data-title="{escape(title)}" data-why="{escape(why)}"{optional_attr}>'
-            f"<h3>{escape(title)}</h3><p class=\"why\">{escape(why)}</p>{body}</section>"
+            f'data-title="{escape(title)}" data-why="{escape(tip)}" data-question="{escape(question)}" '
+            f'data-required="{escape(required_by_step.get(step_id, ""))}"{optional_attr}>'
+            f'<p class="eyebrow">{escape(title)} {tag}</p>'
+            f'<h3 class="q">{escape(question)}</h3><p class="lead">{escape(lead)}</p>{body}</section>'
         )
 
     titles = [
-        ("business", "The business"),
+        ("name", "The name"),
+        ("concept", "The idea"),
         ("place", "Industry and place"),
         ("offer", "What you offer"),
-        ("customers", "Customers and competition"),
+        ("customers", "Customers"),
         ("demand", "Demand"),
     ]
     if path != "existing":
-        titles.append(("capital", "Capacity and startup costs"))
-    titles.extend((("forecast", "Revenue and monthly figures"), ("notes", "Notes")))
+        titles.append(("capital", "Startup costs"))
+    titles.extend((("forecast", "Revenue"), ("notes", "Notes")))
     nav = "".join(
-        f'<button type="button" data-goto="{escape(step_id)}">{escape(title)}</button>'
-        for step_id, title in titles
+        f'<button type="button" data-goto="{escape(step_id)}">'
+        f'<span class="dot" aria-hidden="true">{number}</span><span class="lbl">{escape(title)}</span></button>'
+        for number, (step_id, title) in enumerate(titles, start=1)
+    )
+    objective_text = str(profile.get("customer_objective") or "").strip()
+    if objective_text:
+        from app.objectives import objective_by_id
+
+        found_objective = objective_by_id(objective_text)
+        objective_text = found_objective["label"] if found_objective else ""
+    shown_name = str(profile.get("business_name") or "").strip()
+    if shown_name.lower() in PLACEHOLDER_NAMES:
+        shown_name = "Your business"
+    context = (
+        f'<div class="guided-context"><strong>{escape(shown_name)}</strong>'
+        + (f"<span>{escape(objective_text)}</span>" if objective_text else "")
+        + "</div>"
     )
     guide = recommendation(profile)
     locked_class = " guided-locked" if locked else ""
@@ -1430,8 +1551,7 @@ def _fields(
         forecast_fields_html(profile, locked)
         + '<div class="finance-workspace" id="financial-workspace"><div class="finance-inputs">'
         + '<details id="monthly-engine" open><summary>Monthly engine</summary>'
-        + '<p class="muted">All four monthly fields are required before the monthly engine calculates. '
-        + "Unchecked measured status keeps the figures unmeasured. Changing these fields updates the preview only. "
+        + '<p class="muted">All four are required. Changing them updates the preview only. '
         + "Run Analyze to store an official result.</p>"
         + text("initial_capital", "Initial capital")
         + text("monthly_fixed_costs", "Monthly fixed costs")
@@ -1453,37 +1573,75 @@ def _fields(
     if path != "existing":
         capital_step = step(
             "capital",
-            "Capacity and startup costs",
-            "These fields feed the existing startup formula. A blank stays missing. Percent fields are fractions: 0.60 means 60 percent.",
+            "Startup costs",
+            "What will it take to open?",
+            "These numbers feed the startup formula. A blank stays missing. Percents are decimals: 0.60 means 60%.",
+            "Use quotes or estimates you can defend. Leave a blank if you do not know yet.",
             capital,
         )
     adviser_link = ""
     if assessment_id:
-        adviser_link = f'<p><a href="/assessments/{escape(assessment_id)}/advice">Open the Adviser</a></p>'
+        adviser_link = f'<p class="side-link"><a href="/assessments/{escape(assessment_id)}/advice">Open the Adviser</a></p>'
+    name_toggle = "" if locked else '<button type="button" class="suggest-toggle">Need name ideas?</button>'
+    name_ideas = (
+        ""
+        if locked
+        else (
+            '<div class="suggest" data-names="1">'
+            '<label for="name-seed">What does the business do? A word or two is enough.</label>'
+            '<input id="name-seed" autocomplete="off" placeholder="for example: coffee, bookkeeping, tutoring">'
+            '<div id="name-ideas" aria-live="polite"></div>'
+            '<p class="muted">Illustrative name patterns, not AI output. Not checked for trademark or availability.</p>'
+            "</div>"
+        )
+    )
+    name_body = (
+        '<div class="field-suggest">'
+        + text("business_name", "Business name")
+        + name_toggle
+        + name_ideas
+        + "</div>"
+    )
     steps = "".join(
         (
             step(
-                "business",
-                "The business",
-                "A name and one sentence keep later answers attached to this business. Both stay your assumptions.",
-                text("business_name", "Business name") + text("concept", "Business concept", area=True),
+                "name",
+                "The name",
+                "What should we call your business?",
+                "Let's start with a name. You can change it later.",
+                "A short, easy-to-say name is enough for now. A legal name can wait.",
+                name_body,
+            ),
+            step(
+                "concept",
+                "The idea",
+                "In a sentence, what are you considering?",
+                "Plain words are fine. You can sharpen this later.",
+                "Say who it serves and what it does, in one sentence.",
+                text("concept", "Business concept", area=True),
             ),
             step(
                 "place",
                 "Industry and place",
-                "Industry and place change the examples and the revenue method. They do not import a benchmark.",
+                "What kind of business is it, and where?",
+                "Industry and place choose the examples and the revenue method.",
+                "A town or county is more useful than a whole state.",
                 text("industry", "Industry") + text("market", "Geographic market"),
             ),
             step(
                 "offer",
                 "What you offer",
-                "Stage and offer tell the next questions what kind of business this is. Examples stay optional.",
+                "What will you sell or provide?",
+                "Pick a stage and describe the offer. Examples are optional.",
+                "List the one or two things you would sell first.",
                 offer_body,
             ),
             step(
                 "customers",
-                "Customers and competition",
-                "Naming the customer and the alternatives makes the revenue method easier to judge. You can ignore every example.",
+                "Customers",
+                "Who is the customer, and who else could they choose?",
+                "Name the customer and the nearest alternative. You can ignore every example.",
+                "Describe a real kind of customer, not everyone.",
                 _suggested("customers", "Target customers", area=True)
                 + _suggested("competition", "Competition", area=True)
                 + text("revenue_model", "How would this business make money?", area=True),
@@ -1491,7 +1649,9 @@ def _fields(
             step(
                 "demand",
                 "Demand",
-                "A yes here is still your assumption. It does not clear INSUFFICIENT_DEMAND_EVIDENCE.",
+                "What do you already know about demand?",
+                "A yes here is your own view. It does not clear INSUFFICIENT_DEMAND_EVIDENCE.",
+                "Real evidence comes from sales, orders, or signed interest, not opinion.",
                 choice("demand_evidence", "Is there demand evidence? A yes here is still only a user-supplied assumption.")
                 + _verified_demand_fields(profile, locked)
                 + choice("operator_capacity_adequate", "Is operator capacity adequate?")
@@ -1500,11 +1660,20 @@ def _fields(
                 optional=True,
             ),
             capital_step,
-            step("forecast", "Revenue and monthly figures", str(guide["method"]["why"]), forecast_body),
+            step(
+                "forecast",
+                "Revenue",
+                "How should we forecast revenue?",
+                "Pick a method and check the arithmetic. Your figures stay your assumptions; nothing here is the official result.",
+                "Start with the recommended method, change one number, and watch the preview.",
+                forecast_body,
+            ),
             step(
                 "notes",
                 "Notes",
-                "Add anything the questions did not ask. This note is saved with the draft and is not a source citation.",
+                "Anything else we should know?",
+                "Notes stay with this draft. They are not source citations.",
+                "Add sources or doubts here so you can find them later.",
                 text("evidence_notes", "Evidence notes", area=True) + _saved_explore_context(profile),
                 optional=True,
             ),
@@ -1512,30 +1681,50 @@ def _fields(
     )
     return f"""
 <div class="guided{locked_class}" id="guided-workspace" data-start="{escape(start)}">
-<nav class="guided-nav" aria-label="Intake steps">{nav}</nav>
+<div class="guided-nav" role="group" aria-label="Intake steps">{context}{nav}</div>
 <div class="guided-main">
-<div class="card">
+<div class="guided-card">
+{steps}
+<div class="guided-actions">
+<button type="button" id="guided-back" class="ghost">Back</button>
+<button type="button" id="guided-skip" class="ghost">Skip</button>
+<button type="button" id="guided-continue" class="primary">Save &amp; Continue</button>
+</div>
+<p id="guided-save-state" role="status" class="muted">Saving keeps this page in place.</p>
+</div>
+<details class="about-answers">
+<summary>About these answers</summary>
 <p><strong>User-supplied assumptions.</strong> Answers on this form are not verified data.</p>
 <p><strong>Verified data.</strong> Only the separate verified demand record is applied, and only when its source is verified and a rationale is present.</p>
 <p><strong>Unmeasured placeholders.</strong> A blank required field stays blank. A number already shown in a worksheet field is the stored assumption, not a silent substitution.</p>
 <p>{escape(startup_note)}</p>
 <p>{escape(monthly_note)}</p>
-</div>
-{steps}
-<p class="guided-actions">
-<button type="button" id="guided-back">Back</button>
-<button type="button" id="guided-skip">Skip</button>
-<button type="button" id="guided-continue">Save and continue</button>
-</p>
-<p id="guided-save-state" role="status">Save and continue keeps this page in place.</p>
+</details>
 </div>
 <aside class="guided-side" aria-label="Progress">
-<h2>Progress</h2>
-<p class="muted" id="guided-adviser-label">Deterministic adviser. No live model was called.</p>
-<p id="guided-why"></p>
+<details id="guided-side-details" open>
+<summary class="side-summary">Progress</summary>
+<section class="side-card">
+<p class="eyebrow" id="side-stage">Step 1</p>
+<p class="side-title" id="side-title"></p>
+<div class="meter" aria-hidden="true"><span id="side-meter"></span></div>
+<p class="save-pill" id="side-save" role="status">Not saved yet</p>
+</section>
+<section class="side-card">
+<h3>Your answers</h3>
 <div id="guided-progress-slot">{progress_html(profile)}</div>
-<p class="muted">Customer assumptions, illustrative examples, and a missing benchmark are labeled separately. This panel does not call a model.</p>
+</section>
+<section class="side-card">
+<h3>Up next</h3>
+<p id="side-next"></p>
+</section>
+<section class="side-card">
+<h3>Adviser <span class="tag">Deterministic</span></h3>
+<p id="guided-why"></p>
+<p class="muted small" id="guided-adviser-label">Deterministic adviser. No live model was called.</p>
 {adviser_link}
+</section>
+</details>
 </aside>
 </div>
 {client}
@@ -1555,7 +1744,7 @@ _SUGGESTION_SCRIPT = """
     competition: ["competition", "fallback_competition"]
   };
   var ranks = {name: 3, aliases: 2, keywords: 1};
-  var allowed = {stage: true, products: true, customers: true, competition: true};
+  var allowed = {business_name: true, stage: true, products: true, customers: true, competition: true};
 
   function words(value) {
     var found = String(value || "").toLowerCase().match(/[a-z0-9]+/g);
@@ -1662,7 +1851,7 @@ _SUGGESTION_SCRIPT = """
     var ask = document.createElement("p");
     ask.className = "pending-example";
     ask.setAttribute("data-pending-example", chip.getAttribute("data-example") || "");
-    ask.textContent = "Use this example? It replaces the field only if you choose Use it. ";
+    ask.textContent = "Use \u201c" + (chip.getAttribute("data-example") || "") + "\u201d? Nothing changes unless you choose Use it. ";
     var accept = document.createElement("button");
     accept.type = "button";
     accept.setAttribute("data-use-example", name);
@@ -1755,8 +1944,43 @@ _GUIDED_SCRIPT = r"""
     }
     return 0;
   }
+  var pill = document.getElementById("side-save");
+  var cont = document.getElementById("guided-continue");
   function setStatus(text) {
     if (status) status.textContent = text;
+  }
+  function setPill(text) {
+    if (pill) pill.textContent = text;
+  }
+  function valueOf(name) {
+    var field = form.querySelector('[name="' + name + '"]');
+    return field ? String(field.value || "").trim() : "";
+  }
+  function isDone(step) {
+    var keys = (step.getAttribute("data-required") || "").split(",").filter(Boolean);
+    if (!keys.length) return false;
+    return keys.every(function (key) {
+      var text = valueOf(key);
+      if (key === "business_name") {
+        var low = text.toLowerCase();
+        return text !== "" && low !== "untitled" && low !== "new draft";
+      }
+      return text !== "";
+    });
+  }
+  function refreshDone() {
+    var count = 0;
+    steps.forEach(function (step) {
+      var done = isDone(step);
+      if (done) count += 1;
+      var button = root.querySelector('[data-goto="' + step.getAttribute("data-step") + '"]');
+      if (button) button.classList.toggle("is-done", done);
+    });
+    var meter = document.getElementById("side-meter");
+    if (meter && steps.length) meter.style.width = Math.round((count / steps.length) * 100) + "%";
+    var name = valueOf("business_name");
+    var shown = root.querySelector(".guided-context strong");
+    if (shown && name && name.toLowerCase() !== "new draft" && name.toLowerCase() !== "untitled") shown.textContent = name;
   }
   function show(index, focusIt) {
     if (!steps.length) return;
@@ -1774,10 +1998,51 @@ _GUIDED_SCRIPT = r"""
     if (why) why.textContent = current.getAttribute("data-why") || "";
     var skip = document.getElementById("guided-skip");
     if (skip) skip.hidden = current.getAttribute("data-optional") !== "true";
+    var back = document.getElementById("guided-back");
+    if (back) back.hidden = index === 0;
+    var last = index === steps.length - 1;
+    if (cont) cont.textContent = last ? "Save" : "Save & Continue";
+    var stage = document.getElementById("side-stage");
+    if (stage) stage.textContent = "Step " + (index + 1) + " of " + steps.length;
+    var title = document.getElementById("side-title");
+    if (title) title.textContent = current.getAttribute("data-title") || "";
+    var next = document.getElementById("side-next");
+    if (next) {
+      next.textContent = last
+        ? "All questions covered. Run Analyze below when you are ready."
+        : (steps[index + 1].getAttribute("data-question") || "");
+    }
+    refreshDone();
     if (focusIt) {
       var field = current.querySelector("input, textarea, select");
       if (field && !field.disabled) field.focus({preventScroll: true});
     }
+  }
+  function ideaWords(value) {
+    var found = String(value || "").match(/[A-Za-z0-9']+/g) || [];
+    return found.slice(0, 3).map(function (word) {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(" ");
+  }
+  function renderNameIdeas() {
+    var seed = document.getElementById("name-seed");
+    var holder = document.getElementById("name-ideas");
+    if (!seed || !holder) return;
+    holder.textContent = "";
+    var word = ideaWords(seed.value);
+    if (!word) return;
+    var place = ideaWords(valueOf("market")).split(" ")[0];
+    var ideas = [word + " House", "The " + word + " Co.", word + " & Main", word + " Works", "Little " + word];
+    if (place) ideas.unshift(place + " " + word);
+    ideas.forEach(function (idea) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.className = "chip";
+      button.setAttribute("data-field", "business_name");
+      button.setAttribute("data-example", idea);
+      button.textContent = idea;
+      holder.appendChild(button);
+    });
   }
   function applyChoice() {
     var checked = form.querySelector('input[name="forecast_choice"]:checked');
@@ -1810,6 +2075,7 @@ _GUIDED_SCRIPT = r"""
     var body = new URLSearchParams(new FormData(form));
     body.set("guided_save", "1");
     setStatus("Saving…");
+    setPill("Saving…");
     return fetch(form.action, {
       method: "POST",
       headers: {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
@@ -1821,6 +2087,7 @@ _GUIDED_SCRIPT = r"""
         try { payload = JSON.parse(text); } catch (error) { payload = {}; }
         if (!response.ok || !payload.saved) {
           setStatus(payload.message || "Not saved. Your typing is still in the form.");
+          setPill("Not saved");
           return false;
         }
         if (payload.progress_html) {
@@ -1832,10 +2099,13 @@ _GUIDED_SCRIPT = r"""
           if (panel) panel.outerHTML = payload.forecast_html;
         }
         setStatus("Saved.");
+        setPill("Saved");
+        refreshDone();
         return true;
       });
     }).catch(function () {
-      setStatus("Not saved. Your typing is still in the form. Try Save and continue again.");
+      setStatus("Not saved. Your typing is still in the form. Try Save & Continue again.");
+      setPill("Not saved");
       return false;
     });
   }
@@ -1850,17 +2120,44 @@ _GUIDED_SCRIPT = r"""
   });
   var back = document.getElementById("guided-back");
   var skip = document.getElementById("guided-skip");
-  var cont = document.getElementById("guided-continue");
   if (back) back.addEventListener("click", function () { show(indexOfCurrent() - 1, true); });
   if (skip) skip.addEventListener("click", function () { show(indexOfCurrent() + 1, true); });
   if (cont) cont.addEventListener("click", function () {
+    var here = steps[indexOfCurrent()];
+    if (here && here.getAttribute("data-step") === "name" && !isDone(here)) {
+      setStatus("Type a name to continue. You can change it later.");
+      var nameField = form.querySelector('[name="business_name"]');
+      if (nameField) nameField.focus({preventScroll: true});
+      return;
+    }
     var next = indexOfCurrent() + 1;
     save().then(function (ok) { if (ok) show(next, true); });
   });
   form.addEventListener("input", function (event) {
+    if (event.target && event.target.id === "name-seed") {
+      renderNameIdeas();
+      return;
+    }
     if (event.target && event.target.name === "industry") applyIndustry();
     setStatus("Unsaved changes are still in the form.");
+    setPill("Unsaved changes");
   });
+  form.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter" || !event.target) return;
+    var tag = event.target.tagName;
+    if (tag === "TEXTAREA" || tag === "BUTTON" || tag === "SELECT") return;
+    if (!root.contains(event.target)) return;
+    event.preventDefault();
+    if (event.target.id === "name-seed") return;
+    if (cont) cont.click();
+  });
+  var sideDetails = document.getElementById("guided-side-details");
+  if (sideDetails && window.matchMedia) {
+    var narrow = window.matchMedia("(max-width: 1180px)");
+    var syncSide = function () { sideDetails.open = !narrow.matches; };
+    syncSide();
+    if (narrow.addEventListener) narrow.addEventListener("change", syncSide);
+  }
   form.addEventListener("change", function (event) {
     if (!event.target) return;
     if (event.target.name === "forecast_choice" || event.target.name === "forecast_method") applyChoice();
@@ -1874,8 +2171,22 @@ _GUIDED_SCRIPT = r"""
     field.focus({preventScroll: true});
     setStatus("Copied into monthly revenue. Save to keep it. Analyze has not run.");
   });
+  function openHash() {
+    var id = (window.location.hash || "").replace("#", "");
+    if (!id) return;
+    var target = document.getElementById(id);
+    var holder = target && target.closest ? target.closest(".guided-step") : null;
+    if (!holder) return;
+    var at = steps.indexOf(holder);
+    if (at >= 0) {
+      show(at, false);
+      target.scrollIntoView();
+    }
+  }
+  window.addEventListener("hashchange", openHash);
   applyChoice();
   show(indexOfCurrent(), false);
+  openHash();
 })();
 """
 
@@ -2625,9 +2936,8 @@ def _explore_workspace(record: dict[str, Any]) -> str:
         market_link = '<p><a class="button" href="/market-pulse">Open Market Pulse</a></p><p class="muted">Monitoring is not active. This link does not retrieve a current finding.</p>'
     return f"""
 <section class="card" id="adviser">
-<h2>AI Business Adviser</h2>
-<p>You chose {escape(objective_label(objective))}. {escape(ASSISTANCE_LABEL)}</p>
-<p class="muted">Demonstration Adviser when ANALYST_PROVIDER is unset. A configured provider may add a reply. Neither one writes a field until you choose Save this answer. Streaming is not available in this local prototype.</p>
+<h2>Talk it through with the Adviser</h2>
+<p class="muted">{escape(objective_label(objective))}. Deterministic guidance unless a provider is configured. A field changes only when you choose Save this answer.</p>
 <ul class="adviser-log">{log}</ul>
 {decision}
 </section>
@@ -2747,14 +3057,12 @@ def _agent_workflow_card(record: dict[str, Any], surface: str) -> str:
 <section class="card" id="agent-workflow">
 <h2>AI Business Adviser</h2>
 <p>{escape(str(flow.get("welcome") or ""))}</p>
-<p>Intake guidance, gap identification, results explanation, then a next-step recommendation. This workflow reads the stored file. It does not change a number, a flag, or an approval.</p>
 <ol class="agent-flow">{''.join(items)}</ol>
 <p><strong>Suggested next action:</strong> {escape(str(flow["action"]))}</p>
 <p><a class="button" href="{escape(str(flow["href"]))}">{escape(str(flow["link_label"]))}</a></p>
 <form method="post" action="/assessments/{assessment_id}/assistant">
 {questions}
 </form>
-<p class="muted">{escape(ASSISTANCE_LABEL)}</p>
 </section>
 """
 
@@ -2772,8 +3080,19 @@ def _assistant_panel(
     )
     reply = ""
     if lines:
-        items = "".join(f"<li>{escape(line)}</li>" for line in lines)
-        reply = f'<div class="assistant-reply"><ul>{items}</ul></div>'
+        meta_count = 0
+        for line in lines:
+            if line == ASSISTANCE_LABEL or line.startswith(("External analyst", "Demonstration Analyst")):
+                meta_count += 1
+            else:
+                break
+        meta = " ".join(escape(line) for line in lines[:meta_count])
+        items = "".join(f"<li>{escape(line)}</li>" for line in lines[meta_count:])
+        reply = (
+            '<div class="assistant-reply">'
+            + (f'<p class="muted small">{meta}</p>' if meta else "")
+            + f"<ul>{items}</ul></div>"
+        )
     else:
         reply = (
             '<p class="muted" id="assistant-empty">No question yet. '
@@ -2783,8 +3102,7 @@ def _assistant_panel(
     return _agent_workflow_card(record, surface) + f"""
 <section class="card" id="assistant">
 <h2>Ask about this assessment</h2>
-<p>You can ask about this draft. The reply reads what is already stored. It does not change the assessment.</p>
-<p>{escape(ASSISTANCE_LABEL)}</p>
+<p class="muted">{escape(ASSISTANCE_LABEL)} Replies read what is already stored and are not saved.</p>
 <form method="post" action="/assessments/{assessment_id}/assistant">
 <label>Your question</label>
 <input name="question" maxlength="500">

@@ -1446,7 +1446,7 @@ class AppHandler(BaseHTTPRequestHandler):
         spec = objective_by_id(form.get("objective") or "")
         if spec is not None and session.get("user_id"):
             assessment_id = self._open_objective(connection, spec, str(session["user_id"]))
-            self._redirect(f"/assessments/{assessment_id}#adviser", session["token"])
+            self._redirect(f"/assessments/{assessment_id}#intake", session["token"])
             return
         self._redirect(self._safe_next(form.get("next") or "", default), session["token"])
 
@@ -2456,7 +2456,7 @@ class AppHandler(BaseHTTPRequestHandler):
             self._html(login_page("/", objective=spec["id"]))
             return
         assessment_id = self._open_objective(connection, spec, user_id)
-        self._redirect(f"/assessments/{assessment_id}#adviser")
+        self._redirect(f"/assessments/{assessment_id}#intake")
 
     def _open_objective(self, connection: Any, spec: dict[str, str], user_id: str) -> str:
         assessment_id = create_assessment(

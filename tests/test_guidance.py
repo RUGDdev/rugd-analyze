@@ -90,10 +90,28 @@ class TestIndustryGuidance(unittest.TestCase):
         self.assertIn("24000", str(math["downside"]))
         self.assertIsNone(math["amount"])
 
+    def test_placeholder_name_starts_blank_and_named_draft_keeps_its_name(self) -> None:
+        fresh = _draft("")
+        fresh["profile"]["business_name"] = "New draft"
+        blank = assessment_form(fresh)
+        self.assertIn('id="business_name" name="business_name" value=""', blank)
+        self.assertIn('data-start="name"', blank)
+        named = _draft("Restaurant")
+        named["profile"]["business_name"] = "Harbor Light Cafe"
+        page = assessment_form(named)
+        self.assertIn('name="business_name" value="Harbor Light Cafe"', page)
+
     def test_intake_shows_the_guided_workspace(self) -> None:
         page = assessment_form(_draft("Neighborhood restaurant"))
         self.assertIn('id="guided-workspace"', page)
-        self.assertIn("Save and continue", page)
+        self.assertIn("Save &amp; Continue", page)
+        self.assertIn("What should we call your business?", page)
+        self.assertIn("Let&#x27;s start with a name. You can change it later.", page)
+        self.assertIn('id="side-stage"', page)
+        self.assertIn('id="guided-progress-slot"', page)
+        self.assertIn('id="name-seed"', page)
+        self.assertNotIn("You are the RUGD analyst", page)
+        self.assertNotIn("ANALYST_PROVIDER", page)
         self.assertIn("Deterministic adviser. No live model was called.", page)
         self.assertIn("Covers and average check", page)
         self.assertIn(BENCHMARK_NOTE, page)

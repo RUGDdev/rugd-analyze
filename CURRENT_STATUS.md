@@ -4,8 +4,7 @@ Updated: 2026-11-12
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 231 tests, all passing.
-
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 234 tests, all passing.
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
 ## Repository
@@ -618,3 +617,9 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-12 Guided intake
 
 - The assessment draft shows one question group at a time, with the step list on the left and short progress notes on the right. Save and continue stores the draft without reloading the page. Examples fill a field only after Use it. A restaurant recommendation uses covers and average check. A software recommendation uses paying customers and monthly price. No benchmark value is invented. The deterministic adviser label stays on the intake, and the intake does not call a model. The unittest suite is 231 tests, all passing. Render was not deployed. The official sample is unchanged.
+
+## Progress - 2026-11-12 Intake visual redesign and Adviser cleanup
+
+- Cause of the long Adviser text: the external-provider reply path put the internal system prompt into the lines shown to the customer, and every reply, card, and start message repeated a long limits paragraph. The prompt now goes only to the provider as the system message. A reply that echoes it is filtered. The visible limits line is one short sentence, and the safeguards remain enforced in code.
+- The draft opens on 'What should we call your business?' with Save & Continue, an optional name-ideas box (illustrative patterns, not AI output), a step list with the business name on the left, and a progress panel on the right (step, progress bar, save status, your answers, up next, a short deterministic tip). The panel collapses under 1180 px. The Adviser conversation, status cards, and notes moved into one collapsed section. Examples open only from the Examples button.
+- A browser walk on a temporary database covered the name, idea, industry, offer, customers, demand skip, startup costs, and revenue steps. Save & Continue did not reload the page, answers persisted after reload, and the draft resumed on the first unanswered step. The unittest suite is 234 tests, all passing. Render was not deployed. The official sample is unchanged.
