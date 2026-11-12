@@ -4,7 +4,7 @@ Updated: 2026-11-11
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 214 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 223 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -596,3 +596,7 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Session security
 
 - Sign-in replaces that account's older sessions. Logout deletes the presented session. An expired session is signed out. Password reset stores a new hash, deletes existing sessions, and the server log does not record the reset address or the link. A POST with a foreign Origin is refused and audited. The unittest suite is 214 tests, all passing. This work has not been deployed.
+
+## Progress — 2026-11-11 Plans and usage
+
+- Explore, Analyze, Validate, and Partner are named plans with no prices. An account keeps the included local pilot unless a simulated event is applied. Adviser replies and public retrievals are counted on the account, so a new project or session does not reset them. A mock webhook requires a signature, ignores a repeated event id, and does not apply an older sequence. With `RUGD_BILLING_SIMULATION` unset, a signed event is recorded and does not change access. A simulated plan is not a paid subscription. The billing hook stays disabled. The unittest suite is 223 tests, all passing. One retrieval journey assertion now uses the UTC retrieval date. This work has not been deployed.

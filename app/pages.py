@@ -4683,6 +4683,7 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
 <p>This page stores preferences for this local account. It does not approve an assessment or change a role.</p>
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
+<p><a href="/settings/usage">Usage and simulated plan</a>. The included local pilot is not a paid subscription. No charge is created.</p>
 <p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, those messages are written to the server log. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>
 {preferences}
 <h2>Owner decisions not activated</h2>

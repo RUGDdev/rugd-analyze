@@ -6,6 +6,7 @@ import hashlib
 import tempfile
 import threading
 import unittest
+from datetime import datetime, timezone
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -210,7 +211,8 @@ class TestPublicRetrievalJourney(unittest.TestCase):
             self.assertEqual(len(seen), 1)
             self.assertTrue(seen[0].startswith("https://data.bls.gov/"))
             review = _get(base + project_path, cookie)
-            self.assertIn("Retrieved 2026-11-11", review[1])
+            retrieved_on = datetime.now(timezone.utc).date().isoformat()
+            self.assertIn(f"Retrieved {retrieved_on}", review[1])
             self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", review[1])
             self.assertNotIn("<script>alert(1)</script>", review[1])
             self.assertIn("Nothing is saved until you import", review[1])
@@ -226,7 +228,7 @@ class TestPublicRetrievalJourney(unittest.TestCase):
             saved = list_evidence_records(connection, project_id)
             self.assertEqual(len(saved), 1)
             self.assertEqual(saved[0]["evidence_class"], "retrieved_public")
-            self.assertEqual(saved[0]["retrieved_on"], "2026-11-11")
+            self.assertEqual(saved[0]["retrieved_on"], retrieved_on)
             reopened = _get(base + project_path, cookie)
             self.assertIn("Retrieved public source", reopened[1])
             rejected = _raw(base + project_path, {"op": "reject_public", "batch_id": batch_id}, cookie)

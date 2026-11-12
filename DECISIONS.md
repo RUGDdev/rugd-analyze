@@ -658,3 +658,11 @@ Owner input required before replacing `billing_hooks`:
 - A successful sign-in deletes that account's older sessions and stores one new session. Logout deletes the presented session. An expired session is treated as signed out. Password reset stores a new hash and deletes existing sessions.
 - A reset or verification link is captured for local delivery. The server log records the subject and does not record the address or the link. SMTP stays unset unless the owner configures it.
 - A POST whose Origin names another host is refused and audited as `csrf_rejected`. A client that omits Origin, including the local test client, is unchanged. The session cookie remains HttpOnly and SameSite=Lax.
+
+## Decision: Simulated plans stay unpaid
+
+- Date: 2026-11-11
+- Status: Accepted for the local pilot. This does not name a price, a contract, or a payment provider. It does not enable the billing hook in `app/future.py`. It does not change the 0.1 engine formulas or the official baseline.
+- The four plan names are Explore, Analyze, Validate, and Partner. An account without a simulated plan keeps the included local pilot, which is the access the prototype already offers. A simulated downgrade can hide Analyze, the adviser, or public retrieval. Cancel returns the included local pilot.
+- Adviser replies and public retrievals are counted for the account and the UTC month. A new project or a new session uses the same count.
+- `POST /billing/webhook` requires `X-RUGD-Signature` over the raw body using `RUGD_BILLING_WEBHOOK_SECRET`. A repeated event id is not applied again. A sequence older than the stored sequence is recorded and not applied. Card fields are rejected and not stored. With `RUGD_BILLING_SIMULATION` unset, a valid event is recorded and does not change access. A simulated plan is not a paid subscription and creates no charge.

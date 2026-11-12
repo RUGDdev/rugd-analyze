@@ -432,6 +432,42 @@ def _open_schema(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS account_entitlements (
+            user_id TEXT PRIMARY KEY,
+            plan_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            sequence INTEGER NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS usage_meters (
+            user_id TEXT NOT NULL,
+            meter TEXT NOT NULL,
+            period TEXT NOT NULL,
+            used INTEGER NOT NULL,
+            PRIMARY KEY (user_id, meter, period)
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS billing_events (
+            event_id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            plan_id TEXT NOT NULL,
+            sequence INTEGER NOT NULL,
+            received_at TEXT NOT NULL,
+            applied INTEGER NOT NULL,
+            detail TEXT NOT NULL
+        )
+        """
+    )
     connection.commit()
 
 

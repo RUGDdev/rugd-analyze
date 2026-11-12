@@ -79,6 +79,12 @@ Each request uses one SQLite connection, commits when the request finishes, and 
 
 `app.reliability` copies a database to another file and checks integrity. Restore refuses `data/analyze.sqlite`. Backups for a later Render deploy are a copy of `/var/data/analyze.sqlite` taken by the owner. The application does not restore that disk by itself.
 
+## Plans and usage
+
+Explore, Analyze, Validate, and Partner are named plans. No price is stored. An account with no simulated plan keeps the included local pilot, which is the access this prototype already offers. Settings links to Usage. Adviser replies and public retrievals are counted on the account for the current month. A new project or a new session does not reset either count. `RUGD_AI_REPLY_QUOTA` and `RUGD_RETRIEVAL_QUOTA` can set those limits inside a fixed range. The retrieval quota starts at the existing account batch limit.
+
+`POST /billing/webhook` accepts a mock event only when `X-RUGD-Signature` matches `RUGD_BILLING_WEBHOOK_SECRET`. A repeated event id is ignored. An older sequence is stored and not applied. Leave `RUGD_BILLING_SIMULATION` unset. A signed event is then recorded and does not change access. Setting it to `1` applies upgrade, downgrade, cancel, and renew in this process only. Cancel returns the included local pilot. A simulated plan is not a paid subscription and creates no charge. The billing hook in `app/future.py` stays disabled.
+
 ## Production (Render)
 
 The pilot host is `app.rugdintelligence.com`. Steps, DNS, and the one-instance SQLite disk are in `DEPLOYMENT.md`. The app reads environment variables. It does not load a `.env` file. Local `.env` files stay gitignored.
@@ -183,7 +189,7 @@ The page includes a combined summary of the figures for the current industry and
 
 - Bunny Hive and Small Town Pub have no completed assessments
 - Local accounts are pilot-grade: scrypt password hashes, no OAuth, and no external identity provider. The session cookie is marked Secure when `RUGD_ENV=production` or `SECURE_COOKIES=true`. On local HTTP it is not marked Secure
-- No billing, live market feed, or investor matchmaking. Render files for `app.rugdintelligence.com` are prepared and the service stays pilot-grade. The optional BLS extract above is an annual file, not a live feed
+- No payment processing, live market feed, or investor matchmaking. A usage page can show a simulated plan. That simulation is not a paid subscription. Render files for `app.rugdintelligence.com` are prepared and the service stays pilot-grade. The optional BLS extract above is an annual file, not a live feed
 - React remains deferred
 
 To resume after an owner decision, read `HANDOFF.md`. Disabled seams for authentication, scoring, deployment, and billing live in `app/future.py` and stay off until `DECISIONS.md` records the owner input.

@@ -13,6 +13,14 @@ from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from app.analysis import analyze_record
+from app.commercial import (
+    CommercialError,
+    accept_webhook,
+    allows,
+    meter_open,
+    record_use,
+    usage_page,
+)
 from app.inputs import monthly_problems
 from app.config import (
     SECURITY_HEADERS,
@@ -340,6 +348,19 @@ class AppHandler(BaseHTTPRequestHandler):
             if state.get("active") and user_id:
                 with_user = get_user_by_id(connection, user_id)
             self._html(settings_page(with_user))
+        elif path == "/settings/usage":
+            state = self._account_state(connection)
+            user_id = self._session_user_id(state)
+            if not user_id:
+                self._html(
+                    layout(
+                        "Sign in required",
+                        "<h1>Sign in required</h1><p>Sign in to see usage for this account.</p>",
+                    ),
+                    status=403,
+                )
+                return
+            self._html(usage_page(connection, user_id))
         elif path == "/login":
             self._html(login_page(self._safe_next(self._query_value("next"), "/")))
         elif path == "/register":
@@ -384,6 +405,9 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
+        if path == "/billing/webhook":
+            self._billing_webhook()
+            return
         form = self._form()
         if self._cross_site_post():
             with self._db() as connection:
@@ -417,6 +441,35 @@ class AppHandler(BaseHTTPRequestHandler):
                 self._post_routes(connection, path, form)
             finally:
                 self._request_connection = None
+
+    def _billing_webhook(self) -> None:
+        if self._cross_site_post():
+            self._html(
+                layout(
+                    "Not allowed",
+                    "<h1>Not allowed</h1><p>This form was not sent from this site.</p>",
+                ),
+                status=403,
+            )
+            return
+        length = int(self.headers.get("Content-Length") or "0")
+        body = self.rfile.read(min(length, 8000))
+        signature = self.headers.get("X-RUGD-Signature") or ""
+        try:
+            with self._db() as connection:
+                result = accept_webhook(connection, body, signature)
+        except CommercialError as exc:
+            self._html(
+                layout("Not allowed", "<h1>Not allowed</h1><p>" + escape(str(exc)) + "</p>"),
+                status=403,
+            )
+            return
+        self._html(
+            layout(
+                "Billing event",
+                "<h1>Billing event</h1><p>billing event recorded: " + escape(str(result.get("category") or "")) + "</p>",
+            )
+        )
 
     def _post_routes(self, connection: Any, path: str, form: dict[str, str]) -> None:
         seed(connection)
@@ -820,6 +873,18 @@ class AppHandler(BaseHTTPRequestHandler):
             self._redirect(f"/assessments/{assessment_id}")
             return
         if action == "analyze":
+            actor = self._session_user_id(state)
+            if actor and not allows(connection, actor, "analyze"):
+                self._html(
+                    layout(
+                        "Not included",
+                        "<h1>Not included</h1>"
+                        "<p>This simulated plan does not include Analyze. No engine result was created. "
+                        "This is not a paid subscription.</p>",
+                    ),
+                    status=403,
+                )
+                return
             if not record["read_only"]:
                 profile = dict(record["profile"])
                 if form:
@@ -1916,7 +1981,27 @@ class AppHandler(BaseHTTPRequestHandler):
         if source not in {"bls-qcew", "federal-register"}:
             source = ""
         account_count = count_retrieval_batches_for_creator(connection, user_id)
-        if not source or retrieval_blocked(existing, source, account_count):
+        commercial_block = ""
+        if user_id and not allows(connection, user_id, "research"):
+            commercial_block = "not_included"
+        elif user_id and not meter_open(connection, user_id, "public_retrieval"):
+            commercial_block = "rate_limited"
+        if commercial_block:
+            notice = (
+                "This simulated plan does not include public retrieval. No request was sent. "
+                "This is not a paid subscription."
+                if commercial_block == "not_included"
+                else "This account has used its public retrieval quota for this period. No request was sent."
+            )
+            document = {
+                "source": source or "bls-qcew",
+                "status": "failed",
+                "records": [],
+                "retrieved_on": retrieved_on,
+                "error_category": commercial_block,
+                "notice": notice,
+            }
+        elif not source or retrieval_blocked(existing, source, account_count):
             document = {
                 "source": source or "bls-qcew",
                 "status": "failed",
@@ -1951,6 +2036,7 @@ class AppHandler(BaseHTTPRequestHandler):
                     "error_category": exc.category,
                     "notice": "The public retrieval did not return records.",
                 }
+            record_use(connection, user_id, "public_retrieval")
         insert_retrieval_batch(
             connection,
             assessment_id=assessment_id,
@@ -2465,8 +2551,33 @@ class AppHandler(BaseHTTPRequestHandler):
         document = conversation.get("document") if isinstance(conversation.get("document"), dict) else {}
         document = dict(document)
         messages = list(document.get("messages") or [])
+        question = str(form.get("question") or "").strip()
+        if question and user_id and not allows(connection, user_id, "adviser"):
+            self._html(
+                layout(
+                    "Not included",
+                    "<h1>Not included</h1>"
+                    "<p>This simulated plan does not include the adviser. No reply was requested. "
+                    "This is not a paid subscription.</p>",
+                ),
+                status=403,
+            )
+            return
+        if question and user_id and not meter_open(connection, user_id, "ai_reply"):
+            self._html(
+                layout(
+                    "Quota reached",
+                    "<h1>Quota reached</h1>"
+                    "<p>This account has used its adviser replies for this period. No reply was requested. "
+                    "This is not a paid subscription.</p>",
+                ),
+                status=403,
+            )
+            return
         context = self._advice_context(connection, record, messages)
         outcome = ask_adviser(context, form.get("question") or "", get_analyst(transport=analyst_transport))
+        if question and user_id:
+            record_use(connection, user_id, "ai_reply")
         messages.append({"role": "customer", "text": str(form.get("question") or "")[:500], "source": "customer"})
         messages.append({"role": "adviser", "text": outcome["text"], "source": outcome["source"]})
         document["messages"] = messages[-40:]
