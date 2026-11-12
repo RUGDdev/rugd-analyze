@@ -35,7 +35,7 @@ This local prototype is ready for an owner review. This work has not been publis
 
 ## Ready for pilot users
 
-A guided pilot can use this local prototype now. Start it with the Python 3.12 path in `README.md`: `python -m app`. With `RUGD_ENV` unset it binds to 127.0.0.1:8765. `PILOT_GUIDE.md` is the step-by-step note for a real case. Every screen keeps the warning: Local prototype. Not production security. This screen does not grant investor-ready status. A private hosted pilot is not cleared.
+A guided pilot can use this local prototype now. From `c:\Projects\RUGD`, run `powershell -NoProfile -ExecutionPolicy Bypass -File .\Start-RUGD-Pilot.ps1`. That starts `python -m app` on `data\analyze.sqlite` at 127.0.0.1:8765 and does not create an account. `PILOT_GUIDE.md` is the step-by-step note for a real case. Every screen keeps the warning: Local prototype. Not production security. This screen does not grant investor-ready status. A private hosted pilot is not cleared.
 
 A pilot user can:
 

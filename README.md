@@ -16,7 +16,15 @@ That command uses the 0.1 engine and the official sample. It does not start the 
 
 ## How to start RUGD Analyze 0.2
 
-Open a terminal in `c:\Projects\RUGD` and run:
+The owner launch on this computer is:
+
+```text
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Start-RUGD-Pilot.ps1
+```
+
+Run that from `c:\Projects\RUGD`. It starts the same local server, uses `data\analyze.sqlite`, and does not create an account. `PILOT_GUIDE.md` is the walkthrough.
+
+The same server can be started directly. Open a terminal in `c:\Projects\RUGD` and run:
 
 ```text
 "C:\Users\Blaze\AppData\Local\Programs\Python\Python312\python.exe" -m app

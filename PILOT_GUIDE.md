@@ -6,17 +6,21 @@ The local pilot does not ask for a payment method. Registration creates a custom
 
 ## Start the application
 
-Open a terminal in `c:\Projects\RUGD` and run:
+Open PowerShell in `c:\Projects\RUGD` and run:
 
 ```text
-"C:\Users\Blaze\AppData\Local\Programs\Python\Python312\python.exe" -m app
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Start-RUGD-Pilot.ps1
 ```
 
-Leave `RUGD_ENV` unset. The server binds to `127.0.0.1:8765` and prints that address. Open `http://127.0.0.1:8765`.
+The script uses Python 3.12, checks that the pitch-deck libraries are installed, and starts `python -m app`. It clears `RUGD_ENV`, `RUGD_DATABASE`, and `RUGD_BILLING_SIMULATION` for that window only, so the server stays on this computer and uses `data\analyze.sqlite`. It does not print environment values, create an account, or set a password.
 
-Stop it with Ctrl+C in that same terminal. Do not leave it running after the session.
+Open `http://127.0.0.1:8765`.
 
-The `python` command on this PC is the Windows Store stub. Use the Python 3.12 path above.
+If that address is already open, the script stops and tells you not to start a second server. One SQLite file supports one process.
+
+Press Ctrl+C in that same window to stop. The server prints `Stopped.` Stopping does not delete saved businesses.
+
+The `python` command on this PC is the Windows Store stub. The script does not use it.
 
 Drafts are stored in gitignored `data/analyze.sqlite`. That file is the local pilot database. It is not the Render disk. Do not copy a test database over it.
 

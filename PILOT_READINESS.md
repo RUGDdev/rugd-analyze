@@ -14,7 +14,7 @@ A private hosted pilot is not cleared. Render was not deployed.
 
 | Workflow | Result | Evidence |
 | --- | --- | --- |
-| Local start | PASS | Documented command is `python -m app` with Python 3.12, bound to `127.0.0.1:8765` when `RUGD_ENV` is unset. A temporary-database server answered that address during the browser walk. |
+| Local start | PASS | `Start-RUGD-Pilot.ps1` started `python -m app` on `data\analyze.sqlite`, printed `http://127.0.0.1:8765`, and the home page returned 200 with “Welcome to RUGD Intelligence”. A second start refused the busy port. After Ctrl+C was not available from the check, the process was stopped. The local database still had the same 6 accounts and 15 assessments. The script creates no account. |
 | Registration and sign-in without payment | PASS | The registration page says the local pilot does not ask for a subscription or a payment method. A browser registration reached “Your assessments”. The home repeats that no subscription is required. |
 | Included access | PASS | An account with no simulated plan keeps the included local pilot. `RUGD_BILLING_SIMULATION` stays unset. Billing hooks create no charge. |
 | Create a business | PASS | The browser created a blank draft named Owner Pilot Case on a temporary database. The automated case created Harbor Lane Coffee the same way. The real `data/analyze.sqlite` was not used for either account. |

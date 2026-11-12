@@ -694,3 +694,11 @@ Owner input required before replacing `billing_hooks`:
 - Date: 2026-11-12
 - Status: Accepted for the local pilot. This does not change the database architecture, and it does not suppress warnings.
 - The unclosed-socket ResourceWarnings in the 223-test run came from listening sockets left by tests that shut a server down and did not call `server_close`. `AppServer` closes that socket when the server object is discarded. The 226-test run on 2026-11-12 printed no ResourceWarning. `main()` still calls `server_close` on exit.
+
+## Decision: The owner starts the local pilot from one script
+
+- Date: 2026-11-12
+- Status: Accepted for the local pilot. This does not deploy, does not enable Render Auto-Deploy, does not connect a payment provider, and does not change the 0.1 engine formulas or the official baseline.
+- `Start-RUGD-Pilot.ps1` is the Windows launch. It runs `python -m app` with Python 3.12, checks that `fpdf` and `pptx` import, and refuses to start when port 8765 is already open.
+- For that window only, the script removes `RUGD_ENV`, `RUGD_DATABASE`, and `RUGD_BILLING_SIMULATION`. The server binds to 127.0.0.1 and uses `data\analyze.sqlite`. The script does not print environment values, create an account, set a password, or delete a business.
+- Stop the server with Ctrl+C in that window. One SQLite file supports one process.
