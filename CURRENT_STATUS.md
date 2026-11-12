@@ -4,7 +4,7 @@ Updated: 2026-11-12
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 255 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 323 tests, all passing.
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
 ## Repository
@@ -633,3 +633,13 @@ Further work on production authentication, real market data, an approved scoring
 - Revenue method review: seats x blended occupancy x average ticket x operating days, one cover per occupied seat per day, no turnover or multiple-seating input, 5/7 and 2/7 calendar weights regardless of open days. No formula changed. `PROPOSAL_REVENUE_TURNOVER.md` is a reviewable proposal and is not authorized.
 - Duplicate element ids on the shared forecast_fee worksheet field were made unique. Field names are unchanged.
 - The unittest suite is 255 tests, all passing. A browser walk on a temporary database opened and closed every help control, used Escape, exercised the selector and Use, saved, and reloaded. Render was not deployed. The official sample is unchanged.
+
+## Industry benchmarks and feasibility improvement adviser (2026-11-12)
+
+- New Benchmarks, Proposed revenue worksheet, and Improve feasibility pages per assessment, plus contextual suggestion cards beside intake fields (service style, seats, average ticket, turns, construction cost, contribution margin, staffing, working capital, debt share, contingency, interest, available cash, venue size). Six new optional intake fields: service style, venue square feet, construction scope, available cash, staff FTE, average hourly wage.
+- Benchmarks loaded: twelve National Restaurant Association secondary medians (national, context only, retrieval date not recorded) and one unresolved conflict (full-service food cost). Customers can record their own sourced figures (unverified, flagged stale after 730 days, flagged on conflict). Nothing is invented. A non-restaurant industry has nothing loaded and is offered the assumption worksheet.
+- Suggestions never edit the draft by themselves. Use fills the field in the browser with a confirm before replacing a typed value. Decisions persist separately.
+- Revenue worksheet is separate from the official calculation and is compared with it. Apply sets only `projected_monthly_revenue_base` after an explicit confirm. The official engine is unchanged.
+- Scenarios use the unmodified `project_startup` and judge coverage against the readiness gate's downside measure at 1.00x and 1.25x. They are saved separately (limit 12), compared side by side, and applied to the working draft only when the customer ticks the approval box. Apply never runs Analyze and never changes flags, scoring, readiness, review status, or the stored result.
+- Storage: table `advisory_records` (created with IF NOT EXISTS). Details: `BENCHMARKS.md`.
+- The unittest suite is 323 tests, all passing (67 new in `tests/test_advisory_logic.py` and `tests/test_advisory_server.py`, plus a results-page card test). Authenticated browser checks on a temporary database covered Use with replace confirm, autosave, dismiss and reload, scenario save and comparison, apply refused without the tick, and apply with the tick. Render was not deployed. The official sample is unchanged.

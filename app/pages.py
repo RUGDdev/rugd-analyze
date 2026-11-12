@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 from app import APP_VERSION
 from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, get_analyst
 from app.adviser_flow import PLACEHOLDER_NAMES, THEMES
+from app.advisory import ADVICE_FIELDS, CONSTRUCTION_SCOPES, SERVICE_STYLES
 from app.field_help import checkbox_help, label_with_help, schedule_html, section_intro
 from app.charts import render_engine_charts, render_scenario_chart
 from app.inputs import MONTHLY_FIELDS, field_state
@@ -282,6 +283,28 @@ main:has(.guided) .card {{ border-radius: 14px; }}
 .help-body {{ display: block; margin: 0.5rem 0 0.2rem; padding: 0.75rem 1rem; background: #FBF9F4; border: 1px solid var(--stone); border-radius: 12px; font-size: 0.92rem; font-weight: 400; color: #33434f; }}
 .help-body p {{ margin: 0.45rem 0; }}
 .help-body .help-yours {{ background: #F1E9D8; border-radius: 8px; padding: 0.35rem 0.6rem; }}
+.advice-slot {{ margin: 0.35rem 0 0.4rem; }}
+.advice-slot:empty {{ display: none; }}
+.advice-card {{ background: #FBF9F4; border: 1px solid var(--stone); border-left: 4px solid var(--bronze); border-radius: 10px; padding: 0.55rem 0.8rem; margin: 0.4rem 0; font-size: 0.9rem; }}
+.advice-card p {{ margin: 0.25rem 0; }}
+.advice-title {{ font-weight: 600; }}
+.advice-text {{ color: #33434f; }}
+.advice-calc {{ margin: 0.25rem 0; padding-left: 1.1rem; color: #33434f; font-size: 0.86rem; }}
+.advice-state {{ color: #2e6b3a; font-size: 0.84rem; }}
+.advice-links a {{ margin-right: 0.8rem; font-size: 0.86rem; }}
+.advice-actions {{ margin: 0.35rem 0; }}
+.advice-btn {{ width: auto; padding: 0.28rem 0.7rem; margin: 0.15rem 0.4rem 0.15rem 0; font-size: 0.84rem; }}
+.advice-btn.ghost {{ background: white; color: var(--ink); border: 1px solid var(--ink); }}
+.advice-btn:disabled {{ opacity: 0.5; cursor: not-allowed; }}
+.advice-why {{ margin-top: 0.3rem; }}
+.advice-why summary {{ cursor: pointer; font-size: 0.84rem; color: #5c6b76; }}
+.advice-why .q {{ display: inline-block; width: 1.1rem; height: 1.1rem; line-height: 1.1rem; text-align: center; border: 1px solid var(--bronze); border-radius: 50%; font-size: 0.72rem; margin-right: 0.2rem; }}
+.advice-source {{ padding: 0.3rem 0.1rem; color: #33434f; }}
+.advice-widget {{ margin: 0.3rem 0; }}
+.advice-line {{ margin: 0.3rem 0 0.1rem; font-size: 0.86rem; }}
+.advice-result {{ color: #5c6b76; font-size: 0.84rem; }}
+.advice-dismissed {{ font-size: 0.84rem; color: #5c6b76; }}
+.advice-dismissed-row {{ display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.15rem 0; }}
 .guided details.help-more {{ margin: 0.5rem 0 0; }}
 .guided details.help-more > summary {{ font-weight: 600; cursor: pointer; }}
 .section-intro {{ margin: 1.2rem 0 0.2rem; padding: 0.7rem 1rem; background: #FBF9F4; border-left: 4px solid var(--bronze); border-radius: 0 12px 12px 0; }}
@@ -1031,6 +1054,7 @@ def assessment_form(
     *,
     writable: bool | None = None,
     preview_html: str = "",
+    advice: dict[str, str] | None = None,
 ) -> str:
     profile = record["profile"]
     can_edit = (not record["read_only"]) if writable is None else bool(writable)
@@ -1083,6 +1107,7 @@ def assessment_form(
         path,
         assessment_id=str(record.get("id") or ""),
         preview_html=preview_html,
+        advice=advice,
     )
     if can_edit:
         action = f"""
@@ -1348,6 +1373,7 @@ def _fields(
     *,
     assessment_id: str = "",
     preview_html: str = "",
+    advice: dict[str, str] | None = None,
 ) -> str:
     examples = suggestions_for(str(profile.get("industry") or ""), str(profile.get("stage") or ""))
 
@@ -1371,7 +1397,23 @@ def _fields(
                 hint = '<p class="muted">Entered as zero. This is a customer assumption, not a missing field.</p>'
             elif state == "invalid":
                 hint = '<p class="muted">This entry is not a finite number. It will not be sent to the engine.</p>'
-        return f"{label_with_help(name, label, profile)}{control}{hint}"
+        return f"{label_with_help(name, label, profile)}{control}{hint}{_slot(name)}"
+
+    def _slot(name: str) -> str:
+        if name not in ADVICE_FIELDS:
+            return ""
+        return f'<div class="advice-slot" data-advice-for="{escape(name)}" aria-live="polite">{(advice or {}).get(name, "")}</div>'
+
+    def pick(name: str, label: str, options: tuple[tuple[str, str], ...]) -> str:
+        current = str(profile.get(name) or "")
+        rendered = ['<option value="">Not answered</option>']
+        for value, caption in options:
+            selected = "selected" if current == value else ""
+            rendered.append(f'<option value="{escape(value)}" {selected}>{escape(caption)}</option>')
+        return (
+            f'{label_with_help(name, label, profile)}'
+            f'<select id="{escape(name)}" name="{escape(name)}" {locked}>{"".join(rendered)}</select>{_slot(name)}'
+        )
 
     def _suggested(name: str, label: str, *, area: bool = False) -> str:
         chips = []
@@ -1472,6 +1514,16 @@ def _fields(
 {text("amortization_years", "Amortization years")}
 {text("annual_fixed_costs", "Annual fixed costs")}
 {text("downside_multiplier", "Downside occupancy multiplier")}
+</details>
+<details>
+<summary>Venue and cash (optional)</summary>
+<p class="muted">These sharpen the suggestions and the improvement planner. They do not change the official calculation.</p>
+{pick("service_style", "Service style", SERVICE_STYLES)}
+{text("venue_sqft", "Venue size (square feet)")}
+{pick("construction_scope", "Construction scope", CONSTRUCTION_SCOPES)}
+{text("available_cash", "Cash you can put in")}
+{text("staff_fte", "Full-time-equivalent staff")}
+{text("avg_hourly_wage", "Average hourly wage, all-in")}
 </details>
 """
     def filled(key: str) -> bool:
@@ -1617,7 +1669,12 @@ def _fields(
         )
     adviser_link = ""
     if assessment_id:
-        adviser_link = f'<p class="side-link"><a href="/assessments/{escape(assessment_id)}/advice">Open the Adviser</a></p>'
+        adviser_link = (
+            f'<p class="side-link"><a href="/assessments/{escape(assessment_id)}/advice">Open the Adviser</a></p>'
+            f'<p class="side-link"><a href="/assessments/{escape(assessment_id)}/benchmarks">Benchmarks and sources</a></p>'
+            f'<p class="side-link"><a href="/assessments/{escape(assessment_id)}/revenue-worksheet">Proposed revenue worksheet</a></p>'
+            f'<p class="side-link"><a href="/assessments/{escape(assessment_id)}/improve">Improve feasibility</a></p>'
+        )
     name_toggle = "" if locked else '<button type="button" class="suggest-toggle">Need name ideas?</button>'
     name_ideas = (
         ""
@@ -2134,6 +2191,7 @@ _GUIDED_SCRIPT = r"""
           var panel = document.getElementById("forecast-guidance");
           if (panel) panel.outerHTML = payload.forecast_html;
         }
+        if (payload.advice) applyAdvice(payload.advice);
         setStatus("Saved.");
         setPill("Saved");
         refreshDone();
@@ -2170,6 +2228,10 @@ _GUIDED_SCRIPT = r"""
     save().then(function (ok) { if (ok) show(next, true); });
   });
   form.addEventListener("input", function (event) {
+    if (event.target && event.target.hasAttribute && event.target.hasAttribute("data-calc-input")) {
+      adviceCalc(event.target.closest(".advice-card"));
+      return;
+    }
     if (event.target && event.target.id === "name-seed") {
       renderNameIdeas();
       return;
@@ -2182,6 +2244,10 @@ _GUIDED_SCRIPT = r"""
     if (event.key !== "Enter" || !event.target) return;
     var tag = event.target.tagName;
     if (tag !== "INPUT") return;
+    if (event.target.hasAttribute && event.target.hasAttribute("data-calc-input")) {
+      event.preventDefault();
+      return;
+    }
     var kind = (event.target.type || "").toLowerCase();
     if (kind === "checkbox" || kind === "radio" || kind === "button" || kind === "submit") return;
     if (!root.contains(event.target)) return;
@@ -2209,6 +2275,101 @@ _GUIDED_SCRIPT = r"""
     field.focus({preventScroll: true});
     setStatus("Copied into monthly revenue. Save to keep it. Analyze has not run.");
   });
+  function adviceCalc(card) {
+    if (!card) return;
+    var widget = card.querySelector(".advice-widget");
+    if (!widget) return;
+    var kind = widget.getAttribute("data-calc");
+    var inputs = Array.prototype.slice.call(widget.querySelectorAll("[data-calc-input]"));
+    var out = widget.querySelector(".advice-result");
+    var useButton = card.querySelector('[data-act="use"]');
+    var value = "";
+    var text = "";
+    if (kind === "margin") {
+      var total = 0;
+      var ok = true;
+      inputs.forEach(function (input) {
+        var n = parseFloat(input.value);
+        if (isNaN(n) || n < 0 || n > 100) ok = false; else total += n;
+      });
+      if (ok && total <= 100) {
+        value = String(Math.round((1 - total / 100) * 10000) / 10000);
+        text = "100% − " + (Math.round(total * 10) / 10) + "% = " + (Math.round((100 - total) * 10) / 10) + "%. The field takes " + value + ".";
+      } else {
+        text = ok ? "These shares add up to more than 100%." : "Fill all three lines with percents from 0 to 100.";
+      }
+    } else {
+      var months = parseFloat(inputs[0] ? inputs[0].value : "");
+      var fixed = parseFloat(widget.getAttribute("data-fixed"));
+      if (!isNaN(months) && months > 0 && months <= 60 && !isNaN(fixed)) {
+        value = String(Math.round(months * fixed / 12));
+        text = months + " months × (" + fixed + " ÷ 12) = " + value;
+      } else {
+        text = "Enter a number of months above 0 and up to 60.";
+      }
+    }
+    if (out) out.textContent = text;
+    card.setAttribute("data-value", value);
+    if (useButton) {
+      useButton.disabled = !value;
+      useButton.textContent = value ? "Use " + value : "Use result";
+    }
+  }
+  function applyAdvice(map) {
+    Object.keys(map || {}).forEach(function (key) {
+      var slot = form.querySelector('[data-advice-for="' + key + '"]');
+      if (slot) slot.innerHTML = map[key];
+    });
+    form.querySelectorAll(".advice-card").forEach(adviceCalc);
+  }
+  function recordChoice(card, status, value) {
+    var body = new URLSearchParams();
+    body.set("card", card);
+    body.set("status", status);
+    body.set("value", value || "");
+    return fetch(form.action.replace(/\/save$/, "/suggestions"), {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"},
+      body: body.toString(),
+      credentials: "same-origin"
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; });
+    }).catch(function () { return {}; });
+  }
+  form.addEventListener("click", function (event) {
+    var button = event.target.closest ? event.target.closest(".advice-btn") : null;
+    if (!button) return;
+    var card = button.closest("[data-card]");
+    if (!card) return;
+    var act = button.getAttribute("data-act");
+    var id = card.getAttribute("data-card");
+    var name = card.getAttribute("data-field");
+    var suggested = card.getAttribute("data-value") || "";
+    if (act === "use" || act === "adjust") {
+      var field = form.querySelector('[name="' + name + '"]');
+      if (!field || field.disabled || !suggested) return;
+      var current = String(field.value || "").trim();
+      if (current && current !== suggested &&
+          !window.confirm("Replace your entry " + current + " with " + suggested + "?")) return;
+      field.value = suggested;
+      field.dispatchEvent(new Event("input", {bubbles: true}));
+      if (act === "use") {
+        setStatus("Using the suggestion. Saving…");
+        recordChoice(id, "accepted", suggested).then(function () { save(); });
+      } else {
+        field.focus({preventScroll: true});
+        setStatus("Placed in the field. Edit it, then save.");
+        recordChoice(id, "adjusted", suggested);
+      }
+      return;
+    }
+    if (act === "dismiss" || act === "restore") {
+      recordChoice(id, act === "dismiss" ? "dismissed" : "active", "").then(function (payload) {
+        if (payload && payload.advice) applyAdvice(payload.advice);
+      });
+    }
+  });
+  form.querySelectorAll(".advice-card").forEach(adviceCalc);
   var schedule = document.getElementById("operating-schedule");
   function fmt(value) {
     return Math.floor(value) === value ? String(value) : String(Math.round(value * 100) / 100);
@@ -2376,6 +2537,11 @@ def results_page(
 {_journey_progress(_journey_stage(record))}
 <div class="banner">{escape(standing)}</div>
 {_adviser_nudge(record, "results")}
+<div class="card" id="improve-card">
+<h3>What could change this?</h3>
+<p>See the funding gap, test a smaller venue or other changes side by side, and save a scenario. A scenario is a projection from your assumptions. It does not change this result.</p>
+<p><a class="button" href="/assessments/{escape(str(record.get('id') or ''))}/improve">Improve feasibility</a></p>
+</div>
 <div class="card" id="results-lead">
 {_at_a_glance(record, result)}
 {_view_summary_block(result)}
@@ -4504,6 +4670,7 @@ def _workspace_links(record: dict[str, Any]) -> str:
         f'<a href="/assessments/{assessment_id}/reports">Reports</a> '
         f'<a href="/assessments/{assessment_id}/actions">Action Center</a> '
         f'<a href="/assessments/{assessment_id}/advice">Adviser</a> '
+        f'<a href="/assessments/{assessment_id}/improve">Improve</a> '
         f'<a href="/assessments/{assessment_id}/pulse">Market Pulse</a>'
         "</nav>"
         '<p class="muted" id="journey-context">Saved research can inform an assumption you choose to enter. '

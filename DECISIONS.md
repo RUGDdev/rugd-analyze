@@ -726,3 +726,12 @@ Owner input required before replacing `billing_hooks`:
 - Field help is optional, closed by default, and never writes to a field. Examples are labeled Illustration only. Where the model fills a blank optional line with a coded placeholder, the help says so and says it is not an industry standard. RUGD loads no benchmark table, so benchmark guidance names where a customer can find one and what to record.
 - The weekly day selector suggests an operating-day count. It does not write `operating_days` until the customer chooses Use, and a saved value is not reinterpreted.
 - The seat revenue model has no turnover or service-period input and applies 5/7 and 2/7 calendar weights. The limit is stated in the help and the proposal `PROPOSAL_REVENUE_TURNOVER.md`. The engine is unchanged until the owner authorizes a specific option.
+
+## Decision: Benchmarks, revenue worksheet, and scenarios are advisory and separate
+
+- Date: 2026-11-12
+- Status: Accepted for the local pilot. This does not change the 0.1 formulas, scoring weights, recommend-against criteria, Investor Readiness Gate, or the official baseline. It does not deploy and does not call a paid model.
+- Benchmarks are context. Only existing secondary medians and customer-recorded figures are stored. A secondary benchmark cannot clear or raise a flag, and a missing benchmark is stated, not estimated.
+- Suggestion cards, the revenue worksheet, and scenarios never write to the draft on their own. Each change needs an explicit customer action (Use with confirm, or the approval box). Decisions, worksheets, and scenarios live in `advisory_records`, apart from the draft and the official result.
+- The revenue worksheet does not replace the seat revenue model. `PROPOSAL_REVENUE_TURNOVER.md` stays unauthorized.
+- A scenario that improves projections is not approved, and the page says so. Applying one does not run Analyze or touch review status.

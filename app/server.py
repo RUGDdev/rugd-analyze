@@ -21,6 +21,9 @@ from app.commercial import (
     record_use,
     usage_page,
 )
+from app import advisory, advisory_store, benchmarks, improve
+from app import revenue_worksheet as rw
+from app.advisory_pages import benchmarks_page, improve_page, revenue_page
 from app.guidance import forecast_fields_html, progress_html
 from app.inputs import monthly_problems
 from app.config import (
@@ -82,6 +85,7 @@ from app.analyst import answer, explain, get_analyst, provider_status
 public_transport = None
 from app.objectives import objective_by_id
 from app.pages import (
+    venture_path_of,
     analyst_page,
     assistant_page,
     audit_html_page,
@@ -722,12 +726,15 @@ class AppHandler(BaseHTTPRequestHandler):
             self._bytes(payload, "application/json")
         elif action == "validate":
             self._html(validate_page(record, list_guidance_notes(connection, record["id"])))
+        elif action in {"benchmarks", "revenue-worksheet", "improve"}:
+            self._advisory_get(connection, record, action)
         else:
             state = self._account_state(connection)
             page = assessment_form(
                 record,
                 notes=list_guidance_notes(connection, record["id"]),
                 writable=may_write(state, record),
+                advice=self._advice_slots(connection, state, record, record["profile"]),
             )
             if can_manage_share(state, record):
                 revealed = ""
@@ -811,7 +818,7 @@ class AppHandler(BaseHTTPRequestHandler):
             if not may_read(state, record):
                 self._deny_assessment()
                 return
-        elif action in {"assistant", "share"}:
+        elif action in {"assistant", "share", "benchmarks", "revenue-worksheet", "improve"}:
             if not may_read(state, record):
                 self._deny_assessment()
                 return
@@ -855,6 +862,12 @@ class AppHandler(BaseHTTPRequestHandler):
         if action == "scenarios":
             self._save_scenario(connection, record, form)
             return
+        if action in {"benchmarks", "revenue-worksheet", "improve"}:
+            self._advisory_post(connection, record, action, form)
+            return
+        if action == "suggestions":
+            self._suggestion_post(connection, record, form)
+            return
         if action == "save":
             if record["read_only"]:
                 self._deny_assessment()
@@ -884,6 +897,7 @@ class AppHandler(BaseHTTPRequestHandler):
                         "message": "Saved.",
                         "forecast_html": forecast_fields_html(saved_profile, ""),
                         "progress_html": progress_html(saved_profile),
+                        "advice": self._advice_slots(connection, state, saved, saved_profile),
                     }
                 )
                 return
@@ -1995,6 +2009,278 @@ class AppHandler(BaseHTTPRequestHandler):
             for item in list_evidence_for_assessment(connection, str(record["id"]))
             if may_see_attachment(state, record, str(item.get("created_by") or ""))
         ]
+
+    # --- Benchmarks, revenue worksheet, and improvement scenarios -------------------------
+
+    def _advisory_visible(self, connection: Any, state: dict[str, Any], record: dict[str, Any], kind: str) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in advisory_store.list_records(connection, str(record["id"]), kind)
+            if may_see_attachment(state, record, str(item.get("created_by") or ""))
+        ]
+
+    def _advice_slots(self, connection: Any, state: dict[str, Any], record: dict[str, Any], profile: dict[str, Any]) -> dict[str, str]:
+        if venture_path_of(record) == "existing":
+            return {}
+        writable = may_write(state, record)
+        entries = self._advisory_visible(connection, state, record, "benchmark_entry")
+        decided = advisory_store.decisions(connection, str(record["id"])) if writable else {}
+        return advisory.slots(profile, entries, decided, str(record["id"]), writable)
+
+    def _official_view(self, connection: Any, record: dict[str, Any]) -> dict[str, Any]:
+        """The record with its official result for display. A read-only record without a stored result is computed in memory, not saved."""
+        if isinstance(record.get("result"), dict) or not record.get("read_only"):
+            return record
+        return dict(record, result=self._run(connection, record))
+
+    def _advisory_get(self, connection: Any, record: dict[str, Any], action: str) -> None:
+        state = self._account_state(connection)
+        writable = may_write(state, record)
+        record = self._official_view(connection, record)
+        if action == "benchmarks":
+            entries = self._advisory_visible(connection, state, record, "benchmark_entry")
+            evidence = self._visible_project_evidence(connection, state, record)
+            self._html(benchmarks_page(record, entries, evidence, writable=writable))
+        elif action == "revenue-worksheet":
+            saved = self._advisory_visible(connection, state, record, "revenue_worksheet")
+            latest = saved[-1] if saved else None
+            form = (
+                rw.form_from_worksheet(latest["payload"].get("worksheet") or {})
+                if latest
+                else rw.default_form(record["profile"])
+            )
+            self._html(revenue_page(record, form, rw.parse(form)[0], [], latest, writable=writable))
+        else:
+            saved = self._advisory_visible(connection, state, record, "scenario")
+            query = {key: values[-1] for key, values in parse_qs(urlparse(self.path).query).items() if values}
+            self._html(improve_page(record, saved, query, writable=writable))
+
+    def _advisory_post(self, connection: Any, record: dict[str, Any], action: str, form: dict[str, str]) -> None:
+        state = self._account_state(connection)
+        writable = may_write(state, record)
+        actor = self._session_user_id(state)
+        op = form.get("op") or "calculate"
+        if op != "calculate" and not (writable and actor):
+            self._deny_assessment()
+            return
+        if action == "benchmarks":
+            self._benchmarks_post(connection, state, record, actor, op, form)
+        elif action == "revenue-worksheet":
+            self._revenue_post(connection, state, record, actor, op, form)
+        else:
+            self._improve_post(connection, state, record, actor, op, form)
+
+    def _benchmarks_post(self, connection: Any, state: dict[str, Any], record: dict[str, Any], actor: str, op: str, form: dict[str, str]) -> None:
+        assessment_id = str(record["id"])
+        notice, error = "", ""
+        status = 200
+        if op == "save":
+            entry, reason = benchmarks.prepare_entry(form)
+            if entry is None:
+                error, status = reason, 400
+            else:
+                try:
+                    advisory_store.save_record(
+                        connection,
+                        assessment_id=assessment_id,
+                        created_by=actor,
+                        kind="benchmark_entry",
+                        payload=entry,
+                        title=str(entry["metric"]),
+                    )
+                except advisory_store.AdvisoryLimit as exc:
+                    error, status = str(exc), 400
+                else:
+                    notice = "Saved as a customer-recorded figure. RUGD has not verified it."
+                    self._audit(connection, "benchmark_entry_saved", actor, assessment_id, str(entry["metric_key"] or "custom"))
+        elif op == "delete":
+            stored = advisory_store.get_record(connection, assessment_id, form.get("entry_id") or "")
+            if stored and stored["kind"] == "benchmark_entry" and may_see_attachment(state, record, str(stored["created_by"])):
+                advisory_store.delete_record(connection, assessment_id, stored["id"])
+                notice = "The figure was removed."
+                self._audit(connection, "benchmark_entry_removed", actor, assessment_id, str(stored["id"]))
+            else:
+                error, status = "That figure was not found.", 404
+        else:
+            error, status = "That action is not available.", 400
+        entries = self._advisory_visible(connection, state, record, "benchmark_entry")
+        evidence = self._visible_project_evidence(connection, state, record)
+        shown = form if status == 400 and op == "save" else {}
+        self._html(
+            benchmarks_page(record, entries, evidence, writable=may_write(state, record), notice=notice, error=error, form=shown),
+            status=status,
+        )
+
+    def _revenue_post(self, connection: Any, state: dict[str, Any], record: dict[str, Any], actor: str, op: str, form: dict[str, str]) -> None:
+        assessment_id = str(record["id"])
+        form = dict(form)
+        if "operating_schedule" not in form:
+            form["operating_schedule"] = ",".join(code for code, _label in rw.DAYS if form.get(f"day_{code}"))
+        worksheet, errors = rw.parse(form)
+        saved = self._advisory_visible(connection, state, record, "revenue_worksheet")
+        latest = saved[-1] if saved else None
+        notice = ""
+        status = 200
+        writable = may_write(state, record)
+        if errors:
+            status = 400 if op != "calculate" else 200
+        elif op in {"save", "apply"}:
+            calc = rw.calculate(worksheet)
+            if op == "apply" and (calc is None or form.get("confirm") != "yes"):
+                errors = ["Complete the worksheet and tick the confirmation box to apply it."]
+                status = 400
+            else:
+                payload = {"worksheet": worksheet, "applied": list((latest or {}).get("payload", {}).get("applied") or [])}
+                if op == "apply" and calc is not None:
+                    profile = dict(record["profile"])
+                    previous = str(profile.get("projected_monthly_revenue_base") or "")
+                    profile["projected_monthly_revenue_base"] = f"{calc['monthly_revenue']:.2f}"
+                    problems = monthly_problems(profile)
+                    if problems:
+                        errors = list(problems)
+                        status = 400
+                    else:
+                        save_profile(connection, assessment_id, profile)
+                        payload["applied"].append(
+                            {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "field": "projected_monthly_revenue_base", "from": previous, "to": profile["projected_monthly_revenue_base"]}
+                        )
+                        notice = (
+                            "Applied to your monthly base revenue. The official result is unchanged until you run Analyze yourself. "
+                            f"The previous value was {previous or 'blank'}."
+                        )
+                        self._audit(connection, "revenue_worksheet_applied", actor, assessment_id, f"from={previous or 'blank'}")
+                if not errors:
+                    try:
+                        latest = advisory_store.save_record(
+                            connection,
+                            assessment_id=assessment_id,
+                            created_by=actor,
+                            kind="revenue_worksheet",
+                            payload=payload,
+                            title="Proposed revenue worksheet",
+                            record_key="main",
+                        )
+                    except advisory_store.AdvisoryLimit as exc:
+                        errors, status = [str(exc)], 400
+                    else:
+                        if op == "save":
+                            notice = "Saved as a proposed worksheet. The official result does not use it."
+                            self._audit(connection, "revenue_worksheet_saved", actor, assessment_id, "saved")
+        fresh = get_assessment(connection, assessment_id) or record
+        self._html(
+            revenue_page(fresh, form, worksheet, errors, latest, writable=writable, notice=notice),
+            status=status,
+        )
+
+    def _improve_post(self, connection: Any, state: dict[str, Any], record: dict[str, Any], actor: str, op: str, form: dict[str, str]) -> None:
+        assessment_id = str(record["id"])
+        saved = self._advisory_visible(connection, state, record, "scenario")
+        notice = ""
+        errors: list[str] = []
+        status = 200
+        writable = may_write(state, record)
+        shown: dict[str, str] = dict(form)
+        if op == "save":
+            base, scenario, errors = improve.scenario_from_form(record["profile"], form)
+            if base["missing"]:
+                errors = ["Enter the startup numbers in your draft first."]
+            if scenario is None and not errors:
+                errors = ["Nothing to save."]
+            if not errors and scenario is not None:
+                if not scenario["changed"] and not scenario["dependent"]:
+                    errors = ["Change at least one number before saving a scenario."]
+            if errors:
+                status = 400
+            else:
+                name = scenario["name"] or f"Scenario {len(saved) + 1}"
+                try:
+                    stored = advisory_store.save_record(
+                        connection,
+                        assessment_id=assessment_id,
+                        created_by=actor,
+                        kind="scenario",
+                        payload=improve.payload_for_save(scenario, name, ""),
+                        title=name,
+                    )
+                except advisory_store.AdvisoryLimit as exc:
+                    errors, status = [str(exc)], 400
+                else:
+                    saved.append(stored)
+                    notice = "Saved as a separate scenario. Your draft and the official result are unchanged."
+                    self._audit(connection, "scenario_saved", actor, assessment_id, str(stored["id"]))
+                    shown = {"target": form.get("target", "")}
+        elif op == "delete":
+            stored = advisory_store.get_record(connection, assessment_id, form.get("scenario_id") or "")
+            if stored and stored["kind"] == "scenario" and may_see_attachment(state, record, str(stored["created_by"])):
+                advisory_store.delete_record(connection, assessment_id, stored["id"])
+                saved = [item for item in saved if item["id"] != stored["id"]]
+                notice = "The scenario was deleted."
+                self._audit(connection, "scenario_deleted", actor, assessment_id, str(stored["id"]))
+            else:
+                errors, status = ["That scenario was not found."], 404
+            shown = {}
+        elif op == "apply":
+            stored = advisory_store.get_record(connection, assessment_id, form.get("scenario_id") or "")
+            if not (stored and stored["kind"] == "scenario" and may_see_attachment(state, record, str(stored["created_by"]))):
+                errors, status = ["That scenario was not found."], 404
+            elif form.get("confirm") != "yes":
+                errors, status = ["Tick the box to approve the change. Nothing was changed."], 400
+            else:
+                scenario = improve.recompute(stored)
+                if scenario["metrics"] is None:
+                    errors, status = ["This scenario can no longer be calculated. Nothing was changed."], 400
+                else:
+                    updated, changes = improve.apply_to_profile(record["profile"], scenario)
+                    if not changes:
+                        notice = "Your draft already has these values. Nothing changed."
+                    else:
+                        save_profile(connection, assessment_id, updated)
+                        payload = dict(stored["payload"])
+                        payload["applied"] = list(payload.get("applied") or []) + [
+                            {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "changes": changes}
+                        ]
+                        advisory_store.update_payload(connection, assessment_id, stored["id"], payload)
+                        saved = self._advisory_visible(connection, state, record, "scenario")
+                        notice = (
+                            f"Applied {len(changes)} change{'s' if len(changes) != 1 else ''} to your working draft. "
+                            "The official result, flags, and review status are unchanged. Run Analyze yourself when you are ready."
+                        )
+                        self._audit(connection, "scenario_applied", actor, assessment_id, ",".join(item["field"] for item in changes))
+            shown = {}
+        elif op != "calculate":
+            errors, status = ["That action is not available."], 400
+        fresh = self._official_view(connection, get_assessment(connection, assessment_id) or record)
+        if op == "save" and status == 400:
+            shown = dict(form)
+        self._html(
+            improve_page(fresh, saved, shown, writable=writable, notice=notice, errors=errors),
+            status=status,
+        )
+
+    def _suggestion_post(self, connection: Any, record: dict[str, Any], form: dict[str, str]) -> None:
+        """Record what the customer did with a suggestion. This never edits the draft."""
+        state = self._account_state(connection)
+        actor = self._session_user_id(state)
+        card = (form.get("card") or "").strip()
+        status = (form.get("status") or "").strip()
+        if not actor or not re.fullmatch(r"[a-z_]{1,40}:[a-z_]{1,40}", card) or status not in advisory.STATUSES:
+            self._json({"ok": False, "message": "That choice was not recognized."}, status=400)
+            return
+        try:
+            advisory_store.save_record(
+                connection,
+                assessment_id=str(record["id"]),
+                created_by=actor,
+                kind="decision",
+                payload=advisory.decision_payload(card, status, form.get("value") or ""),
+                title=card,
+                record_key=card,
+            )
+        except advisory_store.AdvisoryLimit as exc:
+            self._json({"ok": False, "message": str(exc)}, status=400)
+            return
+        self._audit(connection, "suggestion_decision", actor, str(record["id"]), f"{card}={status}")
+        self._json({"ok": True, "advice": self._advice_slots(connection, state, record, record["profile"])})
 
     def _retrieve_public(self, connection: Any, record: dict[str, Any], project: dict[str, Any], user_id: str, form: dict[str, str]) -> None:
         assessment_id = str(record["id"])

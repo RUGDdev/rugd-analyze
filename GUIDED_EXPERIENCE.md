@@ -54,3 +54,8 @@ The first question is What should we call your business?. The left column lists 
 ## Financial help (2026-11-12)
 
 Each financial input has a ? control beside its label. It opens what the field means, why it matters, an illustrated example, a note built from the customer's own entries when present, and a collapsed section for how to estimate it, common mistakes, the method, and where to find a credible benchmark. Escape closes it. A section introduction opens each money area. A seven-day selector with weeks open per year suggests operating days and changes the field only on Use. The one-cover-per-seat limit and the calendar weights are stated plainly. `PROPOSAL_REVENUE_TURNOVER.md` holds the unauthorized proposal. No industry average or source is supplied.
+
+## Benchmarks, worksheet, and scenarios
+
+Suggestion cards, the Benchmarks page, the proposed revenue worksheet, and the Improve feasibility page are described in BENCHMARKS.md. They suggest and compare. They do not change a field, a flag, or a review status without an explicit customer action.
+

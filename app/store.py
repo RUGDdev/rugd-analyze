@@ -408,6 +408,27 @@ def _open_schema(connection: sqlite3.Connection) -> None:
     )
     connection.execute(
         """
+        CREATE TABLE IF NOT EXISTS advisory_records (
+            id TEXT PRIMARY KEY,
+            assessment_id TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            record_key TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL DEFAULT '',
+            payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS advisory_records_by_assessment
+        ON advisory_records (assessment_id, kind)
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE IF NOT EXISTS audit_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             action TEXT NOT NULL,
