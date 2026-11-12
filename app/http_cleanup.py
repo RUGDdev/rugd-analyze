@@ -31,10 +31,31 @@ def _socket_of(response):
 
 
 def _finalize(response) -> None:
+    """Close the body, then the socket, when the response is discarded.
+
+    A bound close() on the response itself would keep that response alive.
+    The makefile close is kept instead. Closing the socket while a makefile
+    still exists can leave the file descriptor open until a later collection,
+    which is the unclosed-socket warning.
+    """
+    closers = []
+    nested = getattr(response, "fp", None)
+    if nested is not None and nested is not response and hasattr(nested, "close"):
+        closers.append(nested.close)
     sock = _socket_of(response)
-    if sock is None:
+    if sock is not None:
+        closers.append(sock.close)
+    if not closers:
         return
-    weakref.finalize(response, sock.close)
+
+    def release() -> None:
+        for closer in closers:
+            try:
+                closer()
+            except Exception:
+                continue
+
+    weakref.finalize(response, release)
 
 
 def install() -> None:

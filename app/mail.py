@@ -1,6 +1,6 @@
 """Account mail for the local pilot.
 
-Leave SMTP_HOST unset and the running server writes the message to its log.
+Leave SMTP_HOST unset and the running server records the subject. It does not write the address or the link. A local capture holds the message.
 Set SMTP_HOST, and optionally SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD,
 SMTP_FROM, and SMTP_USE_TLS, to send through an SMTP server. A failed SMTP
 send uses the same log. The message never includes a password. Sending mail

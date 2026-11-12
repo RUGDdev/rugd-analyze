@@ -416,7 +416,7 @@ class AppHandler(BaseHTTPRequestHandler):
                     action="csrf_rejected",
                     actor_id="unknown",
                     session_token=self._cookies().get(SESSION_COOKIE, ""),
-                    detail="origin",
+                    detail="origin" if (self.headers.get("Origin") or "").strip() else "fetch",
                 )
             self._html(
                 layout(
@@ -1447,11 +1447,18 @@ class AppHandler(BaseHTTPRequestHandler):
         self._redirect(self._safe_next(form.get("next") or "", "/"), clear_session=True)
 
     def _cross_site_post(self) -> bool:
-        """Reject a browser POST whose Origin names another site. Clients that omit Origin are unchanged."""
+        """Reject a browser POST from another site, including one that omits Origin.
+
+        A browser sends Sec-Fetch-Site on a POST. A metadata header without a matching
+        Origin is refused. A non-browser client sends neither header and is unchanged.
+        """
         origin = (self.headers.get("Origin") or "").strip()
-        if not origin:
-            return False
         host = (self.headers.get("Host") or "").strip().lower()
+        fetch_site = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
+        if fetch_site in {"cross-site", "same-site"}:
+            return True
+        if not origin:
+            return bool(fetch_site)
         return urlparse(origin).netloc.lower() != host
 
     def _reviewer_session_state(self, connection: Any) -> dict[str, Any]:
@@ -2853,9 +2860,23 @@ def _download_stamp(record: dict[str, Any], result: dict[str, Any]) -> str:
     return "undated"
 
 
-def make_server(db_path, port: int = 8765, host: str = "127.0.0.1") -> ThreadingHTTPServer:
+class AppServer(ThreadingHTTPServer):
+    """Local server. Dropping it closes the listening socket."""
+
+    def __del__(self) -> None:
+        sock = getattr(self, "socket", None)
+        if sock is None:
+            return
+        try:
+            sock.close()
+        except OSError:
+            return
+        self.socket = None
+
+
+def make_server(db_path, port: int = 8765, host: str = "127.0.0.1") -> AppServer:
     AppHandler.db_path = db_path
-    server = ThreadingHTTPServer((host, port), AppHandler)
+    server = AppServer((host, port), AppHandler)
     server.daemon_threads = True  # type: ignore[attr-defined]
     server.auth_limiter = AttemptLimiter()  # type: ignore[attr-defined]
     return server

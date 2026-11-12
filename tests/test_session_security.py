@@ -173,6 +173,52 @@ class SessionSecurityTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertNotIn("not sent from this site", page)
 
+    def test_browser_post_without_origin_is_rejected(self) -> None:
+        request = urllib.request.Request(
+            self.base + "/login",
+            data=urllib.parse.urlencode(
+                {"email": "anyone@pilot.example", "password": "session-pass-1"}
+            ).encode(),
+            headers={"Sec-Fetch-Site": "same-origin"},
+            method="POST",
+        )
+        try:
+            response = urllib.request.urlopen(request)
+        except urllib.error.HTTPError as exc:
+            response = exc
+        try:
+            body = response.read().decode("utf-8", "replace")
+            code = response.status if hasattr(response, "status") else response.code
+        finally:
+            response.close()
+        self.assertEqual(code, 403)
+        self.assertIn("not sent from this site", body)
+        connection = connect(self.database)
+        try:
+            row = connection.execute(
+                "SELECT detail FROM audit_events WHERE action = ? ORDER BY id DESC LIMIT 1",
+                ("csrf_rejected",),
+            ).fetchone()
+        finally:
+            connection.close()
+        self.assertEqual(row["detail"], "fetch")
+        plain = urllib.request.Request(
+            self.base + "/login",
+            data=urllib.parse.urlencode(
+                {"email": "anyone@pilot.example", "password": "session-pass-1"}
+            ).encode(),
+            method="POST",
+        )
+        try:
+            response = urllib.request.urlopen(plain)
+        except urllib.error.HTTPError as exc:
+            response = exc
+        try:
+            plain_body = response.read().decode("utf-8", "replace")
+        finally:
+            response.close()
+        self.assertNotIn("not sent from this site", plain_body)
+
     def test_reset_link_stays_out_of_the_log_and_ends_the_session(self) -> None:
         from app import mail
 

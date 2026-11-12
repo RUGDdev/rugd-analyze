@@ -1,10 +1,10 @@
 # Current status
 
-Updated: 2026-11-11
+Updated: 2026-11-12
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 223 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 226 tests, all passing.
 
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
@@ -604,3 +604,9 @@ Further work on production authentication, real market data, an approved scoring
 ## Progress — 2026-11-11 Release readiness
 
 - `PRODUCTION_READINESS.md` records the cycle 3 checks. The unittest suite remains 223 tests, all passing. Ten unclosed-socket ResourceWarnings were still printed. A temporary-account browser walk opened Usage and the signed-in home. Render was not deployed, Auto-Deploy was not changed, and no payment provider was connected. The service is not cleared for production. The official sample hash is unchanged.
+
+## Progress — 2026-11-12 Local pilot without a subscription
+
+- The owner can register on this computer, sign in, and create a blank assessment without a subscription or a payment method. Fraction fields say to enter `0.55` for 55 percent and `0.60` for 60 percent. A blank monthly field stays missing. `PILOT_GUIDE.md` explains the local start, the real case, and how to read a draft result. `PILOT_READINESS.md` records the workflow checks.
+- A browser walk on a temporary database registered an account, opened a blank draft named Owner Pilot Case, and showed those labels and the workflow links. An automated fictional case, Harbor Lane Coffee, saved Analyze, research, a plan, a deck, PowerPoint and PDF exports, a report, an action, and a deterministic adviser reply, then signed out and resumed. A second account was refused. The fictional figures are not verified evidence and are not the owner's case.
+- A POST that sends `Sec-Fetch-Site` and omits Origin is refused. A non-browser POST that omits both headers is unchanged. Dropping a test server closes its listening socket. The unittest suite is 226 tests, all passing, and that run printed no ResourceWarning. The OSV API returned no advisories for `python-pptx==1.0.2` and `fpdf2==2.9.0`. No package was added. `RUGD_BILLING_SIMULATION` stays unset. Render was not deployed. A private hosted pilot is not cleared. The official sample hash is unchanged.

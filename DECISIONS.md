@@ -672,3 +672,25 @@ Owner input required before replacing `billing_hooks`:
 - Date: 2026-11-11
 - Status: Accepted for the local pilot. This does not deploy, does not enable Render Auto-Deploy, and does not connect a payment provider.
 - `PRODUCTION_READINESS.md` records 223 passing tests and one failed check: ten unclosed-socket ResourceWarnings remain. Render, SMTP, a vulnerability database, load, and a second SQLite process were not run. The service is not cleared for production.
+
+## Decision: The local pilot stays unpaid and usable
+
+- Date: 2026-11-12
+- Status: Accepted for the local pilot. This does not deploy, does not enable Render Auto-Deploy, does not connect a payment provider, and does not change the 0.1 engine formulas or the official baseline.
+- An owner starts the app with `python -m app` on this computer and registers a customer account. The registration page does not ask for a subscription or a payment method. An account with no simulated plan keeps the included local pilot. `RUGD_BILLING_SIMULATION` stays unset. Billing hooks create no charge.
+- The real case is a blank assessment from Start a new assessment. Fraction fields are labeled with an example: `0.55` means 55 percent. A blank monthly field stays missing. The fictional Harbor Lane Coffee case lives in the automated test and is not the owner's file.
+- `PILOT_GUIDE.md` is the operating note. `PILOT_READINESS.md` records which workflows passed. A private hosted pilot is not cleared.
+
+## Decision: Browser posts without Origin are refused when fetch metadata is present
+
+- Date: 2026-11-12
+- Status: Accepted for the local pilot. This updates the Origin rule recorded on 2026-11-11. It does not add a synchronizer token, and it does not change the 0.1 engine formulas or the official baseline.
+- A POST whose Origin names another host is still refused and audited as `csrf_rejected` with detail `origin`.
+- A POST that sends `Sec-Fetch-Site` of `cross-site` or `same-site` is refused. A POST that sends any `Sec-Fetch-Site` value and omits Origin is refused and audited with detail `fetch`. A non-browser client that omits both Origin and `Sec-Fetch-Site`, including the local test client, is unchanged.
+- A non-browser client that presents a stolen session cookie and omits both headers is not rejected by this check. The session cookie remains HttpOnly and SameSite=Lax.
+
+## Decision: Listening sockets from dropped test servers are closed
+
+- Date: 2026-11-12
+- Status: Accepted for the local pilot. This does not change the database architecture, and it does not suppress warnings.
+- The unclosed-socket ResourceWarnings in the 223-test run came from listening sockets left by tests that shut a server down and did not call `server_close`. `AppServer` closes that socket when the server object is discarded. The 226-test run on 2026-11-12 printed no ResourceWarning. `main()` still calls `server_close` on exit.

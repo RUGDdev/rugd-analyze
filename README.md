@@ -55,7 +55,7 @@ An assessment owner or a reviewer can create a read-only link from the assessmen
 
 A new account can log in before the email is verified. The pages show a banner until the verification link is opened. That link expires in 24 hours. Forgot password, on the login page, emails a reset link that expires in one hour and works once. Neither link changes a role.
 
-Leave `SMTP_HOST` unset and the running server prints the message, including the link, to its log. To send through an SMTP server later, set `SMTP_HOST`. Optional values are `SMTP_PORT` (587), `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, and `SMTP_USE_TLS` (`true` by default). Set `RUGD_PUBLIC_URL` to the public base of the link, such as `https://app.rugdintelligence.com` on Render. The message does not include the password.
+Leave `SMTP_HOST` unset and the running server records the subject. It does not write the address or the link in that log. The local test capture still holds the link. To send through an SMTP server later, set `SMTP_HOST`. Optional values are `SMTP_PORT` (587), `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM`, and `SMTP_USE_TLS` (`true` by default). Set `RUGD_PUBLIC_URL` to the public base of the link, such as `https://app.rugdintelligence.com` on Render. The message does not include the password.
 
 To walk through the hypothetical restaurant drafts, follow `DEMO.md`.
 

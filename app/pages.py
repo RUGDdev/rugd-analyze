@@ -391,7 +391,7 @@ def dashboard(
 <div class="card empty-state" id="your-assessments-empty">
 <h2>No assessments yet</h2>
 <p>You have not created an assessment. Blank fields stay blank until you enter them. Nothing is copied from the official baseline.</p>
-<p><strong>What to do first:</strong> Choose Start a new assessment. Say whether this is a startup idea or an existing business. Save the draft, then fill the blank required fields.</p>
+<p><strong>What to do first:</strong> Choose Start a new assessment. Say whether this is a startup idea or an existing business. Save the draft, then fill the blank required fields. No subscription or payment method is required.</p>
 <p><a class="button primary" href="/assessments/new">Start a new assessment</a></p>
 </div>
 """
@@ -1323,10 +1323,10 @@ def _fields(
 {text("construction_cost", "Construction cost")}
 {text("seats", "Seats")}
 {text("average_ticket", "Average ticket")}
-{text("weekday_occupancy", "Weekday occupancy")}
-{text("weekend_occupancy", "Weekend occupancy")}
+{text("weekday_occupancy", "Weekday occupancy (enter 0.60 for 60%)")}
+{text("weekend_occupancy", "Weekend occupancy (enter 0.70 for 70%)")}
 {text("operating_days", "Operating days")}
-{text("contribution_margin", "Contribution margin")}
+{text("contribution_margin", "Contribution margin (enter 0.55 for 55%)")}
 </details>
 <details>
 <summary>Optional startup worksheet lines</summary>
@@ -1335,8 +1335,8 @@ def _fields(
 {text("soft_costs", "Soft costs")}
 {text("preopening_working_capital", "Pre-opening working capital")}
 {text("contingency_pct", "Contingency percentage (0.10 = 10%)")}
-{text("debt_share", "Debt share")}
-{text("annual_interest_rate", "Annual interest rate")}
+{text("debt_share", "Debt share (enter 0.40 for 40%)")}
+{text("annual_interest_rate", "Annual interest rate (enter 0.08 for 8%)")}
 {text("amortization_years", "Amortization years")}
 {text("annual_fixed_costs", "Annual fixed costs")}
 {text("downside_multiplier", "Downside occupancy multiplier")}
@@ -1380,7 +1380,7 @@ def _fields(
 <p class="muted">All four monthly fields are required before the monthly engine calculates. Unchecked measured status keeps the figures unmeasured. Changing these fields updates the preview only. Run Analyze to store an official result.</p>
 {text("initial_capital", "Initial capital")}
 {text("monthly_fixed_costs", "Monthly fixed costs")}
-{text("gross_margin_pct", "Gross margin")}
+{text("gross_margin_pct", "Gross margin (enter 0.55 for 55%)")}
 {text("projected_monthly_revenue_base", "Projected monthly base revenue")}
 <label><input type="checkbox" name="inputs_are_measured" value="true" {measured} {locked}> These monthly figures are measured</label>
 {"<button type=\"submit\" formaction=\"/assessments/" + escape(assessment_id) + "/preview\">Update preview</button>" if assessment_id and not locked else ""}
@@ -3328,7 +3328,7 @@ def register_page(message: str = "") -> str:
 <h1>Register</h1>
 {_SURFACE_NOTE}
 <div class="banner">Local pilot registration. Passwords are stored as a scrypt hash. This is not production authentication.</div>
-<p>Self-registration creates a customer account. It does not create a reviewer, it does not change an existing role, and it does not grant investor-ready status. A customer account cannot set human_review_approved.</p>
+<p>Self-registration creates a customer account. It does not create a reviewer, it does not change an existing role, and it does not grant investor-ready status. A customer account cannot set human_review_approved. This local pilot does not ask for a subscription or a payment method.</p>
 {notice}
 <form method="post" action="/register">
 <label>Email</label>
@@ -4650,7 +4650,7 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
 <section class="card">
 <h2>Email preferences</h2>
 <p>Sign in with a local account to store which notices this account receives.</p>
-<p class="muted">The preference is stored on the account. With SMTP_HOST unset, a chosen notice is written to the server log. Verification and password-reset messages stay available. A notice does not approve an assessment, clear a recommend-against flag, change a role, or set human_review_approved.</p>
+<p class="muted">The preference is stored on the account. With SMTP_HOST unset, the server records the subject and does not write the address. Verification and password-reset messages stay available. A notice does not approve an assessment, clear a recommend-against flag, change a role, or set human_review_approved.</p>
 </section>
 """
     else:
@@ -4668,7 +4668,7 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
             "<section class=\"card\">"
             "<h2>Email preferences</h2>"
             "<p>Choose which notices this account receives for assessments it owns. "
-            "The preference is stored here. With SMTP_HOST unset, a chosen notice is written to the server log. "
+            "The preference is stored here. With SMTP_HOST unset, the server records the subject and does not write the address. "
             "Verification and password-reset messages stay available.</p>"
             "<form method=\"post\" action=\"/settings/notifications\">"
             + "".join(boxes)
@@ -4684,7 +4684,7 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
 <p><a href="/settings/usage">Usage and simulated plan</a>. The included local pilot is not a paid subscription. No charge is created.</p>
-<p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, those messages are written to the server log. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>
+<p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, the server records the subject and does not write the address or the link. You can sign in before the email is verified. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>
 {preferences}
 <h2>Owner decisions not activated</h2>
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>

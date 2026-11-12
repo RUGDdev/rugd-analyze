@@ -189,6 +189,22 @@ class ReliabilityTests(unittest.TestCase):
         text = (ROOT / "DEPLOYMENT.md").read_text(encoding="utf-8")
         self.assertIn(MULTI_INSTANCE_LIMIT, text)
 
+    def test_dropped_server_closes_its_listening_socket(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "analyze.sqlite"
+            connect(database).close()
+            server = make_server(database, port=0)
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always", ResourceWarning)
+                del server
+                gc.collect()
+            leaked = [
+                item
+                for item in caught
+                if issubclass(item.category, ResourceWarning) and "socket" in str(item.message)
+            ]
+            self.assertEqual(leaked, [])
+
     def test_request_socket_is_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             database = Path(directory) / "analyze.sqlite"
