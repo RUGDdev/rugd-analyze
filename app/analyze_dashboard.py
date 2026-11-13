@@ -16,6 +16,7 @@ from typing import Any
 from app import benchmarks, improve, ui, wording
 from app import display as d
 from app import revenue_worksheet as rw
+from app.inputs import field_state
 from app.plain import TERMS
 from app.ui import bars as _bars
 from app.ui import help_tip
@@ -283,7 +284,29 @@ def _coverage_note(value: Any) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _uses_rows(projection: dict[str, Any], profile: dict[str, Any]) -> list[list[str]]:
+def _basis_chip(basis: dict[str, Any] | None, profile: dict[str, Any], key: str) -> str:
+    """A label the customer chose for a figure: hypothetical, an estimate, or from a document. Never a verification."""
+    from app import assumptions as asm
+
+    label = asm.stored_basis(basis or {}, profile, key) if key else ""
+    if label not in {"hypothetical", "document"}:
+        return ""
+    return (
+        f'<span class="dchip dchip-{label}" title="{escape(asm.BASIS_EXPLAINED[label])}">{escape(asm.BASIS_LABELS[label])}</span>'
+    )
+
+
+def _edit_link(aid: str, section: str, *, writable: bool = True, label: str = "") -> str:
+    if not aid:
+        return ""
+    text = label or ("Edit assumptions" if writable else "View assumptions")
+    return (
+        f'<p class="no-print"><a class="dbtn dbtn-small dbtn-ghost" href="/assessments/{escape(aid)}/assumptions#{escape(section)}" '
+        f'data-edit-assumptions="{escape(section)}">{escape(text)}</a></p>'
+    )
+
+
+def _uses_rows(projection: dict[str, Any], profile: dict[str, Any], basis: dict[str, Any] | None = None) -> list[list[str]]:
     uses = (projection.get("sources_and_uses") or {}).get("uses") or {}
     names = (
         ("construction_cost", "Construction cost", "construction_cost"),
@@ -298,14 +321,22 @@ def _uses_rows(projection: dict[str, Any], profile: dict[str, Any]) -> list[list
         item = uses.get(key)
         amount = _amount(item)
         state = d.state_from_engine((item or {}).get("evidence_label") if isinstance(item, dict) else "")
+        entry = field_state(profile.get(profile_key)) if profile_key else ""
         if amount is None:
             tag = d.chip("missing", "Not calculated")
+        elif entry == "missing":
+            # A blank is not a zero. The engine fills it with its own default, and the page says so.
+            counted = improve.OPTIONAL_DEFAULTS.get(profile_key)
+            tag = d.chip("placeholder", "Not entered, counted as $0" if counted == 0 else "Not entered, default used")
+        elif entry == "zero":
+            tag = d.chip("zero")
         elif profile_key and state == "estimated" and _is_placeholder(profile, profile_key):
             tag = d.chip("placeholder")
         elif amount == 0 and state == "estimated":
             tag = d.chip("zero")
         else:
             tag = d.chip(state)
+        tag = _basis_chip(basis, profile, profile_key) or tag
         text = d.money(amount, missing="Not calculated")
         if key == "total_project_cost":
             text = f"<strong>{escape(text)}</strong>"
@@ -337,7 +368,7 @@ def _sources_rows(projection: dict[str, Any], profile: dict[str, Any]) -> list[l
     return rows
 
 
-def _terms_rows(profile: dict[str, Any]) -> list[list[str]]:
+def _terms_rows(profile: dict[str, Any], basis: dict[str, Any] | None = None) -> list[list[str]]:
     rows = []
     for key, label, fmt in (
         ("debt_share", "Debt share", lambda v: d.percent(v, 0)),
@@ -348,15 +379,69 @@ def _terms_rows(profile: dict[str, Any]) -> list[list[str]]:
     ):
         number = improve.entered(profile, key)
         if number is None:
-            rows.append([escape(label), f"{escape(d.NOT_PROVIDED)} {d.chip('missing')}"])
+            default = improve.OPTIONAL_DEFAULTS.get(key)
+            if default is None:
+                rows.append([escape(label), f"{escape(d.NOT_PROVIDED)} {d.chip('missing')}"])
+            else:
+                shown = fmt(default)
+                rows.append([escape(label), f"{escape('Not entered. ' + shown + ' is used.')} {d.chip('placeholder', 'Default used')}"])
+        elif field_state(profile.get(key)) == "zero":
+            rows.append([escape(label), f"{escape(fmt(number))} {_basis_chip(basis, profile, key) or d.chip('zero')}"])
         elif _is_placeholder(profile, key):
-            rows.append([escape(label), f"{escape(fmt(number))} {d.chip('placeholder')}"])
+            rows.append([escape(label), f"{escape(fmt(number))} {_basis_chip(basis, profile, key) or d.chip('placeholder')}"])
         else:
-            rows.append([escape(label), f"{escape(fmt(number))} {d.chip('estimated')}"])
+            rows.append([escape(label), f"{escape(fmt(number))} {_basis_chip(basis, profile, key) or d.chip('estimated')}"])
     return rows
 
 
-def _startup_block(result: dict[str, Any], projection: dict[str, Any], profile: dict[str, Any]) -> str:
+def _funding_card(projection: dict[str, Any], profile: dict[str, Any], aid: str, writable: bool) -> str:
+    """Total cost, debt, equity, the owner's cash, and what is still unfunded. Cash is not equity until committed."""
+    from app import assumptions as asm
+
+    values = asm.measures(projection, None)
+    gap = asm.funding_gap(values, improve.entered(profile, "available_cash"))
+    if not gap["calculated"]:
+        return ""
+
+    def money(value: float | None) -> str:
+        return d.money(value, cents=value is not None and not float(value).is_integer())
+
+    if gap["cash"] is None:
+        cash_text = "Not entered. No cash is assumed."
+        remaining = "Not calculated until you enter the cash you can put in."
+    else:
+        cash_text = money(gap["cash"])
+        remaining = (
+            f"None. Your cash covers the equity, with {money(gap['left_over'])} to spare."
+            if gap["remaining"] == 0
+            else money(gap["remaining"])
+        )
+    rows = [
+        ["Total project cost", f"{escape(money(gap['total']))} {d.chip('calculated')}"],
+        ["Proposed debt financing", f"{escape(money(gap['debt']))} {d.chip('calculated')}"],
+        ["Equity required", f"{escape(money(gap['equity']))} {d.chip('calculated')}"],
+        ["Your available cash", f"{escape(cash_text)} {d.chip('missing') if gap['cash'] is None else d.chip('estimated')}"],
+        ["<strong>Remaining funding requirement</strong>", f"<strong>{escape(remaining)}</strong>"],
+    ]
+    return (
+        '<div class="dcard" id="funding-gap"><h3>Funding gap</h3>'
+        f"{_table(['Funding', 'Amount'], rows)}"
+        '<p class="muted">Remaining requirement is the equity required minus the cash you say you can put in, never below zero. '
+        "Your cash is a balance you hold. It is compared with equity but is not the same thing, and pre-opening working capital is already inside the total cost. "
+        "The cash figure is from your working draft, not from the official run.</p>"
+        f"{_edit_link(aid, 'financing', writable=writable)}</div>"
+    )
+
+
+def _startup_block(
+    result: dict[str, Any],
+    projection: dict[str, Any],
+    profile: dict[str, Any],
+    *,
+    aid: str = "",
+    writable: bool = True,
+    basis: dict[str, Any] | None = None,
+) -> str:
     base, downside, break_even = _views(projection)
     base_dscr = d.multiple(base.get("dscr"))
     down_dscr = d.multiple(downside.get("dscr"))
@@ -396,24 +481,31 @@ def _startup_block(result: dict[str, Any], projection: dict[str, Any], profile: 
     )
     return f"""
 <div class="dgrid2">
-  <div class="dcard"><h3>Uses of money {_metric_help('total_project_cost')}</h3>{_table(['Use', 'Amount'], _uses_rows(projection, profile))}</div>
+  <div class="dcard"><h3>Uses of money {_metric_help('total_project_cost')}</h3>{_table(['Use', 'Amount'], _uses_rows(projection, profile, basis))}
+  {_edit_link(aid, 'project-costs', writable=writable)}</div>
   <div class="dcard"><h3>Sources and financing</h3>{_table(['Source', 'Amount'], _sources_rows(projection, profile))}
-  <p class="muted">Loan terms here are your estimates or standard starting numbers. A lender sets the real terms.</p></div>
+  <p class="muted">Loan terms here are your estimates or standard starting numbers. A lender sets the real terms.</p>
+  {_edit_link(aid, 'financing', writable=writable)}</div>
 </div>
-<div class="dcard"><h3>Coverage of the loan payment {_metric_help('dscr')}</h3>{coverage}{coverage_chart}</div>
+{_funding_card(projection, profile, aid, writable)}
+<div class="dcard"><h3>Coverage of the loan payment {_metric_help('dscr')}</h3>{coverage}{coverage_chart}
+  {_edit_link(aid, 'revenue', writable=writable)}</div>
 <div class="dgrid2">
-  <div class="dcard"><h3>Revenue against break-even {_metric_help('break_even')}</h3>{revenue_chart}</div>
-  <div class="dcard"><h3>Financing assumptions used</h3>{_table(['Assumption', 'Value'], _terms_rows(profile))}</div>
+  <div class="dcard"><h3>Revenue against break-even {_metric_help('break_even')}</h3>{revenue_chart}
+  {_edit_link(aid, 'operating', writable=writable)}</div>
+  <div class="dcard"><h3>Financing assumptions used</h3>{_table(['Assumption', 'Value'], _terms_rows(profile, basis))}
+  {_edit_link(aid, 'financing', writable=writable)}</div>
 </div>
 """
 
 
-def _monthly_block(financial: dict[str, Any] | None, *, startup_ran: bool) -> str:
+def _monthly_block(financial: dict[str, Any] | None, *, startup_ran: bool, aid: str = "", writable: bool = True) -> str:
+    link = _edit_link(aid, "monthly", writable=writable)
     if not financial:
         return (
             '<div class="dcard"><h3>Monthly operating view</h3>'
             f'<p>{d.chip("missing", "Not calculated")} The four monthly inputs are not all saved, so no monthly figure is shown. '
-            "A blank is not treated as zero, and nothing is filled in for you.</p></div>"
+            f"A blank is not treated as zero, and nothing is filled in for you.</p>{link}</div>"
         )
     rows = []
     for key, label in (
@@ -445,23 +537,66 @@ def _monthly_block(financial: dict[str, Any] | None, *, startup_ran: bool) -> st
     )
     return (
         f'<div class="dcard"><h3>Monthly operating view {_metric_help("monthly")}</h3>'
-        f"{_table(['Measure', 'Amount'], rows)}{chart}<p class=\"muted\">{escape(note)}</p></div>"
+        f"{_table(['Measure', 'Amount'], rows)}{chart}<p class=\"muted\">{escape(note)}</p>{link}</div>"
     )
 
 
-def key_numbers_html(result: dict[str, Any], profile: dict[str, Any], startup_missing: list[str], legacy_tables: str) -> str:
+def _planning_strip(aid: str, writable: bool, differs: list[str] | None, hypothetical: list[str]) -> str:
+    from app import assumptions as asm
+
+    if not aid:
+        return ""
+    notes = ""
+    if differs:
+        names = ", ".join(escape(asm.label(key)) for key in differs)
+        notes += (
+            '<p class="dnote dnote-warn" id="draft-differs"><strong>Your working draft is different from the official assessment.</strong> '
+            f"Changed since the last run: {names}. The figures on this page are the official ones until you run a new assessment.</p>"
+        )
+    if hypothetical:
+        names = ", ".join(escape(asm.label(key)) for key in hypothetical)
+        notes += (
+            '<p class="dnote"><strong>Hypothetical values in your draft:</strong> '
+            f"{names}. These are planning figures you chose, not benchmarks and not verified.</p>"
+        )
+    href = f"/assessments/{escape(aid)}/assumptions"
+    label = "Edit assumptions" if writable else "View assumptions"
+    return (
+        '<div class="dcard" id="planning-strip"><h3>Planning workspace</h3>'
+        "<p>Change the assumptions behind these numbers, see the effect in a preview, and approve before anything is saved. "
+        "Calculated figures cannot be edited, so change the assumptions behind them. Saving updates your working draft only. "
+        "The official assessment changes only when you run a new assessment, and the earlier result is kept.</p>"
+        f'<div class="dactions no-print"><a class="dbtn" href="{href}">{label}</a></div>{notes}</div>'
+    )
+
+
+def key_numbers_html(
+    result: dict[str, Any],
+    profile: dict[str, Any],
+    startup_missing: list[str],
+    legacy_tables: str,
+    *,
+    aid: str = "",
+    writable: bool = True,
+    differs: list[str] | None = None,
+    basis: dict[str, Any] | None = None,
+    draft_profile: dict[str, Any] | None = None,
+) -> str:
+    from app import assumptions as asm
+
     projection = _projection(result)
-    parts = []
+    parts = [_planning_strip(aid, writable, differs, asm.hypothetical_fields(basis or {}, draft_profile or profile))]
     if projection:
-        parts.append(_startup_block(result, projection, profile))
+        parts.append(_startup_block(result, projection, profile, aid=aid, writable=writable, basis=basis))
     else:
         missing = ", ".join(startup_missing)
         parts.append(
             '<div class="dcard"><h3>Startup cost build</h3>'
             f'<p>{d.chip("missing", "Not calculated")} RUGD could not work out the startup costs yet.'
-            f"{(' Still needed: ' + escape(missing) + '.') if missing else ''} Nothing was filled in for you.</p></div>"
+            f"{(' Still needed: ' + escape(missing) + '.') if missing else ''} Nothing was filled in for you.</p>"
+            f"{_edit_link(aid, 'project-costs', writable=writable, label='Enter startup assumptions' if writable else 'View assumptions')}</div>"
         )
-    parts.append(_monthly_block(_financial(result), startup_ran=bool(projection)))
+    parts.append(_monthly_block(_financial(result), startup_ran=bool(projection), aid=aid, writable=writable))
     parts.append(
         '<details class="dmore"><summary>Detailed tables and charts (for advisers)</summary>'
         f"{legacy_tables}</details>"
@@ -1231,8 +1366,12 @@ def render(
     next_step: str,
     standing: str,
     legacy: dict[str, str],
+    writable: bool = True,
 ) -> str:
+    from app import assumptions as assumption_planning
+
     aid = _aid(record)
+    differs = assumption_planning.draft_differs(record)
     entries = list(context.get("benchmark_entries") or [])
     worksheet_record = context.get("worksheet")
     scenario_records = list(context.get("scenarios") or [])
@@ -1259,7 +1398,17 @@ def render(
             standing=standing,
             banner_extra=legacy.get("banner_extra", ""),
         ),
-        "key-numbers": key_numbers_html(result, profile, startup_missing, legacy.get("tables", "")),
+        "key-numbers": key_numbers_html(
+            result,
+            assumption_planning.as_analyzed(record, differs),
+            startup_missing,
+            legacy.get("tables", ""),
+            aid=aid,
+            writable=writable and not record.get("read_only"),
+            differs=differs,
+            basis=context.get("assumption_basis") or {},
+            draft_profile=profile,
+        ),
         "benchmarks": benchmarks_html(record, bench),
         "revenue-model": revenue_html(record, result, worksheet_record),
         "scenarios": scenarios_html(record, scenario_records, legacy.get("scenarios", "")),

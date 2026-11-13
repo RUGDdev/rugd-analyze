@@ -762,3 +762,15 @@ Owner input required before replacing `billing_hooks`:
 - Codes stay reachable. They sit in collapsed "Technical reference" blocks and in `data-gate` / `data-band` attributes. A reviewer can still see exactly what is stored.
 - Every important finding states what RUGD found, why it matters, what the customer can do, and where to go. Links point only at workflows that exist.
 - The wording never implies that AI text is verified evidence or that a scenario is approved. A blocked assessment stays blocked until real evidence and an authorized review change it.
+
+## Decision: Assumption planning previews, never overwrites
+
+- Date: 2026-11-13
+- Status: Accepted for the local pilot. No change to formulas, scoring weights, recommend-against criteria, the Investor Readiness Gate, human review controls, evidence requirements, or the official baseline. No deployment.
+- The preview reuses `app.preview.calculate_preview`, so Preview, Analyze, and the assumption page cannot disagree. No calculation logic is duplicated and engine defaults are not changed; the page only reports where they apply.
+- Only underlying assumptions are editable. Saving writes the working draft after a review table and a confirmation checkbox. The official result changes only when the customer runs a new assessment.
+- Superseded official results are kept (`official_results` table, legacy result inserted on first replacement). Assumption change history and basis labels (estimate, hypothetical, document) are advisory records, not evidence.
+- Hypothetical examples fill only blank lines in the form and are never saved automatically.
+- A hash stamp of the editable saved values rejects saves made against a stale page (409).
+- Key Numbers describes the official run until a new run replaces it, using the stored intake when the working draft differs.
+- Funding gap: remaining requirement is required equity minus available owner cash, never below zero. Cash is not equity unless the customer commits it.

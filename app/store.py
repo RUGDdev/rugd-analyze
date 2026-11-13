@@ -429,6 +429,23 @@ def _open_schema(connection: sqlite3.Connection) -> None:
     )
     connection.execute(
         """
+        CREATE TABLE IF NOT EXISTS official_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            assessment_id TEXT NOT NULL,
+            saved_at TEXT,
+            superseded_at TEXT,
+            result_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS official_results_by_assessment
+        ON official_results (assessment_id, id)
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE IF NOT EXISTS audit_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             action TEXT NOT NULL,
@@ -925,6 +942,27 @@ def save_result(
     intake: dict[str, Any] | None,
     result: dict[str, Any],
 ) -> None:
+    """Store the official result. The result it replaces is kept in `official_results`, never discarded."""
+    now = _now()
+    previous = connection.execute(
+        "SELECT result_json FROM assessments WHERE id = ?", (assessment_id,)
+    ).fetchone()
+    if previous is not None and previous["result_json"]:
+        superseded = connection.execute(
+            "UPDATE official_results SET superseded_at = ? WHERE assessment_id = ? AND superseded_at IS NULL",
+            (now, assessment_id),
+        ).rowcount
+        if not superseded:
+            # A result stored before history existed. Keep it, with no recorded date.
+            connection.execute(
+                "INSERT INTO official_results (assessment_id, saved_at, superseded_at, result_json) VALUES (?, NULL, ?, ?)",
+                (assessment_id, now, previous["result_json"]),
+            )
+    encoded = json.dumps(result)
+    connection.execute(
+        "INSERT INTO official_results (assessment_id, saved_at, superseded_at, result_json) VALUES (?, ?, NULL, ?)",
+        (assessment_id, now, encoded),
+    )
     connection.execute(
         """
         UPDATE assessments
@@ -933,12 +971,35 @@ def save_result(
         """,
         (
             None if intake is None else json.dumps(intake),
-            json.dumps(result),
-            _now(),
+            encoded,
+            now,
             assessment_id,
         ),
     )
     connection.commit()
+
+
+def list_official_results(connection: sqlite3.Connection, assessment_id: str) -> list[dict[str, Any]]:
+    """Every official result stored for this assessment, newest first. The one with no `superseded_at` is current."""
+    rows = connection.execute(
+        "SELECT id, saved_at, superseded_at, result_json FROM official_results WHERE assessment_id = ? ORDER BY id DESC",
+        (assessment_id,),
+    ).fetchall()
+    items = []
+    for row in rows:
+        try:
+            result = json.loads(row["result_json"])
+        except json.JSONDecodeError:
+            continue
+        items.append(
+            {
+                "id": row["id"],
+                "saved_at": row["saved_at"],
+                "superseded_at": row["superseded_at"],
+                "result": result if isinstance(result, dict) else {},
+            }
+        )
+    return items
 
 
 def create_share_link(

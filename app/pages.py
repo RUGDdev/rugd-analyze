@@ -2631,6 +2631,7 @@ def results_page(
         checklist=checklist,
         next_step=_next_step_for(record),
         standing=standing,
+        writable=writable,
         legacy={
             "tables": tables,
             "scenarios": engine_cases,

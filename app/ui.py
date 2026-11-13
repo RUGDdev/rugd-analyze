@@ -529,6 +529,9 @@ main:has(.dash) { max-width: 1180px; }
 .dchip-placeholder, .dchip-missing { background: #F6E7CB; border-color: #D9BE88; color: #5b4519; }
 .dchip-zero { background: #EEEAE0; }
 .dchip-benchmark { background: #EFE9F4; border-color: #D3C6DF; }
+.dchip-hypothetical { background: #FFF6DD; border: 1px dashed #C9A24B; color: #5b4519; }
+.dchip-document { background: #E8EFF3; border-color: #C5D3DC; }
+.dchip-estimate { background: var(--soft); }
 .dtag { display: inline-block; font-size: 0.74rem; padding: 0.05rem 0.5rem; margin: 0 0.3rem 0.2rem 0; background: var(--stone); border-radius: 999px; }
 .dtag-warn { background: #f1dcc0; }
 .dtag-bad { background: #e8c4c4; }

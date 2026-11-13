@@ -22,8 +22,10 @@ from app.commercial import (
     usage_page,
 )
 from app import advisory, advisory_store, benchmarks, improve
+from app import assumptions as asm_logic
 from app import revenue_worksheet as rw
 from app.advisory_pages import benchmarks_page, improve_page, revenue_page
+from app.assumptions_page import assumptions_page, panel_html as assumptions_panel
 from app.guidance import forecast_fields_html, progress_html
 from app.inputs import monthly_problems
 from app.config import (
@@ -178,6 +180,7 @@ from app.store import (
     label_for_new_assessment,
     list_business_profiles,
     get_assessment,
+    list_official_results,
     get_action_item,
     get_business_plan,
     get_pitch_deck,
@@ -728,7 +731,7 @@ class AppHandler(BaseHTTPRequestHandler):
             self._bytes(payload, "application/json")
         elif action == "validate":
             self._html(validate_page(record, list_guidance_notes(connection, record["id"])))
-        elif action in {"benchmarks", "revenue-worksheet", "improve"}:
+        elif action in {"benchmarks", "revenue-worksheet", "improve", "assumptions"}:
             self._advisory_get(connection, record, action)
         else:
             state = self._account_state(connection)
@@ -820,7 +823,7 @@ class AppHandler(BaseHTTPRequestHandler):
             if not may_read(state, record):
                 self._deny_assessment()
                 return
-        elif action in {"assistant", "share", "benchmarks", "revenue-worksheet", "improve"}:
+        elif action in {"assistant", "share", "benchmarks", "revenue-worksheet", "improve", "assumptions"}:
             if not may_read(state, record):
                 self._deny_assessment()
                 return
@@ -864,7 +867,7 @@ class AppHandler(BaseHTTPRequestHandler):
         if action == "scenarios":
             self._save_scenario(connection, record, form)
             return
-        if action in {"benchmarks", "revenue-worksheet", "improve"}:
+        if action in {"benchmarks", "revenue-worksheet", "improve", "assumptions"}:
             self._advisory_post(connection, record, action, form)
             return
         if action == "suggestions":
@@ -2028,6 +2031,7 @@ class AppHandler(BaseHTTPRequestHandler):
             "benchmark_entries": self._advisory_visible(connection, state, record, "benchmark_entry"),
             "worksheet": worksheets[-1] if worksheets else None,
             "scenarios": self._advisory_visible(connection, state, record, "scenario"),
+            "assumption_basis": self._assumption_basis(connection, str(record["id"])),
         }
 
     def _advice_slots(self, connection: Any, state: dict[str, Any], record: dict[str, Any], profile: dict[str, Any]) -> dict[str, str]:
@@ -2061,6 +2065,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 else rw.default_form(record["profile"])
             )
             self._html(revenue_page(record, form, rw.parse(form)[0], [], latest, writable=writable))
+        elif action == "assumptions":
+            self._assumptions_render(connection, record, {}, writable=writable)
         else:
             saved = self._advisory_visible(connection, state, record, "scenario")
             query = {key: values[-1] for key, values in parse_qs(urlparse(self.path).query).items() if values}
@@ -2078,8 +2084,132 @@ class AppHandler(BaseHTTPRequestHandler):
             self._benchmarks_post(connection, state, record, actor, op, form)
         elif action == "revenue-worksheet":
             self._revenue_post(connection, state, record, actor, op, form)
+        elif action == "assumptions":
+            self._assumptions_post(connection, record, actor, op, form, writable=writable)
         else:
             self._improve_post(connection, state, record, actor, op, form)
+
+    def _assumption_basis(self, connection: Any, assessment_id: str) -> dict[str, dict[str, str]]:
+        saved = advisory_store.list_records(connection, assessment_id, "assumption_basis")
+        return asm_logic.basis_map(saved[-1] if saved else None)
+
+    def _assumptions_render(
+        self,
+        connection: Any,
+        record: dict[str, Any],
+        form: dict[str, str],
+        *,
+        writable: bool,
+        notice: str = "",
+        errors: list[str] | None = None,
+        status: int = 200,
+    ) -> None:
+        assessment_id = str(record["id"])
+        basis = self._assumption_basis(connection, assessment_id)
+        view = asm_logic.build_view(record, form, basis)
+        history = list_official_results(connection, assessment_id)
+        if isinstance(record.get("result"), dict) and not any(item["superseded_at"] is None for item in history):
+            history.insert(0, {"id": 0, "saved_at": None, "superseded_at": None, "result": record["result"]})
+        self._html(
+            assumptions_page(
+                record,
+                view,
+                writable=writable,
+                saved_changes=advisory_store.list_records(connection, assessment_id, "assumption_change"),
+                official_history=history,
+                notice=notice,
+                errors=errors,
+                stale=asm_logic.draft_differs(record),
+            ),
+            status=status,
+        )
+
+    def _assumptions_post(
+        self,
+        connection: Any,
+        record: dict[str, Any],
+        actor: str,
+        op: str,
+        form: dict[str, str],
+        *,
+        writable: bool,
+    ) -> None:
+        """Preview, fill an example, or save edits to the working draft. The official result is never touched here."""
+        assessment_id = str(record["id"])
+        record = self._official_view(connection, record)
+        basis = self._assumption_basis(connection, assessment_id)
+        profile = record.get("profile") or {}
+        shown = dict(form)
+        notice, errors, status = "", [], 200
+        if op == "calculate" and form.get("fragment") == "1":
+            view = asm_logic.build_view(record, form, basis)
+            self._bytes(assumptions_panel(record, view, writable=writable).encode("utf-8"), "text/html; charset=utf-8")
+            return
+        if op == "example":
+            filled = asm_logic.example_for(profile)
+            for key, value in filled.items():
+                if not str(form.get(f"a_{key}") or "").strip():
+                    shown[f"a_{key}"] = value
+                    shown[f"b_{key}"] = "hypothetical"
+            notice = (
+                "Illustrative restaurant figures were filled into the blank lines below, labeled hypothetical. "
+                "Nothing was saved. Review the preview and approve it if you want to keep them."
+                if filled
+                else "Nothing to fill: those lines already have values in your draft."
+            )
+        elif op == "apply":
+            view = asm_logic.build_view(record, form, basis)
+            proposal = view["proposal"]
+            if form.get("base") != view["stamp"]:
+                errors, status = [
+                    "Your draft changed after this page was opened. Nothing was saved. Review the numbers below and try again."
+                ], 409
+            elif form.get("confirm") != "yes":
+                errors, status = ["Tick the box to approve the changes. Nothing was saved."], 400
+            elif proposal["errors"]:
+                errors, status = ["Fix the entries marked below. Nothing was saved."], 400
+            elif not proposal["changes"]:
+                notice = "There is nothing to save. Your working draft already has these values."
+            else:
+                changes = proposal["changes"]
+                at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+                updated = dict(profile)
+                for item in asm_logic.value_changes(changes):
+                    updated[item["field"]] = item["to"]
+                try:
+                    advisory_store.save_record(
+                        connection,
+                        assessment_id=assessment_id,
+                        created_by=actor,
+                        kind="assumption_change",
+                        payload={"at": at, "changes": changes},
+                        title=f"{len(changes)} assumption change{'s' if len(changes) != 1 else ''}",
+                    )
+                except advisory_store.AdvisoryLimit as exc:
+                    errors, status = [str(exc) + " Nothing was saved."], 400
+                else:
+                    save_profile(connection, assessment_id, updated)
+                    saved_profile = (get_assessment(connection, assessment_id) or record)["profile"]
+                    advisory_store.save_record(
+                        connection,
+                        assessment_id=assessment_id,
+                        created_by=actor,
+                        kind="assumption_basis",
+                        payload={"fields": asm_logic.updated_basis(basis, changes, saved_profile, at)},
+                        title="Assumption basis labels",
+                        record_key="basis",
+                    )
+                    self._audit(connection, "assumptions_saved", actor, assessment_id, ",".join(item["field"] for item in changes))
+                    notice = (
+                        f"Saved {len(changes)} change{'s' if len(changes) != 1 else ''} to your working draft. "
+                        "The official assessment, its flags, and its review status are unchanged. "
+                        "Run a new assessment when you want the official result to use these numbers."
+                    )
+                    shown = {}
+        elif op != "calculate":
+            errors, status = ["That action is not available."], 400
+        fresh = self._official_view(connection, get_assessment(connection, assessment_id) or record)
+        self._assumptions_render(connection, fresh, shown, writable=writable, notice=notice, errors=errors, status=status)
 
     def _benchmarks_post(self, connection: Any, state: dict[str, Any], record: dict[str, Any], actor: str, op: str, form: dict[str, str]) -> None:
         assessment_id = str(record["id"])

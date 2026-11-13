@@ -14,9 +14,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-KINDS = ("scenario", "decision", "benchmark_entry", "revenue_worksheet")
-_LIMITS = {"scenario": 12, "decision": 300, "benchmark_entry": 40, "revenue_worksheet": 1}
-_KEYED = {"decision", "revenue_worksheet"}
+KINDS = ("scenario", "decision", "benchmark_entry", "revenue_worksheet", "assumption_basis", "assumption_change")
+_LIMITS = {"scenario": 12, "decision": 300, "benchmark_entry": 40, "revenue_worksheet": 1, "assumption_basis": 1, "assumption_change": 200}
+_KEYED = {"decision", "revenue_worksheet", "assumption_basis"}
 MAX_PAYLOAD_CHARS = 24_000
 
 

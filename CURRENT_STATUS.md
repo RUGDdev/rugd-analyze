@@ -4,8 +4,12 @@ Updated: 2026-11-13
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 359 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 388 tests, all passing.
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
+
+## Assumption planning (2026-11-13, after fa21cac)
+
+Analyze > Key Numbers now links each financial section to `/assessments/{id}/assumptions`, an editable planning page. The page edits only underlying assumptions (21 fields: project costs, financing terms, revenue, operating costs, monthly settings; owner cash is on the funding card). Calculated outputs are not editable. Preview is calculated per request by the same `calculate_preview` Analyze uses, shown as "Not saved", with a before and after table (official, working draft, proposed). Saving needs a review table and an explicit confirmation, writes only the working draft (`save_profile`) plus an advisory history record and an audit event, and never touches the official result. A new official run happens only when the customer presses "Run a new assessment". Superseded official results are kept in the new `official_results` table. Blank and zero are different: blank shows the engine default or "counted as $0" with a "Default used" chip; zero is shown as a deliberate zero. Basis labels (estimate, hypothetical, document) are advisory records. The restaurant example (equipment $365,000, soft costs $225,000, pre-opening working capital $200,000) is labeled hypothetical and fills only blank lines in the form, never a saved record. The funding card shows total project cost, proposed debt, required equity, available owner cash, and remaining requirement (equity less cash, never below zero); cash is not treated as equity. Optimistic stamp rejects stale saves (409). `human_review_approved` is refused (403). Files: `app/assumptions.py` (logic), `app/assumptions_page.py` (page), `tests/test_assumption_planning.py` (29 tests). No engine, scoring, gate, or baseline file changed. Official baseline is still draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, readiness internal, human review pending. Not deployed.
 
 ## Plain-language layer (2026-11-13, after 22c9364)
 
