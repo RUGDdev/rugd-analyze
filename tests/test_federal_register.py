@@ -171,7 +171,8 @@ class TestFederalRegisterSource(unittest.TestCase):
             self.assertIn("not an enacted requirement", page[1])
             self.assertIn("2020-01-15", page[1])
             self.assertIn("&lt;script&gt;", page[1])
-            self.assertNotIn("<script>", page[1])
+            # The shared page script is allowed. The notice title must never be injected as markup.
+            self.assertNotIn("notice <script>", page[1])
             batch_id = page[1].split('name="batch_id" value="', 1)[1].split('"', 1)[0]
             self.assertEqual(
                 _raw(base + project_path, {"op": "import_public", "batch_id": batch_id, "selected": "0"}, cookie)[0],

@@ -13,7 +13,7 @@ from typing import Any
 from app import advisory, benchmarks, display, improve
 from app import revenue_worksheet as rw
 from app.field_help import DAYS
-from app.pages import _workspace_links, layout
+from app.pages import _workspace_links, _ws_header, layout
 
 _STYLE = """<style>
 .adv-sub { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0.6rem 0 1rem; padding: 0.5rem 0.7rem; background: #FBF9F4; border: 1px solid var(--stone); }
@@ -43,6 +43,11 @@ _STYLE = """<style>
 .adv-btn-row form { display: inline; }
 .adv-btn-row button { margin-right: 0.4rem; }
 button.ghost { background: white; color: var(--ink); border: 1px solid var(--ink); }
+.adv-sub { border-radius: 14px; border-color: var(--line); background: var(--card); }
+.adv-note { border-radius: 12px; border-left-width: 4px; }
+.adv-stat, .adv-rec, .adv-preset, .adv-chart { border-radius: 14px; border-color: var(--line); background: var(--card); }
+.adv-table { border-radius: 12px; }
+.adv-tag { border-radius: 999px; padding: 0.1rem 0.6rem; }
 </style>"""
 
 
@@ -85,7 +90,7 @@ def _shell(record: dict[str, Any], title: str, current: str, body: str) -> str:
     name = escape(str(record.get("business_name") or record.get("profile", {}).get("business_name") or "Your business"))
     return layout(
         title,
-        f"{_STYLE}<h1>{escape(title)}</h1><p class=\"muted\">{name}</p>{_workspace_links(record)}{_subnav(record, current)}{body}",
+        f"{_STYLE}{_ws_header(record, title, 'improve', subtitle=name)}{_subnav(record, current)}{body}",
         active="/assessments",
     )
 

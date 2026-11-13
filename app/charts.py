@@ -6,6 +6,8 @@ import math
 from html import escape
 from typing import Any
 
+from app import display
+
 CASH_FLOW_KEYS = (
     ("base_monthly_cash_flow", "Base monthly cash flow"),
     ("downside_monthly_cash_flow", "Downside monthly cash flow"),
@@ -68,7 +70,7 @@ def reading_lines(financial: dict[str, Any] | None, *, live: bool) -> list[str]:
         if number is None:
             lines.append(f"{key}: not calculated.")
         else:
-            lines.append(f"{key}: {number}. Calculated by the engine.")
+            lines.append(f"{key}: {display.figure(key, number)}. Calculated by the engine.")
     lines.append("The engine does not return a separate expense total. No expense amount is drawn.")
     return lines
 
@@ -214,7 +216,7 @@ def _bar_chart(chart_id: str, title: str, points: list[dict[str, Any]], note: st
             marker = f'data-engine-key="{escape(point["key"])}" data-engine-value="{point["value"]}"'
         rows.append(
             f'<text x="{250 + width + 8:.2f}" y="{y + 12}" fill="#263746" font-size="12" '
-            f"{marker}>{point['value']}</text>"
+            f"{marker}>{escape(display.figure(point['key'], point['value']))}</text>"
         )
     svg = (
         f'<svg viewBox="0 0 640 {height}" role="img" aria-label="{escape(title)}">'
@@ -323,7 +325,9 @@ def _break_even_block(
         explanation = "Break-even revenue is not available, so this preview cannot say whether the entered revenue is above or below it."
         gap_attr = ""
     else:
-        lines.append(f"<li>break_even_monthly_revenue: {break_even}. Calculated by the engine.</li>")
+        lines.append(
+            f"<li>break_even_monthly_revenue: {display.dollars(break_even)}. Calculated by the engine.</li>"
+        )
         if assumed_revenue is None:
             lines.append("<li>The difference is not shown because monthly revenue was not entered. A blank is not treated as zero.</li>")
             explanation = "Enter monthly revenue to compare it with the calculated break-even revenue."
@@ -331,13 +335,13 @@ def _break_even_block(
         else:
             gap = round(assumed_revenue - break_even, 2)
             lines.append(
-                f'<li data-revenue-gap="{gap}">Revenue difference: {gap}. '
+                f'<li data-revenue-gap="{gap}">Revenue difference: {display.dollars(gap)}. '
                 "This is the entered monthly revenue minus the engine break-even. It is not a separate engine output.</li>"
             )
             if gap > 0:
-                explanation = f"The entered monthly revenue is {gap} above the calculated break-even revenue."
+                explanation = f"The entered monthly revenue is {display.dollars(gap)} above the calculated break-even revenue."
             elif gap < 0:
-                explanation = f"The entered monthly revenue is {abs(gap)} below the calculated break-even revenue."
+                explanation = f"The entered monthly revenue is {display.dollars(abs(gap))} below the calculated break-even revenue."
             else:
                 explanation = "The entered monthly revenue equals the calculated break-even revenue."
             gap_attr = f' data-revenue-gap="{gap}"'
@@ -415,7 +419,7 @@ def _allocation_block(projection: dict[str, Any] | None, label: str) -> str:
             continue
         amount = finite_number(item.get("amount"))
         slices.append({"key": key, "label": name, "value": amount})
-        state = "0. Stored as zero." if amount == 0 else f"{amount}. Copied from the stored projection."
+        state = "0. Stored as zero." if amount == 0 else f"{display.dollars(amount)}. Copied from the stored projection."
         lines.append(f"<li>{escape(key)}: {escape(state)}</li>")
     positive = [item for item in slices if item["value"] > 0]
     if not positive:
@@ -446,7 +450,7 @@ def _doughnut(slices: list[dict[str, Any]]) -> str:
             angle += sweep
     labels = "".join(
         f'<text x="250" y="{28 + index * 22}" fill="#263746" font-size="12">'
-        f'{escape(item["label"])}: {item["value"]}</text>'
+        f'{escape(item["label"])}: {escape(display.dollars(item["value"]))}</text>'
         for index, item in enumerate(slices)
     )
     svg = (
@@ -475,28 +479,28 @@ def _assumption_line(label: str, value: float | None) -> str:
         return f"<li>{escape(label)}: Missing. This blank is not stored as zero.</li>"
     if value == 0:
         return f"<li>{escape(label)}: 0. Customer-supplied assumption. Entered as zero.</li>"
-    return f"<li>{escape(label)}: {value}. Customer-supplied assumption.</li>"
+    return f"<li>{escape(label)}: {display.dollars(value)}. Customer-supplied assumption.</li>"
 
 
 def _engine_line(financial: dict[str, Any] | None, key: str, label: str) -> str:
     number = finite_number(financial.get(key)) if isinstance(financial, dict) else None
     if number is None:
         return f"<li>{escape(label)}: not calculated.</li>"
-    return f"<li>{escape(key)}: {number}. Calculated by the engine.</li>"
+    return f"<li>{escape(key)}: {display.figure(key, number)}. Calculated by the engine.</li>"
 
 
 def _engine_text(financial: dict[str, Any] | None, key: str) -> str:
     number = finite_number(financial.get(key)) if isinstance(financial, dict) else None
     if number is None:
         return "Not calculated."
-    return escape(f"{number}. Calculated by the engine.")
+    return escape(f"{display.figure(key, number)}. Calculated by the engine.")
 
 
 def _money_text(value: float | None, *, assumed: bool) -> str:
     if value is None:
         return "Missing. This blank is not stored as zero."
     suffix = "Customer-supplied assumption." if assumed else "Calculated by the engine."
-    return escape(f"{value}. {suffix}")
+    return escape(f"{display.dollars(value)}. {suffix}")
 
 
 def _pair(name: str, base: str, downside: str) -> tuple[str, str, str]:

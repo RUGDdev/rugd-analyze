@@ -9,6 +9,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from app import display
 from app.accounts import register_account
 from app.charts import finite_number, reading_lines, series, CASH_FLOW_KEYS
 from app.inputs import field_state, monthly_problems
@@ -53,7 +54,7 @@ class TestInteractiveAnalyze(unittest.TestCase):
         self.assertEqual(points[0]["source"], "engine")
         lines = reading_lines(financial, live=False)
         self.assertIn("Demonstration reading. No live model was called.", lines[0])
-        self.assertIn(f"base_monthly_cash_flow: {expected.base_monthly_cash_flow}. Calculated by the engine.", lines)
+        self.assertIn(f"base_monthly_cash_flow: {display.money(expected.base_monthly_cash_flow)}. Calculated by the engine.", lines)
         self.assertIn("The engine does not return a separate expense total. No expense amount is drawn.", lines)
         self.assertIsNone(finite_number(True))
 

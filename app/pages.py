@@ -7,7 +7,8 @@ from html import escape
 from typing import Any
 from urllib.parse import urlencode
 
-from app import APP_VERSION
+from app import APP_VERSION, ui
+from app import display as fmt
 from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, get_analyst
 from app.adviser_flow import PLACEHOLDER_NAMES, THEMES
 from app.advisory import ADVICE_FIELDS, CONSTRUCTION_SCOPES, SERVICE_STYLES
@@ -236,10 +237,6 @@ summary {{ cursor: pointer; }}
 .slide-actions {{ display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }}
 .plan-section {{ scroll-margin-top: 0.75rem; }}
 .finance-preview {{ margin: 0; }}
-main #journey-nav {{ flex-direction: row; flex-wrap: wrap; gap: 0.35rem; padding: 0; margin: 0.2rem 0 0.5rem; }}
-main #journey-nav a {{ color: var(--ink); background: white; border: 1px solid var(--stone); border-radius: 999px; padding: 0.2rem 0.75rem; font-size: 0.88rem; }}
-main #journey-nav a:hover {{ background: #F1E9D8; color: var(--ink); }}
-#journey-context {{ font-size: 0.82rem; margin: 0.2rem 0 0.4rem; }}
 main:has(.guided) {{ max-width: 1200px; }}
 main:has(.guided) .banner {{ border-radius: 12px; padding: 0.6rem 0.9rem; font-size: 0.9rem; }}
 main:has(.guided) .card {{ border-radius: 14px; }}
@@ -401,6 +398,7 @@ details.more > summary {{ padding: 0.7rem 0; font-weight: 600; }}
 body.print-view {{ background: white; }}
 body.print-view .sidebar {{ display: none; }}
 </style>
+{ui.STYLE}
 </head>
 <body{" class=\"print-view\"" if printable else ""}>
 <div class="shell">
@@ -415,6 +413,7 @@ body.print-view .sidebar {{ display: none; }}
 </main>
 </div>
 </div>
+{ui.SCRIPT}
 </body>
 </html>"""
 
@@ -448,12 +447,14 @@ def _plain(key: str) -> str:
 
 
 def _section_welcome(title: str, first: str, second: str, *, demonstration: str = "") -> str:
-    label = f'<p class="muted">{escape(demonstration)}</p>' if demonstration else ""
-    return (
-        '<header class="card" id="section-welcome">'
-        f"<h1>{escape(title)}</h1>{label}"
-        f"<p>{escape(first)}</p><p>{escape(second)}</p>"
-        "</header>"
+    """The same top block on every section: title, one plain line, and the standing limit behind a "?"."""
+    chips = (ui.pill(demonstration, "warn"),) if demonstration else ()
+    return ui.page_header(
+        title,
+        subtitle=first,
+        chips=chips,
+        help_html=ui.simple_help("About this page", second),
+        header_id="section-welcome",
     )
 
 
@@ -521,18 +522,47 @@ def dashboard(
     items = "".join(_history_card(item) for item in owned)
     empty = ""
     step = ""
+    stats = ""
     focus = _focus_record(owned)
     if focus is not None:
         step = _your_next_step(focus)
+        analyzed = sum(
+            1
+            for item in owned
+            if isinstance(item.get("result"), dict) and (item.get("result") or {}).get("engine_ran")
+        )
+        flagged = sum(
+            1
+            for item in owned
+            if isinstance(item.get("result"), dict) and (item.get("result") or {}).get("blocking_flags")
+        )
+        stats = ui.kpi_grid(
+            [
+                ui.stat("Assessments", fmt.count(len(owned)), "created by this account", icon_name="layers"),
+                ui.stat("Analyzed", fmt.count(analyzed), "with a stored engine result", icon_name="chart"),
+                ui.stat("Not analyzed yet", fmt.count(len(owned) - analyzed), "still in intake", icon_name="flag"),
+                ui.stat(
+                    "Evidence flags",
+                    fmt.count(flagged),
+                    "with a recommend-against flag",
+                    icon_name="flag",
+                    tone="bad" if flagged else "",
+                ),
+            ]
+        )
     else:
-        empty = """
-<div class="card empty-state" id="your-assessments-empty">
-<h2>No assessments yet</h2>
-<p>You have not created an assessment. Blank fields stay blank until you enter them. Nothing is copied from the official baseline.</p>
-<p><strong>What to do first:</strong> Choose Start a new assessment. Say whether this is a startup idea or an existing business. Save the draft, then fill the blank required fields. No subscription or payment method is required.</p>
-<p><a class="button primary" href="/assessments/new">Start a new assessment</a></p>
-</div>
-"""
+        empty = ui.card(
+            "No assessments yet",
+            "<p>You have not created an assessment. Blank fields stay blank until you enter them. "
+            "Nothing is copied from the official baseline.</p>"
+            "<p><strong>What to do first:</strong> Choose Start a new assessment. Say whether this is a startup idea "
+            "or an existing business. Save the draft, then fill the blank required fields. "
+            "No subscription or payment method is required.</p>"
+            '<p><a class="button primary" href="/assessments/new">Start a new assessment</a></p>',
+            cls="empty-state",
+            icon_name="plus",
+        ).replace('<div class="dcard empty-state"', '<div class="dcard empty-state" id="your-assessments-empty"', 1)
+    start_button = ui.button("Start a new assessment", "/assessments/new")
     if surface == "assessments":
         heading = _section_welcome(
             "Welcome to RUGD My Assessments",
@@ -541,26 +571,44 @@ def dashboard(
         )
         title = "My Assessments"
     else:
-        heading = "<h1>Your assessments</h1>"
+        heading = ui.page_header(
+            "Your assessments",
+            subtitle="Pick up where you left off, or start something new.",
+            actions=start_button,
+            help_html=ui.simple_help(
+                "About this page",
+                "Each card shows the stage, the stored status, and one main action. "
+                "Nothing here grants investor-ready status or replaces a human review.",
+            ),
+            header_id="home-header",
+        )
         title = "Dashboard"
+    grid = f'<div class="ditems ditems-wide" id="assessment-list">{items}</div>' if items else ""
+    starters = ui.details(
+        "Start something new: what would you like to accomplish?",
+        _objective_chooser(),
+        open_=focus is None,
+        cls="dstarters",
+    )
+    notes = ui.details("What this review is for", _pilot_purpose(), cls="dpurpose")
+    words = ui.details(
+        "Words you will see",
+        '<div class="card"><p>The precise term stays in the heading. The sentence next to it is the plain meaning. '
+        "Learn more keeps the tighter definition.</p>"
+        f'{_plain("recommendation")}{_plain("insufficient_demand_evidence")}{_plain("investor_readiness")}</div>',
+        cls="dwords",
+    )
     body = f"""
 {heading}
-<p>This page is the home for this account. Each card shows the stage, the stored status, and one primary action.</p>
-{_objective_chooser()}
 {_SURFACE_NOTE}
-{_pilot_purpose()}
-<p class="muted">These are the assessments this account created. This list does not grant investor-ready status. An indicative assessment is shown after Analyze. It does not override engine flags or human review. No feasibility score is calculated. An owner can create a read-only share. The shared page cannot edit or approve the assessment.</p>
-<p><a class="button primary" href="/assessments/new">Start a new assessment</a></p>
-{empty}
+{stats}
 {step}
-{items}
-<div class="card">
-<h2>Words you will see</h2>
-<p>The precise term stays in the heading. The sentence next to it is the plain meaning. Learn more keeps the tighter definition.</p>
-{_plain("recommendation")}
-{_plain("insufficient_demand_evidence")}
-{_plain("investor_readiness")}
-</div>
+{empty}
+{grid}
+{starters}
+<p class="muted">These are the assessments this account created. This list does not grant investor-ready status. An indicative assessment is shown after Analyze. It does not override engine flags or human review. No feasibility score is calculated. An owner can create a read-only share. The shared page cannot edit or approve the assessment.</p>
+{notes}
+{words}
 {_module_guide()}
 """
     return layout(title, body)
@@ -574,24 +622,29 @@ def _history_card(item: dict[str, Any]) -> str:
         action = (
             f'<a class="button primary" href="/assessments/{assessment_id}/results">View Results</a>'
         )
-        gate = _gate_line(result)
+        gate_html = _gate_line(result)
+        badges, _sep, rest = gate_html.partition("</p>")
+        gate = badges + "</p>" + ui.details("What the gate means", rest, tight=True)
     else:
         action = f'<a class="button primary" href="/assessments/{assessment_id}#intake">Continue Intake</a>'
         gate = ""
     kind = _card_kind(item)
     kind_line = f'<p class="muted">{escape(kind)}</p>' if kind else ""
+    name = escape(str(item.get("business_name") or "Untitled"))
     return f"""
-<article class="card assessment-card">
-<h2 class="card-title">{escape(str(item.get("business_name") or "Untitled"))}</h2>
+<article class="card assessment-card ditem">
+<div class="ditem-ico">{ui.icon("layers")}</div>
+<div class="ditem-body">
+<h3 class="card-title ditem-t"><a href="/assessments/{assessment_id}">{name}</a></h3>
 {kind_line}
-<p class="card-meta"><strong>Business stage:</strong> {escape(_stage_label(item))}</p>
+<p class="card-meta muted ditem-meta"><strong>Business stage:</strong> {escape(_stage_label(item))}</p>
 {_card_journey(item)}
 {gate}
 <p class="status-line">{escape(_engine_status_line(result))}</p>
-<p class="card-updated"><strong>Last updated:</strong> {escape(str(item.get("updated_at") or "not recorded"))}</p>
-<p class="card-action">{action}</p>
-<p><a href="/assessments/{assessment_id}#assistant">Ask about this assessment</a></p>
-<p class="muted">This card does not grant investor-ready status.</p>
+<p class="card-updated muted ditem-meta"><strong>Last updated:</strong> {ui.when(item.get("updated_at"))}</p>
+<div class="card-action dactions">{action} <a href="/assessments/{assessment_id}#assistant">Ask about this assessment</a></div>
+<p class="muted ditem-meta">This card does not grant investor-ready status.</p>
+</div>
 </article>
 """
 
@@ -1137,8 +1190,7 @@ def assessment_form(
 <p class="muted">This record is read-only for this session. The draft was not changed.</p>
 """
     body = f"""
-<h1>{escape(record['business_name'])}</h1>
-{_workspace_links(record)}
+{_ws_header(record, str(record['business_name']), 'explore', subtitle='Describe the business, save the draft, then run Analyze when you are ready.')}
 {_SURFACE_NOTE}
 {banner}
 <h2 id="intake" class="sr-only">Intake</h2>
@@ -2678,8 +2730,7 @@ def _results_not_run(
 </div>
 """
     return f"""
-<h1>Analyze has not been run</h1>
-{_workspace_links(record)}
+{_ws_header(record, 'Analyze has not been run', 'analyze')}
 <p>This page says Analyze has not written a result yet. It does not invent a number and it does not grant investor-ready status.</p>
 {_pilot_banner(record)}
 {_SURFACE_NOTE}
@@ -3159,7 +3210,8 @@ def _financial_table(financial: dict[str, Any] | None) -> str:
 
 def assistant_page(record: dict[str, Any], lines: list[str], question: str = "") -> str:
     body = f"""
-<h1>Ask about {escape(record['business_name'])}</h1>
+{ui.page_header('Ask about ' + str(record['business_name']))}
+{_workspace_links(record)}
 {_SURFACE_NOTE}
 <p class="muted">You asked: {escape(question or "a question about this assessment.")}</p>
 {_assistant_panel(record, lines, surface="results" if (record.get("result") or {}).get("engine_ran") else "intake")}
@@ -4693,24 +4745,14 @@ def _approved_research_note(document: dict[str, Any]) -> str:
     )
 
 
-def _workspace_links(record: dict[str, Any]) -> str:
-    assessment_id = escape(str(record.get("id") or ""))
-    return (
-        '<nav class="no-print" id="journey-nav" aria-label="Business workflow">'
-        f'<a href="/assessments/{assessment_id}">Explore</a> '
-        f'<a href="/assessments/{assessment_id}/intelligence">Research</a> '
-        f'<a href="/assessments/{assessment_id}/results">Analyze</a> '
-        f'<a href="/assessments/{assessment_id}/plans">Business plan</a> '
-        f'<a href="/assessments/{assessment_id}/decks">Pitch deck</a> '
-        f'<a href="/assessments/{assessment_id}/reports">Reports</a> '
-        f'<a href="/assessments/{assessment_id}/actions">Action Center</a> '
-        f'<a href="/assessments/{assessment_id}/advice">Adviser</a> '
-        f'<a href="/assessments/{assessment_id}/improve">Improve</a> '
-        f'<a href="/assessments/{assessment_id}/pulse">Market Pulse</a>'
-        "</nav>"
-        '<p class="muted" id="journey-context">Saved research can inform an assumption you choose to enter. '
+def _workspace_links(record: dict[str, Any], current: str = "") -> str:
+    """One row between this business's workspaces. The shared design, with the current page marked."""
+    return ui.workspace_nav(str(record.get("id") or ""), current) + (
+        '<details class="dmore dmore-tight no-print" id="journey-context">'
+        "<summary>About this workflow</summary>"
+        '<p class="muted">Saved research can inform an assumption you choose to enter. '
         "A financial scenario is a separate engine run and does not replace the official result. "
-        "Opening this workflow does not change the assessment.</p>"
+        "Opening this workflow does not change the assessment.</p></details>"
     )
 
 
@@ -4721,40 +4763,56 @@ def reports_page(
     signed_in: bool = False,
 ) -> str:
     reports_by_assessment = reports_by_assessment or {}
+    saved_total = sum(len(reports_by_assessment.get(str(item.get("id") or "")) or []) for item in records)
     if not records:
-        items = "<li>No authorized assessment is available. Sign in, then start one from Explore.</li>"
+        items = ui.empty_state(
+            "No assessment to report on yet",
+            "No authorized assessment is available. Sign in, then start one from Explore.",
+            action_html=ui.button("Start in Explore", "/explore"),
+        )
+        stats = ""
     else:
-        rows = []
+        cards = []
         for item in records:
             assessment_id = str(item.get("id") or "")
+            aid = escape(assessment_id)
             saved = reports_by_assessment.get(assessment_id) or []
             saved_links = "".join(
-                f"<li><a href=\"/assessments/{escape(assessment_id)}/reports/{escape(str(report.get('id') or ''))}\">"
+                f"<li><a href=\"/assessments/{aid}/reports/{escape(str(report.get('id') or ''))}\">"
                 f"{escape(str(report.get('title') or 'Saved report'))}</a> · "
-                f"saved {escape(str(report.get('created_at') or ''))}</li>"
+                f"saved {ui.when(report.get('created_at'))}</li>"
                 for report in saved
             ) or "<li>No report is saved yet.</li>"
             generate = ""
             if signed_in:
                 generate = (
-                    f"<form method=\"post\" action=\"/assessments/{escape(assessment_id)}/reports\">"
+                    f"<form method=\"post\" action=\"/assessments/{aid}/reports\">"
                     "<button type=\"submit\">Generate report</button></form>"
                 )
-            rows.append(
-                "<li>"
-                f"<a href=\"/assessments/{escape(assessment_id)}/reports\">{escape(str(item.get('business_name') or 'Assessment'))}</a>"
-                f"{generate}<ul>{saved_links}</ul></li>"
+            ran = bool((item.get("result") or {}).get("engine_ran")) if isinstance(item.get("result"), dict) else False
+            cards.append(
+                ui.item_card(
+                    str(item.get("business_name") or "Assessment"),
+                    href=f"/assessments/{aid}/reports",
+                    chips=ui.pill("Analyzed" if ran else "Not analyzed yet") + ui.pill(f"{len(saved)} saved"),
+                    body=f'<ul class="ditem-links">{saved_links}</ul>',
+                    actions=generate,
+                    icon_name="doc",
+                )
             )
-        items = "".join(rows)
-    sign_in = ""
-    if not signed_in:
-        sign_in = "<p><a class=\"button\" href=\"/login\">Sign in to save a report</a></p>"
+        items = f'<div class="ditems">{"".join(cards)}</div>'
+        stats = ui.kpi_grid(
+            [
+                ui.stat("Assessments", fmt.count(len(records)), "you can report on", icon_name="layers"),
+                ui.stat("Saved reports", fmt.count(saved_total), "snapshots across them", icon_name="doc"),
+            ]
+        )
+    sign_in = "" if signed_in else "<p><a class=\"button\" href=\"/login\">Sign in to save a report</a></p>"
     return layout(
         "Reports",
         f"{_section_welcome('Welcome to RUGD Reports', 'Generate a report from a saved assessment and read it here.', 'A saved report copies stored figures. It does not change the recommendation or grant investor-ready status.')}{_SURFACE_NOTE}"
-        "<p class=\"muted\">Authoritative financial numbers in a report come only from the stored 0.1 engine result. "
-        "A missing figure stays missing.</p>"
-        f"{sign_in}<ul id=\"report-list\">{items}</ul>"
+        f"{ui.callout('Authoritative financial numbers in a report come only from the stored 0.1 engine result. A missing figure stays missing.')}"
+        f"{stats}{sign_in}<div id=\"report-list\">{items}</div>"
         "<p class=\"muted\">Each Generate report saves a new snapshot. An older snapshot stays in History.</p>",
     )
 
@@ -4766,32 +4824,41 @@ def assessment_reports_page(
     signed_in: bool,
     notice: str = "",
 ) -> str:
+    aid = escape(str(record["id"]))
     banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
     if reports:
         items = "".join(
-            "<li>"
-            f"<a href=\"/assessments/{escape(str(record['id']))}/reports/{escape(str(item.get('id') or ''))}\">"
-            f"{escape(str(item.get('title') or 'Saved report'))}</a> · "
-            f"saved {escape(str(item.get('created_at') or ''))}</li>"
+            ui.item_card(
+                str(item.get("title") or "Saved report"),
+                href=f"/assessments/{aid}/reports/{escape(str(item.get('id') or ''))}",
+                meta=f"saved {ui.when(item.get('created_at'))}",
+                icon_name="doc",
+            )
             for item in reports
         )
+        items = f'<div class="ditem-list" id="saved-reports">{items}</div>'
     else:
-        items = "<li>No report is saved yet.</li>"
+        items = (
+            '<div id="saved-reports">'
+            + ui.empty_state(
+                "No report is saved yet.",
+                "A saved report is a snapshot of the stored result. Generate one when you want to share or keep it.",
+            )
+            + "</div>"
+        )
     if signed_in:
         form = (
-            f"<form method=\"post\" action=\"/assessments/{escape(str(record['id']))}/reports\">"
+            f"<form method=\"post\" action=\"/assessments/{aid}/reports\">"
             "<button type=\"submit\">Generate report</button></form>"
         )
     else:
         form = "<p><a class=\"button\" href=\"/login\">Sign in to save a report</a></p>"
     body = f"""
-<h1>Reports for {escape(str(record.get('business_name') or 'Assessment'))}</h1>
-{_workspace_links(record)}
+{_ws_header(record, 'Reports for ' + str(record.get('business_name') or 'Assessment'), 'reports', extra_chips=(ui.pill(f'{len(reports)} saved'),))}
 {_SURFACE_NOTE}
 {banner}
-<p>Generating a report copies the saved business information and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>
-{form}
-<ul id="saved-reports">{items}</ul>
+{ui.card('Generate a report', '<p>Generating a report copies the saved business information and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>' + form, icon_name='doc')}
+{items}
 <p><a href="/history">Open History</a></p>
 """
     return layout("Reports", body)
@@ -4808,7 +4875,7 @@ def saved_report_page(
     banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
     if snapshot is None:
         body = f"""
-<h1>Saved report</h1>
+{ui.page_header('Saved report')}
 {_SURFACE_NOTE}
 <div class="banner">This saved report could not be read. No figure was filled in.</div>
 """
@@ -4826,9 +4893,11 @@ def saved_report_page(
         ("Limitations", snapshot.get("limitations"), "limitations"),
     )
     blocks = []
+    toc = []
     for title, lines, section_id in sections:
         items = "".join(f"<li>{escape(str(line))}</li>" for line in (lines or ["Not available. This value is not stored."]))
         blocks.append(f'<section class="card" id="{section_id}"><h2>{escape(title)}</h2><ul>{items}</ul></section>')
+        toc.append((title, f"#{section_id}"))
     report_id = escape(str(report.get("id") or ""))
     assessment_id = escape(str(record.get("id") or ""))
     tools = ""
@@ -4837,12 +4906,19 @@ def saved_report_page(
             f'<p class="no-print"><a class="button" href="/assessments/{assessment_id}/reports/{report_id}/print">Print</a> '
             f'<a class="button" href="/assessments/{assessment_id}/reports/{report_id}/export">Export</a></p>'
         )
+    head = _ws_header(
+        record,
+        str(report.get("title") or "Saved report"),
+        "reports",
+        extra_chips=(ui.pill("Snapshot"),),
+    ) if not printable else ui.page_header(str(report.get("title") or "Saved report"))
     body = f"""
-<h1>{escape(str(report.get('title') or 'Saved report'))}</h1>
+{head}
 {_SURFACE_NOTE}
 {banner}
-<p>Saved {escape(str(report.get('created_at') or ''))}. This page shows that snapshot. A later Analyze run does not replace it.</p>
+<p>Saved {ui.when(report.get('created_at'))}. This page shows that snapshot. A later Analyze run does not replace it.</p>
 {tools}
+{ui.goto_links(toc, label='Report sections') if not printable else ''}
 {''.join(blocks)}
 <section class="card" id="report-charts">
 <h2>Financial charts</h2>
@@ -4859,31 +4935,49 @@ def actions_page(
     actions_by_assessment: dict[str, list[dict[str, Any]]] | None = None,
 ) -> str:
     actions_by_assessment = actions_by_assessment or {}
+    all_actions = [item for value in actions_by_assessment.values() for item in value]
+    open_total = sum(1 for item in all_actions if str(item.get("status") or "open") != "completed")
     if not records:
-        items = "<li>No authorized assessment is available. Sign in, then open a draft from Explore.</li>"
+        items = ui.empty_state(
+            "No assessment to follow up on yet",
+            "No authorized assessment is available. Sign in, then open a draft from Explore.",
+            action_html=ui.button("Start in Explore", "/explore"),
+            icon_name="flag",
+        )
+        stats = ""
     else:
-        rows = []
+        cards = []
         for item in records:
             assessment_id = str(item.get("id") or "")
             actions = actions_by_assessment.get(assessment_id) or []
             if actions:
-                summary = ", ".join(
-                    f"{escape(str(action.get('status') or 'open'))}" for action in actions
-                )
+                summary = ", ".join(f"{escape(str(action.get('status') or 'open'))}" for action in actions)
                 count = f"{len(actions)} saved"
             else:
                 summary = "none saved"
                 count = "0 saved"
-            rows.append(
-                "<li>"
-                f"<a href=\"/assessments/{escape(assessment_id)}/actions\">"
-                f"{escape(str(item.get('business_name') or 'Assessment'))}</a> · {count}. Status: {summary}.</li>"
+            pending = sum(1 for action in actions if str(action.get("status") or "open") != "completed")
+            cards.append(
+                ui.item_card(
+                    str(item.get("business_name") or "Assessment"),
+                    href=f"/assessments/{escape(assessment_id)}/actions",
+                    meta=f"{count}. Status: {summary}.",
+                    chips=ui.pill(f"{pending} to do", "warn" if pending else "plain"),
+                    icon_name="flag",
+                )
             )
-        items = "".join(rows)
+        items = f'<div class="ditems">{"".join(cards)}</div>'
+        stats = ui.kpi_grid(
+            [
+                ui.stat("Assessments", fmt.count(len(records)), "with an Action Center", icon_name="layers"),
+                ui.stat("Actions saved", fmt.count(len(all_actions)), "across all of them", icon_name="flag"),
+                ui.stat("Still to do", fmt.count(open_total), "open or in progress", icon_name="check", tone="bad" if open_total else ""),
+            ]
+        )
     return layout(
         "Action Center",
         f"{_section_welcome('Welcome to RUGD Action Center', 'Review stored gaps and save a follow-up you can finish later.', 'Marking an action completed does not verify evidence or change the recommendation.')}{_SURFACE_NOTE}"
-        f"<ul id=\"action-index\">{items}</ul>",
+        f"{stats}<div id=\"action-index\">{items}</div>",
     )
 
 
@@ -4894,6 +4988,9 @@ def assessment_actions_page(
     writable: bool,
     notice: str = "",
 ) -> str:
+    from app.analyze_dashboard import _FLAG_SHORT
+
+    aid = escape(str(record["id"]))
     banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
     result = record.get("result") if isinstance(record.get("result"), dict) else None
     flags: list[str] = []
@@ -4909,25 +5006,31 @@ def assessment_actions_page(
             if text not in flags:
                 flags.append(text)
     if flags:
-        flag_list = "".join(f"<li>{escape(flag)}</li>" for flag in flags)
+        flag_list = "".join(
+            f"<li>{escape(flag)}"
+            + (f' <span class="muted">— {escape(_FLAG_SHORT[flag])}</span>' if flag in _FLAG_SHORT else "")
+            + "</li>"
+            for flag in flags
+        )
     elif result and result.get("engine_ran"):
         flag_list = "<li>None stored.</li>"
     else:
         flag_list = "<li>Not calculated. Analyze has not been run.</li>"
+    counts = {"open": 0, "in_progress": 0, "completed": 0}
     if actions:
         rows = []
         for item in actions:
             action_id = escape(str(item.get("id") or ""))
             status = str(item.get("status") or "open")
+            counts[status if status in counts else "open"] += 1
             options = []
             for value, label in (("open", "Open"), ("in_progress", "In progress"), ("completed", "Completed")):
                 selected = " selected" if status == value else ""
                 options.append(f'<option value="{value}"{selected}>{label}</option>')
-            completed = escape(str(item.get("completed_at") or ""))
-            completed_line = f"<p>Completed {completed}.</p>" if item.get("completed_at") else ""
+            completed_line = f"<p>Completed {ui.when(item.get('completed_at'))}.</p>" if item.get("completed_at") else ""
             if writable:
                 editor = (
-                    f"<form method=\"post\" action=\"/assessments/{escape(str(record['id']))}/actions/{action_id}\">"
+                    f"<form method=\"post\" action=\"/assessments/{aid}/actions/{action_id}\" class=\"dform\">"
                     f"<label>Description<textarea name=\"description\">{escape(str(item.get('description') or ''))}</textarea></label>"
                     f"<label>Status<select name=\"status\">{''.join(options)}</select></label>"
                     "<button type=\"submit\">Save action</button></form>"
@@ -4938,19 +5041,27 @@ def assessment_actions_page(
                     f"<p>Status: {escape(status)}</p>"
                     "<p class=\"muted\">This session cannot change this action.</p>"
                 )
+            tone = "plain" if status == "completed" else "warn"
             rows.append(
-                "<li class=\"card\">"
-                f"<strong>{escape(str(item.get('title') or 'Action'))}</strong>"
-                f"<p>Updated {escape(str(item.get('updated_at') or ''))}.</p>"
-                f"{completed_line}{editor}</li>"
+                ui.item_card(
+                    str(item.get("title") or "Action"),
+                    meta=f"Updated {ui.when(item.get('updated_at'))}.",
+                    chips=ui.pill({"open": "Open", "in_progress": "In progress", "completed": "Completed"}.get(status, status), tone),
+                    body=completed_line + editor,
+                    icon_name="flag",
+                )
             )
-        saved = "".join(rows)
+        saved = f'<div class="ditem-list" id="saved-actions">{"".join(rows)}</div>'
     else:
-        saved = "<li>No action items are saved yet.</li>"
+        saved = (
+            '<div id="saved-actions">'
+            + ui.empty_state("No action items are saved yet.", "Create one from a stored flag above, or write your own.", icon_name="flag")
+            + "</div>"
+        )
     if writable and flags and result and result.get("engine_ran"):
         starters = "".join(
             "<li><form method=\"post\" action=\"/assessments/"
-            + escape(str(record["id"]))
+            + aid
             + "/actions\">"
             f"<input type=\"hidden\" name=\"source_flag\" value=\"{escape(flag)}\">"
             f"<input type=\"hidden\" name=\"description\" value=\"Follow up on {escape(flag)}. Completing this action does not clear the flag.\">"
@@ -4961,7 +5072,7 @@ def assessment_actions_page(
         starters = ""
     if writable:
         create = f"""
-<form method="post" action="/assessments/{escape(str(record['id']))}/actions" id="new-action">
+<form method="post" action="/assessments/{aid}/actions" id="new-action" class="dform">
 <label>Description<textarea name="description" required></textarea></label>
 <label>Status
 <select name="status">
@@ -4975,30 +5086,45 @@ def assessment_actions_page(
 """
     else:
         create = "<p class=\"muted\">This session cannot save an action on this record.</p>"
+    stats = ui.kpi_grid(
+        [
+            ui.stat("Stored flags", fmt.count(len(flags)), "from the official result", icon_name="shield", tone="bad" if flags else ""),
+            ui.stat("To do", fmt.count(counts["open"] + counts["in_progress"]), "open or in progress", icon_name="flag"),
+            ui.stat("Completed", fmt.count(counts["completed"]), "does not clear a flag", icon_name="check"),
+        ]
+    )
     body = f"""
-<h1>Action Center for {escape(str(record.get('business_name') or 'Assessment'))}</h1>
-{_workspace_links(record)}
+{_ws_header(record, 'Action Center for ' + str(record.get('business_name') or 'Assessment'), 'actions')}
 {_SURFACE_NOTE}
 {banner}
 <p>Stored recommendation flags are listed below. Creating an action does not verify evidence, clear a flag, or change the recommendation.</p>
+{stats}
 <section class="card" id="stored-flags"><h2>Stored flags</h2><ul>{flag_list}</ul></section>
 <h2>Create from a stored flag</h2>
-<ul>{starters or '<li>No stored flag is available to start an action.</li>'}</ul>
+<ul class="ditem-links">{starters or '<li>No stored flag is available to start an action.</li>'}</ul>
 <h2>New action</h2>
-{create}
+{ui.card('', create)}
 <h2>Saved actions</h2>
-<ul id="saved-actions">{saved}</ul>
+{saved}
 """
     return layout("Action Center", body)
 
 
 def history_page(entries: list[dict[str, Any]]) -> str:
     if not entries:
-        rows = "<li>No authorized assessment is available.</li>"
+        rows = ui.empty_state(
+            "Nothing saved yet",
+            "No authorized assessment is available.",
+            action_html=ui.button("Start in Explore", "/explore"),
+            icon_name="layers",
+        )
+        stats = ""
     else:
         blocks = []
+        totals = {"reports": 0, "plans": 0, "decks": 0, "actions": 0}
         for entry in entries:
             record = entry["record"]
+            aid = escape(str(record["id"]))
             result = record.get("result") if isinstance(record.get("result"), dict) else None
             if result and result.get("engine_ran"):
                 financial = "A stored engine result is available."
@@ -5006,49 +5132,63 @@ def history_page(entries: list[dict[str, Any]]) -> str:
                 financial = "No financial result is stored."
             reports = entry.get("reports") or []
             report_lines = "".join(
-                f"<li><a href=\"/assessments/{escape(str(record['id']))}/reports/{escape(str(item.get('id') or ''))}\">"
-                f"{escape(str(item.get('title') or 'Saved report'))}</a> · {escape(str(item.get('created_at') or ''))}</li>"
+                f"<li><a href=\"/assessments/{aid}/reports/{escape(str(item.get('id') or ''))}\">"
+                f"{escape(str(item.get('title') or 'Saved report'))}</a> · {ui.when(item.get('created_at'))}</li>"
                 for item in reports
             ) or "<li>No report is saved.</li>"
             plans = entry.get("plans") or []
             plan_lines = "".join(
-                f"<li><a href=\"/assessments/{escape(str(record['id']))}/plans/{escape(str(item.get('id') or ''))}\">"
-                f"{escape(str(item.get('title') or 'Business plan'))}</a> · {escape(str(item.get('created_at') or ''))}</li>"
+                f"<li><a href=\"/assessments/{aid}/plans/{escape(str(item.get('id') or ''))}\">"
+                f"{escape(str(item.get('title') or 'Business plan'))}</a> · {ui.when(item.get('created_at'))}</li>"
                 for item in plans
             ) or "<li>No business plan is saved.</li>"
             decks = entry.get("decks") or []
             deck_lines = "".join(
-                f"<li><a href=\"/assessments/{escape(str(record['id']))}/decks/{escape(str(item.get('id') or ''))}\">"
-                f"{escape(str(item.get('title') or 'Pitch deck'))}</a> · {escape(str(item.get('created_at') or ''))}</li>"
+                f"<li><a href=\"/assessments/{aid}/decks/{escape(str(item.get('id') or ''))}\">"
+                f"{escape(str(item.get('title') or 'Pitch deck'))}</a> · {ui.when(item.get('created_at'))}</li>"
                 for item in decks
             ) or "<li>No pitch deck is saved.</li>"
             actions = entry.get("actions") or []
             if actions:
                 action_lines = "".join(
                     f"<li>{escape(str(item.get('title') or 'Action'))}: {escape(str(item.get('status') or 'open'))}"
-                    f" · updated {escape(str(item.get('updated_at') or ''))}</li>"
+                    f" · updated {ui.when(item.get('updated_at'))}</li>"
                     for item in actions
                 )
             else:
                 action_lines = "<li>No action is saved.</li>"
+            totals["reports"] += len(reports)
+            totals["plans"] += len(plans)
+            totals["decks"] += len(decks)
+            totals["actions"] += len(actions)
             blocks.append(
                 "<section class=\"card\">"
-                f"<h2><a href=\"/assessments/{escape(str(record['id']))}\">{escape(str(record.get('business_name') or 'Assessment'))}</a></h2>"
-                f"<p>Assessment saved {escape(str(record.get('created_at') or ''))}. "
-                f"Updated {escape(str(record.get('updated_at') or ''))}.</p>"
+                f"<h2><a href=\"/assessments/{aid}\">{escape(str(record.get('business_name') or 'Assessment'))}</a></h2>"
+                f"<p class=\"muted\">Assessment saved {ui.when(record.get('created_at'))}. "
+                f"Updated {ui.when(record.get('updated_at'))}.</p>"
                 f"<p>{financial}</p>"
-                f"<h3>Reports</h3><ul>{report_lines}</ul>"
-                f"<h3>Business plans</h3><ul>{plan_lines}</ul>"
-                f"<h3>Pitch decks</h3><ul>{deck_lines}</ul>"
-                f"<h3>Adviser</h3><ul>{_history_conversations(record, entry.get('conversations') or [])}</ul>"
-                f"<h3>Actions</h3><ul>{action_lines}</ul>"
+                "<div class=\"dgrid2\">"
+                f"<div><h3>Reports</h3><ul class=\"ditem-links\">{report_lines}</ul></div>"
+                f"<div><h3>Business plans</h3><ul class=\"ditem-links\">{plan_lines}</ul></div>"
+                f"<div><h3>Pitch decks</h3><ul class=\"ditem-links\">{deck_lines}</ul></div>"
+                f"<div><h3>Adviser</h3><ul class=\"ditem-links\">{_history_conversations(record, entry.get('conversations') or [])}</ul></div>"
+                f"<div><h3>Actions</h3><ul class=\"ditem-links\">{action_lines}</ul></div>"
+                "</div>"
                 "</section>"
             )
         rows = "".join(blocks)
+        stats = ui.kpi_grid(
+            [
+                ui.stat("Assessments", fmt.count(len(entries)), "saved", icon_name="layers"),
+                ui.stat("Reports", fmt.count(totals["reports"]), "snapshots", icon_name="doc"),
+                ui.stat("Plans and decks", fmt.count(totals["plans"] + totals["decks"]), "saved", icon_name="slides"),
+                ui.stat("Actions", fmt.count(totals["actions"]), "saved", icon_name="flag"),
+            ]
+        )
     return layout(
         "History",
         f"{_section_welcome('Welcome to RUGD History', 'This page lists saved assessments, stored results, reports, business plans, pitch decks, and action status.', 'An older report, plan, or deck stays here after Analyze is run again.')}{_SURFACE_NOTE}"
-        f"<div id=\"history\">{rows}</div>",
+        f"{stats}<div id=\"history\">{rows}</div>",
     )
 
 
@@ -5059,36 +5199,55 @@ def plans_page(
     signed_in: bool = False,
 ) -> str:
     plans_by_assessment = plans_by_assessment or {}
+    saved_total = sum(len(plans_by_assessment.get(str(item.get("id") or "")) or []) for item in records)
     if not records:
-        items = "<li>No authorized assessment is available. Sign in, then start one from Explore.</li>"
+        items = ui.empty_state(
+            "No assessment to plan from yet",
+            "No authorized assessment is available. Sign in, then start one from Explore.",
+            action_html=ui.button("Start in Explore", "/explore"),
+            icon_name="plan",
+        )
+        stats = ""
     else:
-        rows = []
+        cards = []
         for item in records:
             assessment_id = str(item.get("id") or "")
+            aid = escape(assessment_id)
             saved = plans_by_assessment.get(assessment_id) or []
             saved_links = "".join(
-                f"<li><a href=\"/assessments/{escape(assessment_id)}/plans/{escape(str(plan.get('id') or ''))}\">"
+                f"<li><a href=\"/assessments/{aid}/plans/{escape(str(plan.get('id') or ''))}\">"
                 f"{escape(str(plan.get('title') or 'Business plan'))}</a> · "
-                f"saved {escape(str(plan.get('updated_at') or plan.get('created_at') or ''))}</li>"
+                f"saved {ui.when(plan.get('updated_at') or plan.get('created_at'))}</li>"
                 for plan in saved
             ) or "<li>No business plan is saved yet.</li>"
             generate = ""
             if signed_in:
                 generate = (
-                    f"<form method=\"post\" action=\"/assessments/{escape(assessment_id)}/plans\">"
+                    f"<form method=\"post\" action=\"/assessments/{aid}/plans\">"
                     "<button type=\"submit\">Generate business plan</button></form>"
                 )
-            rows.append(
-                "<section class=\"card\">"
-                f"<h2><a href=\"/assessments/{escape(assessment_id)}/plans\">{escape(str(item.get('business_name') or 'Assessment'))}</a></h2>"
-                f"{generate}<ul>{saved_links}</ul></section>"
+            cards.append(
+                ui.item_card(
+                    str(item.get("business_name") or "Assessment"),
+                    href=f"/assessments/{aid}/plans",
+                    chips=ui.pill(f"{len(saved)} saved"),
+                    body=f'<ul class="ditem-links">{saved_links}</ul>',
+                    actions=generate,
+                    icon_name="plan",
+                )
             )
-        items = "".join(rows)
+        items = f'<div class="ditems">{"".join(cards)}</div>'
+        stats = ui.kpi_grid(
+            [
+                ui.stat("Assessments", fmt.count(len(records)), "you can plan from", icon_name="layers"),
+                ui.stat("Saved plans", fmt.count(saved_total), "across them", icon_name="plan"),
+            ]
+        )
     sign_in = "" if signed_in else '<p><a class="button" href="/login">Sign in to save a business plan</a></p>'
     return layout(
         "Business plan",
         f"{_section_welcome('Welcome to RUGD Business Plans', 'Generate a plan from a saved assessment and edit the narrative sections.', 'Financial figures are copied from the stored result. Generating a plan does not change the recommendation.')}{_SURFACE_NOTE}"
-        f"{sign_in}<div id=\"plans\">{items}</div>",
+        f"{stats}{sign_in}<div id=\"plans\">{items}</div>",
     )
 
 
@@ -5099,31 +5258,41 @@ def assessment_plans_page(
     signed_in: bool = False,
     notice: str = "",
 ) -> str:
+    aid = escape(str(record["id"]))
     banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
     if plans:
         saved = "".join(
-            f"<li><a href=\"/assessments/{escape(str(record['id']))}/plans/{escape(str(item.get('id') or ''))}\">"
-            f"{escape(str(item.get('title') or 'Business plan'))}</a> · "
-            f"updated {escape(str(item.get('updated_at') or ''))}</li>"
+            ui.item_card(
+                str(item.get("title") or "Business plan"),
+                href=f"/assessments/{aid}/plans/{escape(str(item.get('id') or ''))}",
+                meta=f"updated {ui.when(item.get('updated_at'))}",
+                icon_name="plan",
+            )
             for item in plans
         )
+        saved = f'<div class="ditem-list" id="saved-plans">{saved}</div>'
     else:
-        saved = "<li>No business plan is saved yet.</li>"
-    generate = ""
+        saved = (
+            '<div id="saved-plans">'
+            + ui.empty_state(
+                "No business plan is saved yet.",
+                "A plan assembles your saved answers and the stored result into twelve editable sections.",
+                icon_name="plan",
+            )
+            + "</div>"
+        )
     if signed_in:
         generate = (
-            f"<form method=\"post\" action=\"/assessments/{escape(str(record['id']))}/plans\">"
+            f"<form method=\"post\" action=\"/assessments/{aid}/plans\">"
             "<button type=\"submit\">Generate business plan</button></form>"
         )
     else:
         generate = '<p><a class="button" href="/login">Sign in to save a business plan</a></p>'
     body = f"""
-<h1>Business plans for {escape(str(record.get('business_name') or 'Assessment'))}</h1>
-{_workspace_links(record)}
+{_ws_header(record, 'Business plans for ' + str(record.get('business_name') or 'Assessment'), 'plan', extra_chips=(ui.pill(f'{len(plans)} saved'),))}
 {banner}
-<p>A business plan copies the saved intake and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>
-{generate}
-<ul>{saved}</ul>
+{ui.card('Generate a business plan', '<p>A business plan copies the saved intake and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>' + generate, icon_name='plan')}
+{saved}
 <p><a href="/history">Open History</a></p>
 """
     return layout("Business plan", body)
@@ -5247,12 +5416,17 @@ def business_plan_page(
             "It cannot change calculated figures.</p>"
             f"<p>{escape(str(proposal.get('text') or ''))}</p></section>"
         )
+    plan_title = str(plan.get("title") or "Business plan")
+    head = (
+        _ws_header(record, plan_title, "plan", extra_chips=(ui.pill("Saved plan"),))
+        if not printable
+        else ui.page_header(plan_title)
+    )
     body = f"""
-<h1>{escape(str(plan.get('title') or 'Business plan'))}</h1>
-{_workspace_links(record)}
+{head}
 {banner}
-<p id="plan-source">{escape(str(document.get('narrative_source') or ASSEMBLED))}</p>
-<p>Saved {escape(str(plan.get('created_at') or ''))}. Updated {escape(str(plan.get('updated_at') or ''))}. Narrative edits do not change the copied financial figures or the assessment. Completing this plan does not set human_review_approved and does not grant investor-ready status.</p>
+<p id="plan-source" class="dnote dnote-note" role="note">{escape(str(document.get('narrative_source') or ASSEMBLED))}</p>
+<p>Saved {ui.when(plan.get('created_at'))}. Updated {ui.when(plan.get('updated_at'))}. Narrative edits do not change the copied financial figures or the assessment. Completing this plan does not set human_review_approved and does not grant investor-ready status.</p>
 {status}
 <nav class="plan-nav" aria-label="Business plan sections">{nav}</nav>
 {tools}
@@ -5270,35 +5444,52 @@ def decks_page(
     signed_in: bool = False,
 ) -> str:
     decks_by_assessment = decks_by_assessment or {}
+    saved_total = sum(len(decks_by_assessment.get(str(item.get("id") or "")) or []) for item in records)
     if not records:
-        items = "<li>No authorized assessment is available. Sign in, then save a business plan.</li>"
+        items = ui.empty_state(
+            "No assessment to present yet",
+            "No authorized assessment is available. Sign in, then save a business plan.",
+            action_html=ui.button("Start in Explore", "/explore"),
+            icon_name="slides",
+        )
+        stats = ""
     else:
-        rows = []
+        cards = []
         for item in records:
             assessment_id = str(item.get("id") or "")
+            aid = escape(assessment_id)
             decks = decks_by_assessment.get(assessment_id) or []
             if decks:
                 summary = "".join(
-                    f"<li><a href=\"/assessments/{escape(assessment_id)}/decks/{escape(str(deck.get('id') or ''))}\">"
+                    f"<li><a href=\"/assessments/{aid}/decks/{escape(str(deck.get('id') or ''))}\">"
                     f"{escape(str(deck.get('title') or 'Pitch deck'))}</a></li>"
                     for deck in decks
                 )
             else:
                 summary = "<li>No pitch deck is saved yet.</li>"
-            rows.append(
-                "<li>"
-                f"<a href=\"/assessments/{escape(assessment_id)}/decks\">"
-                f"{escape(str(item.get('business_name') or 'Assessment'))}</a>"
-                f"<ul>{summary}</ul></li>"
+            cards.append(
+                ui.item_card(
+                    str(item.get("business_name") or "Assessment"),
+                    href=f"/assessments/{aid}/decks",
+                    chips=ui.pill(f"{len(decks)} saved"),
+                    body=f'<ul class="ditem-links">{summary}</ul>',
+                    icon_name="slides",
+                )
             )
-        items = "".join(rows)
-    sign_in = "" if signed_in else "<p>Sign in to generate a pitch deck.</p>"
+        items = f'<div class="ditems">{"".join(cards)}</div>'
+        stats = ui.kpi_grid(
+            [
+                ui.stat("Assessments", fmt.count(len(records)), "you can present", icon_name="layers"),
+                ui.stat("Saved decks", fmt.count(saved_total), "across them", icon_name="slides"),
+            ]
+        )
+    sign_in = "" if signed_in else '<p><a class="button" href="/login">Sign in to generate a pitch deck</a></p>'
     body = f"""
-<h1>Pitch decks</h1>
 {_section_welcome("Welcome to RUGD Pitch Decks", "A pitch deck copies a saved business plan. It does not run a new calculation.", "Generating a deck does not grant investor-ready status.")}
 {_SURFACE_NOTE}
+{stats}
 {sign_in}
-<ul>{items}</ul>
+<div id="deck-list">{items}</div>
 """
     return layout("Pitch deck", body)
 
@@ -5336,24 +5527,38 @@ def assessment_decks_page(
             f'<button type="submit">Generate pitch deck</button></form>'
         )
     elif signed_in:
-        generator = "<p>Save a business plan before generating a pitch deck.</p>"
-    else:
-        generator = "<p>Sign in to generate a pitch deck.</p>"
-    if decks:
-        listing = "".join(
-            f'<li><a href="/assessments/{assessment_id}/decks/{escape(str(item.get("id") or ""))}">'
-            f'{escape(str(item.get("title") or "Pitch deck"))}</a> · {escape(str(item.get("created_at") or ""))}</li>'
-            for item in decks
+        generator = (
+            "<p>Save a business plan before generating a pitch deck.</p>"
+            + ui.button("Open business plans", f"/assessments/{assessment_id}/plans", small=True)
         )
     else:
-        listing = "<li>No pitch deck is saved yet.</li>"
+        generator = '<p><a class="button" href="/login">Sign in to generate a pitch deck</a></p>'
+    if decks:
+        listing = "".join(
+            ui.item_card(
+                str(item.get("title") or "Pitch deck"),
+                href=f"/assessments/{assessment_id}/decks/{escape(str(item.get('id') or ''))}",
+                meta=f"saved {ui.when(item.get('created_at'))}",
+                icon_name="slides",
+            )
+            for item in decks
+        )
+        listing = f'<div class="ditem-list" id="saved-decks">{listing}</div>'
+    else:
+        listing = (
+            '<div id="saved-decks">'
+            + ui.empty_state(
+                "No pitch deck is saved yet.",
+                "A deck turns a saved plan into slides you can edit, reorder, and export.",
+                icon_name="slides",
+            )
+            + "</div>"
+        )
     body = f"""
-<h1>Pitch decks for {escape(str(record.get("business_name") or "Assessment"))}</h1>
-{_workspace_links(record)}
+{_ws_header(record, 'Pitch decks for ' + str(record.get("business_name") or "Assessment"), 'deck', extra_chips=(ui.pill(f'{len(decks)} saved'),))}
 {banner}
-<p>Each generated deck keeps its own copy of the plan figures. A later Analyze run does not change an earlier deck.</p>
-{generator}
-<ul>{listing}</ul>
+{ui.card('Generate a pitch deck', '<p>Each generated deck keeps its own copy of the plan figures. A later Analyze run does not change an earlier deck.</p>' + generator, icon_name='slides')}
+{listing}
 """
     return layout("Pitch deck", body)
 
@@ -5426,12 +5631,11 @@ def pitch_deck_page(
             f"<p>{escape(str(proposal.get('text') or ''))}</p></section>"
         )
     body = f"""
-<h1>{escape(str(deck.get('title') or 'Pitch deck'))}</h1>
-{_workspace_links(record)}
+{_ws_header(record, str(deck.get('title') or 'Pitch deck'), 'deck', extra_chips=(ui.pill('Saved deck'),))}
 {banner}
-<p id="deck-source">{escape(str(document.get('narrative_source') or ASSEMBLED))}</p>
+<p id="deck-source" class="dnote dnote-note" role="note">{escape(str(document.get('narrative_source') or ASSEMBLED))}</p>
 <p>{escape(str(document.get('disclaimer') or DISCLAIMER))}</p>
-<p>Saved {escape(str(deck.get('created_at') or ''))}. Updated {escape(str(deck.get('updated_at') or ''))}. Audience: {escape(str(document.get('audience_label') or ''))}.</p>
+<p>Saved {ui.when(deck.get('created_at'))}. Updated {ui.when(deck.get('updated_at'))}. Audience: {escape(str(document.get('audience_label') or ''))}.</p>
 {status}
 <p class="no-print"><a class="button" href="/assessments/{assessment_id}/decks/{deck_id}/pptx">Export PowerPoint</a>
 <a class="button" href="/assessments/{assessment_id}/decks/{deck_id}/pdf">Export PDF</a></p>
@@ -5501,35 +5705,43 @@ def adviser_index_page(
     else:
         status = "Deterministic adviser. No live model is called until a provider and a server-side credential are configured."
     if not records:
-        items = "<li>No authorized assessment is available. Sign in, then save an assessment.</li>"
+        items = ui.empty_state(
+            "No assessment to ask about yet",
+            "No authorized assessment is available. Sign in, then save an assessment.",
+            action_html=ui.button("Start in Explore", "/explore"),
+            icon_name="chat",
+        )
     else:
-        rows = []
+        cards = []
         for item in records:
             assessment_id = str(item.get("id") or "")
+            aid = escape(assessment_id)
             conversations = conversations_by_assessment.get(assessment_id) or []
             if conversations:
                 summary = "".join(
-                    f"<li><a href=\"/assessments/{escape(assessment_id)}/advice/{escape(str(conversation.get('id') or ''))}\">"
+                    f"<li><a href=\"/assessments/{aid}/advice/{escape(str(conversation.get('id') or ''))}\">"
                     f"{escape(str(conversation.get('title') or 'Adviser'))}</a></li>"
                     for conversation in conversations
                 )
             else:
                 summary = "<li>No conversation is saved yet.</li>"
-            rows.append(
-                "<li>"
-                f"<a href=\"/assessments/{escape(assessment_id)}/advice\">"
-                f"{escape(str(item.get('business_name') or 'Assessment'))}</a>"
-                f"<ul>{summary}</ul></li>"
+            cards.append(
+                ui.item_card(
+                    str(item.get("business_name") or "Assessment"),
+                    href=f"/assessments/{aid}/advice",
+                    chips=ui.pill(f"{len(conversations)} saved"),
+                    body=f'<ul class="ditem-links">{summary}</ul>',
+                    icon_name="chat",
+                )
             )
-        items = "".join(rows)
-    sign_in = "" if signed_in else "<p>Sign in to ask the adviser.</p>"
+        items = f'<div class="ditems">{"".join(cards)}</div>'
+    sign_in = "" if signed_in else '<p><a class="button" href="/login">Sign in to ask the adviser</a></p>'
     body = f"""
-<h1>Adviser</h1>
 {_section_welcome("Welcome to the RUGD Adviser", "The adviser reads one saved assessment and explains what is already stored.", "A suggestion does not change a figure, a flag, or investor readiness.")}
-<p id="adviser-mode">{escape(status)}</p>
+<p id="adviser-mode" class="dnote dnote-note" role="note">{escape(status)}</p>
 {_SURFACE_NOTE}
 {sign_in}
-<ul>{items}</ul>
+<div id="adviser-list">{items}</div>
 """
     return layout("Adviser", body)
 
@@ -5613,19 +5825,18 @@ def adviser_conversation_page(
         if isinstance(item, dict)
     )
     body = f"""
-<h1>{escape(title)}</h1>
-{_workspace_links(record)}
+{_ws_header(record, title, 'adviser', extra_chips=(ui.pill('Explains stored information'),))}
 {banner}
-<p id="adviser-mode">{escape(mode_line)}</p>
+<p id="adviser-mode" class="dnote dnote-note" role="note">{escape(mode_line)}</p>
 <p>Business: {escape(str(facts.get("business_name") or record.get("business_name") or "Assessment"))}. A reply explains stored information. It does not change the official result.</p>
-<section class="card"><h2>Saved context</h2><ul>{fact_lines}</ul><h3>Stored calculations</h3><ul>{calc_lines}</ul><h3>Flags</h3><ul>{flag_lines}</ul></section>
-<ul class="adviser-log">{''.join(log) or '<li>No message is saved yet.</li>'}</ul>
+<ul class="adviser-log">{''.join(log) or '<li>No message is saved yet. Ask a question below. The reply explains what is already stored.</li>'}</ul>
+{ui.card('Ask the adviser', ask, icon_name='chat')}
 {proposal_block}
 <h2>Approved suggestions</h2>
 <ul>{approved_block or '<li>No suggestion has been approved.</li>'}</ul>
+{ui.details('Saved context the adviser reads', f'<section class="card" id="adviser-context"><h2>Saved context</h2><ul>{fact_lines}</ul><h3>Stored calculations</h3><ul>{calc_lines}</ul><h3>Flags</h3><ul>{flag_lines}</ul></section>', open_=False)}
 <h2>Saved conversations</h2>
 <ul>{others or '<li>No conversation is saved yet.</li>'}</ul>
-{ask}
 """
     return layout("Adviser conversation", body)
 
@@ -5699,12 +5910,13 @@ def new_assessment_page(
     for key, label in {**ENGINE_PURPOSES, **UNSUPPORTED_PURPOSES}.items():
         options.append(f'<option value="{escape(key)}">{escape(label)}</option>')
     notice = f'<div class="banner">{escape(message)}</div>' if message else ""
-    body = f"""
-<h1>New assessment</h1>
-{_SURFACE_NOTE}
-{notice}
-<p class="muted">A startup idea opens the current Explore intake. An existing or expanding business opens a shorter intake. Explore collects a draft. It is not a completed feasibility study.</p>
-<form method="post" action="/assessments">
+    profile_options = "".join(
+        f'<option value="{escape(str(item.get("id")))}">{escape(str(item.get("display_name") or "Untitled"))}</option>'
+        for item in profiles or []
+        if item.get("isolation") == "customer"
+    )
+    form = f"""
+<form method="post" action="/assessments" class="dform">
 <div class="card">
 <label>Is this a startup idea or an existing or expanding business?</label>
 <select name="venture_path" required>
@@ -5719,11 +5931,7 @@ def new_assessment_page(
 <label>Business profile</label>
 <select name="business_profile_id">
 <option value="">New business profile</option>
-{''.join(
-    f'<option value="{escape(str(item.get("id")))}">{escape(str(item.get("display_name") or "Untitled"))}</option>'
-    for item in profiles or []
-    if item.get("isolation") == "customer"
-)}
+{profile_options}
 </select>
 <p class="muted">Choosing an existing profile copies identity, industry, geography, and stage. The official baseline and named pilots are not listed. This is local prototype structure and does not authenticate a user.</p>
 <label>Purpose</label>
@@ -5733,12 +5941,22 @@ def new_assessment_page(
 <option value="explore">Explore</option>
 <option value="analyze">Analyze</option>
 </select>
-<button type="submit">Create draft</button>
+<div class="dactions"><button type="submit">Create draft</button></div>
 </form>
-<h2>Named pilots</h2>
+"""
+    pilots = """
 <p class="muted">Only the RUGD Intelligence assessment is the official baseline. Bunny Hive and Small Town Pub do not have completed assessments. These buttons create empty drafts. Their names are not used by the scoring engine.</p>
 <form method="post" action="/assessments"><input type="hidden" name="business_name" value="Bunny Hive"><input type="hidden" name="purpose" value="startup_feasibility"><input type="hidden" name="tier" value="explore"><button type="submit">Start Bunny Hive draft</button></form>
 <form method="post" action="/assessments"><input type="hidden" name="business_name" value="Small Town Pub"><input type="hidden" name="purpose" value="startup_feasibility"><input type="hidden" name="tier" value="explore"><button type="submit">Start Small Town Pub draft</button></form>
+"""
+    body = f"""
+{ui.page_header("New assessment", subtitle="Tell us the basics. You can change them later.", help_html=ui.simple_help("About a new assessment", "A startup idea opens the current Explore intake. An existing or expanding business opens a shorter intake. Explore collects a draft. It is not a completed feasibility study."), header_id="new-assessment-header")}
+{_SURFACE_NOTE}
+{notice}
+<p class="muted">A startup idea opens the current Explore intake. An existing or expanding business opens a shorter intake. Explore collects a draft. It is not a completed feasibility study.</p>
+{ui.card("Start a draft", form, icon_name="plus")}
+<h2>Named pilots</h2>
+{ui.details("Show the named pilot drafts", pilots)}
 """
     return layout("New assessment", body)
 
@@ -5807,71 +6025,127 @@ def explore_page(
     writable_ids: set[str] | None = None,
 ) -> str:
     notes_by_id = notes_by_id or {}
-    links = "".join(
-        f"<li><a href=\"/assessments/{escape(item['id'])}\">{escape(item['business_name'])}</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/reports\">Report</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/plans\">Business plan</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/intelligence\">Research</a></li>"
-        for item in records
-    )
-    checklists = "".join(
-        "<h2>"
-        + escape(str(item.get("business_name") or "Assessment"))
-        + "</h2>"
-        + _evidence_checklist(
-            item,
-            item.get("result") if isinstance(item.get("result"), dict) else None,
-            notes_by_id.get(str(item.get("id") or "")),
-            return_to="explore",
-            writable=writable_ids is None or str(item.get("id") or "") in writable_ids,
+    if records:
+        links = '<div class="ditems" id="explore-drafts">' + "".join(
+            _assessment_link_card(item, primary=("Open draft", ""), icon_name="search") for item in records
+        ) + "</div>"
+    else:
+        links = ui.empty_state(
+            "No draft yet",
+            "Start an Explore draft to describe the business and see which evidence is still missing.",
+            action_html=ui.button("Start an Explore draft", "/assessments/new"),
+            icon_name="plus",
         )
-        for item in records
+    checklist_blocks = []
+    for item in records:
+        checklist_blocks.append(
+            ui.details(
+                "Evidence checklist for " + str(item.get("business_name") or "Assessment"),
+                _evidence_checklist(
+                    item,
+                    item.get("result") if isinstance(item.get("result"), dict) else None,
+                    notes_by_id.get(str(item.get("id") or "")),
+                    return_to="explore",
+                    writable=writable_ids is None or str(item.get("id") or "") in writable_ids,
+                ),
+                cls="dchecklist",
+            )
+        )
+    intro = (
+        '<p class="muted">Service tier: Explore.</p>'
+        '<div class="banner">Explore is an intake and gap check. It is not a completed feasibility study. It does not clear a flag.</div>'
+        "<p>Use a saved draft to clarify the concept, capital assumptions, and missing evidence. Run Analyze only when you want the deterministic engine.</p>"
+        "<p>Open a draft to ask the assistant about that assessment. The assistant is assistance only and cannot change the draft.</p>"
+        "<p>Saved research can inform a question. It stays separate from customer assumptions and from the engine result.</p>"
+        '<div class="dactions"><a class="button primary" href="/assessments/new">Start an Explore draft</a>'
+        '<a class="button" href="/reports">Open Reports</a>'
+        '<a class="button" href="/plans">Open Business Plans</a>'
+        '<a class="button" href="/actions">Open Action Center</a></div>'
     )
     return layout(
         "Explore",
-        """
-"""
-        + _section_welcome(
+        _section_welcome(
             "Welcome to RUGD Explore",
             "This page is where a draft starts.",
             "You can describe the business, see which evidence is still missing, and save the intake. It does not clear a flag.",
         )
         + _SURFACE_NOTE
-        + """
-<p class="muted">Service tier: Explore.</p>
-<div class="banner">Explore is an intake and gap check. It is not a completed feasibility study. It does not clear a flag.</div>
-<p>Use a saved draft to clarify the concept, capital assumptions, and missing evidence. Run Analyze only when you want the deterministic engine.</p>
-<p>Open a draft to ask the assistant about that assessment. The assistant is assistance only and cannot change the draft.</p>
-<p>Saved research can inform a question. It stays separate from customer assumptions and from the engine result.</p>
-<p><a class="button" href="/assessments/new">Start an Explore draft</a>
-<a class="button" href="/reports">Open Reports</a>
-<a class="button" href="/plans">Open Business Plans</a>
-<a class="button" href="/actions">Open Action Center</a></p>
-"""
+        + intro
         + _guidance_section("explore")
-        + f"<ul>{links}</ul>"
-        + checklists,
+        + links
+        + "".join(checklist_blocks),
     )
 
 
 def analyze_index(records: list[dict[str, Any]]) -> str:
-    items = "".join(
-        f"<li><a href=\"/assessments/{escape(item['id'])}/results\">{escape(item['business_name'])}</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/reports\">Report</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/plans\">Business plan</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/actions\">Action Center</a> · "
-        f"<a href=\"/assessments/{escape(item['id'])}/intelligence\">Research</a></li>"
-        for item in records
-    )
+    if records:
+        items = '<div class="ditems" id="analyze-list">' + "".join(
+            _assessment_link_card(item, primary=("Open results", "/results"), icon_name="chart") for item in records
+        ) + "</div>"
+    else:
+        items = ui.empty_state(
+            "No assessment to analyze yet",
+            "Save a draft in Explore first. Analyze runs the engine on a saved draft.",
+            action_html=ui.button("Start in Explore", "/explore"),
+            icon_name="chart",
+        )
     return layout(
         "Analyze",
         f"{_section_welcome('Welcome to RUGD Analyze', 'This page runs a saved draft through the assessment engine and shows the stored result.', 'Financial figures come only from that engine. A hard recommend-against flag still forces do-not-proceed.')}{_SURFACE_NOTE}"
         "<p class=\"muted\">Service tier: Analyze.</p>"
         "<p>Results come from the 0.1 deterministic engine. Authoritative financial numbers come only from the 0.1 engine. "
         "This list does not mark a draft or the official baseline investor-ready.</p>"
-        "<p><a class=\"button\" href=\"/reports\">Open Reports</a> "
-        "<a class=\"button\" href=\"/plans\">Open Business Plans</a> "
-        "<a class=\"button\" href=\"/actions\">Open Action Center</a></p>"
-        f"<ul>{items}</ul>",
+        '<div class="dactions"><a class="button" href="/reports">Open Reports</a> '
+        '<a class="button" href="/plans">Open Business Plans</a> '
+        '<a class="button" href="/actions">Open Action Center</a></div>'
+        f"{items}",
+    )
+
+
+def _ws_header(
+    record: dict[str, Any],
+    title: str,
+    current: str,
+    *,
+    subtitle: str = "",
+    help_html: str = "",
+    actions: str = "",
+    extra_chips: tuple[str, ...] = (),
+) -> str:
+    """The shared top of a business workspace: title, stored status chips, and the workspace row."""
+    from app.analyze_dashboard import status_summary
+
+    result = record.get("result") if isinstance(record.get("result"), dict) else {}
+    status = status_summary(result or {}, [])
+    chips = tuple(
+        ui.pill(label, "warn" if index == 0 and status["tone"] == "warn" else "plain")
+        for index, label in enumerate(status["labels"][:3])
+    ) + extra_chips
+    return (
+        ui.page_header(title, subtitle=subtitle, chips=chips, actions=actions, help_html=help_html)
+        + _workspace_links(record, current)
+    )
+
+
+
+def _assessment_link_card(item: dict[str, Any], *, primary: tuple[str, str], icon_name: str = "layers") -> str:
+    """One card for a business with the links people use next. The same card serves Explore and Analyze."""
+    aid = escape(str(item.get("id") or ""))
+    result = item.get("result") if isinstance(item.get("result"), dict) else {}
+    ran = bool((result or {}).get("engine_ran"))
+    links = (
+        ("Report", "reports"),
+        ("Business plan", "plans"),
+        ("Action Center", "actions"),
+        ("Research", "intelligence"),
+    )
+    link_html = " · ".join(f'<a href="/assessments/{aid}/{suffix}">{label}</a>' for label, suffix in links)
+    return ui.item_card(
+        str(item.get("business_name") or "Assessment"),
+        href=f"/assessments/{aid}{primary[1]}",
+        meta=escape(_stage_label(item)),
+        chips=ui.pill("Analyzed" if ran else "Not analyzed yet", "plain" if ran else "warn"),
+        body=f'<p class="ditem-links-row">{link_html}</p>',
+        actions=ui.button(primary[0], f"/assessments/{aid}{primary[1]}", small=True),
+        icon_name=icon_name,
     )

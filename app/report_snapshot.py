@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.charts import render_engine_charts, render_financial_graphics, render_scenario_chart
+from app import display
 from app.inputs import MONTHLY_FIELDS, field_state
 from app.scenarios import METRIC_KEYS, METRIC_LABELS
 
@@ -172,7 +173,7 @@ def _assumptions(profile: dict[str, Any]) -> list[str]:
         elif state == "invalid":
             lines.append(f"{label}: Not available. This entry is not a finite number.")
         else:
-            lines.append(f"{label}: {_present(profile.get(key))}. Customer-supplied assumption.")
+            lines.append(f"{label}: {display.figure(key, profile.get(key), missing=_present(profile.get(key)))}. Customer-supplied assumption.")
     return lines
 
 
@@ -185,7 +186,7 @@ def _base_results(financial: dict[str, Any] | None, engine_ran: bool) -> list[st
         if number is None:
             lines.append(f"{key}: not calculated.")
         else:
-            lines.append(f"{key}: {number}. Calculated by the engine.")
+            lines.append(f"{key}: {display.figure(key, number)}. Calculated by the engine.")
     flags = financial.get("flags") if isinstance(financial.get("flags"), list) else []
     if flags:
         lines.append("Engine flags: " + ", ".join(str(flag) for flag in flags) + ".")
@@ -210,7 +211,7 @@ def _downside(record: dict[str, Any]) -> list[str]:
         if number is None:
             lines.append(f"{label}: not calculated.")
         else:
-            lines.append(f"{label}: {number}. Calculated by the engine.")
+            lines.append(f"{label}: {display.figure(key, number)}. Calculated by the engine.")
     return lines
 
 

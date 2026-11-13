@@ -12,6 +12,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from app import display
 from app.access import DENIAL
 from app.charts import render_financial_graphics
 from app.plan import build_plan_document, edited_sections, plan_markdown
@@ -140,7 +141,7 @@ class TestFinancialWorkspace(unittest.TestCase):
         self.assertIn("Not written. This section was left blank.", document["sections"]["executive_summary"])
         self.assertIn("No Downside scenario is saved.", document["snapshot"]["downside_scenario"])
         cash = document["snapshot"]["base_results"]
-        self.assertTrue(any("base_monthly_cash_flow: 100.0" in line for line in cash))
+        self.assertTrue(any("base_monthly_cash_flow: $100" in line for line in cash))
         sections = edited_sections(
             document,
             {
@@ -151,7 +152,7 @@ class TestFinancialWorkspace(unittest.TestCase):
         )
         self.assertEqual(sections["executive_summary"], "Weekday neighbors are the first customers to ask.")
         self.assertNotIn("base_monthly_cash_flow", sections)
-        self.assertTrue(any("base_monthly_cash_flow: 100.0" in line for line in document["snapshot"]["base_results"]))
+        self.assertTrue(any("base_monthly_cash_flow: $100" in line for line in document["snapshot"]["base_results"]))
 
     def test_graphics_keep_missing_distinct_from_zero_and_skip_a_trend(self) -> None:
         expected = result_to_dict(run_financials(FinancialInputs(10000, 400, 0.5, 1000, 0.6)))
@@ -169,7 +170,7 @@ class TestFinancialWorkspace(unittest.TestCase):
         self.assertIn('fill="#27323B"', drawn["revenue"])
         self.assertIn("Base", drawn["comparison"])
         self.assertIn("Downside", drawn["comparison"])
-        self.assertIn("-100.0. Calculated by the engine.", drawn["comparison"])
+        self.assertIn("-$100. Calculated by the engine.", drawn["comparison"])
         self.assertIn("No category was added.", drawn["allocation"])
         self.assertNotIn("<svg", drawn["allocation"])
         self.assertIn("A trend line is not drawn.", drawn["trend"])
@@ -275,7 +276,7 @@ class TestFinancialWorkspace(unittest.TestCase):
             )
             self.assertEqual(shown[0], 200)
             self.assertIn("Preview. These figures were calculated", shown[1])
-            self.assertIn(f"base_monthly_cash_flow: {expected['base_monthly_cash_flow']}", shown[1])
+            self.assertIn(f"base_monthly_cash_flow: {display.money(expected['base_monthly_cash_flow'])}", shown[1])
             self.assertIn('data-chart="preview-revenue"', shown[1])
             self.assertIn('data-chart="preview-cash-flow"', shown[1])
             self.assertIn('data-chart="preview-break-even"', shown[1])
@@ -303,7 +304,7 @@ class TestFinancialWorkspace(unittest.TestCase):
             )
             self.assertEqual(echoed[0], 200)
             self.assertIn('value="1000"', echoed[1])
-            self.assertIn(f"base_monthly_cash_flow: {expected['base_monthly_cash_flow']}", echoed[1])
+            self.assertIn(f"base_monthly_cash_flow: {display.money(expected['base_monthly_cash_flow'])}", echoed[1])
             self.assertIsNone(get_assessment(connection, assessment_id)["result"])
             self.assertNotEqual(get_assessment(connection, assessment_id)["profile"].get("projected_monthly_revenue_base"), "1000")
 
@@ -353,7 +354,7 @@ class TestFinancialWorkspace(unittest.TestCase):
             )
             self.assertEqual(later[0], 200)
             changed = result_to_dict(run_financials(FinancialInputs(10000, 400, 0.5, 800, 0.6)))
-            self.assertIn(f"base_monthly_cash_flow: {changed['base_monthly_cash_flow']}", later[1])
+            self.assertIn(f"base_monthly_cash_flow: {display.money(changed['base_monthly_cash_flow'])}", later[1])
             untouched = get_assessment(connection, assessment_id)
             assert untouched is not None and untouched["result"] is not None
             self.assertEqual(untouched["result"]["financial"]["base_monthly_cash_flow"], expected["base_monthly_cash_flow"])
@@ -372,8 +373,8 @@ class TestFinancialWorkspace(unittest.TestCase):
             page = self._get(base + plan_path, cookie)
             self.assertEqual(page[0], 200)
             self.assertIn("A neighborhood cafe", page[1])
-            self.assertIn(f"base_monthly_cash_flow: {expected['base_monthly_cash_flow']}", page[1])
-            self.assertIn(f"total_project_cost: {capital_before}", page[1])
+            self.assertIn(f"base_monthly_cash_flow: {display.money(expected['base_monthly_cash_flow'])}", page[1])
+            self.assertIn(f"total_project_cost: {display.money(capital_before)}", page[1])
             self.assertIn("startup_base_revenue:", page[1])
             self.assertNotIn("Startup base revenue: Not available.", page[1])
             self.assertIn("do-not-proceed", page[1])
@@ -402,7 +403,7 @@ class TestFinancialWorkspace(unittest.TestCase):
             self.assertEqual(saved[0], 303)
             edited = self._get(base + plan_path, cookie)
             self.assertIn("Ask weekday neighbors before buying equipment.", edited[1])
-            self.assertIn(f"base_monthly_cash_flow: {expected['base_monthly_cash_flow']}", edited[1])
+            self.assertIn(f"base_monthly_cash_flow: {display.money(expected['base_monthly_cash_flow'])}", edited[1])
             after_edit = get_assessment(connection, assessment_id)
             assert after_edit is not None and after_edit["result"] is not None
             self.assertEqual(after_edit["result"]["recommendation"], "do-not-proceed")
@@ -412,7 +413,7 @@ class TestFinancialWorkspace(unittest.TestCase):
             exported = self._get(base + plan_path + "/export", cookie)
             self.assertEqual(exported[0], 200)
             self.assertIn("Ask weekday neighbors before buying equipment.", exported[1])
-            self.assertIn(f"base_monthly_cash_flow: {expected['base_monthly_cash_flow']}", exported[1])
+            self.assertIn(f"base_monthly_cash_flow: {display.money(expected['base_monthly_cash_flow'])}", exported[1])
             printed = self._get(base + plan_path + "/print", cookie)
             self.assertIn("print-view", printed[1])
             self.assertIn("Ask weekday neighbors before buying equipment.", printed[1])
@@ -421,7 +422,7 @@ class TestFinancialWorkspace(unittest.TestCase):
             again = self._raw(base + f"/assessments/{assessment_id}/analyze", fields, cookie)
             self.assertEqual(again[0], 303)
             still = self._get(base + plan_path, cookie)
-            self.assertIn(f"base_monthly_cash_flow: {expected['base_monthly_cash_flow']}", still[1])
+            self.assertIn(f"base_monthly_cash_flow: {display.money(expected['base_monthly_cash_flow'])}", still[1])
             second = self._raw(base + f"/assessments/{assessment_id}/plans", {}, cookie)
             self.assertEqual(second[0], 303)
             history = self._get(base + "/history", cookie)
@@ -432,8 +433,8 @@ class TestFinancialWorkspace(unittest.TestCase):
                 for path in dict.fromkeys(re.findall(r'href="(/assessments/[^"]+/plans/[0-9a-f-]+)"', latest[1]))
             ]
             self.assertEqual(len(plan_pages), 2)
-            self.assertTrue(any(f"base_monthly_cash_flow: {expected['base_monthly_cash_flow']}" in page for page in plan_pages))
-            self.assertTrue(any(f"base_monthly_cash_flow: {changed['base_monthly_cash_flow']}" in page for page in plan_pages))
+            self.assertTrue(any(f"base_monthly_cash_flow: {display.money(expected['base_monthly_cash_flow'])}" in page for page in plan_pages))
+            self.assertTrue(any(f"base_monthly_cash_flow: {display.money(changed['base_monthly_cash_flow'])}" in page for page in plan_pages))
 
             for cookie_value in (other, ""):
                 denied = self._get(base + plan_path, cookie_value)

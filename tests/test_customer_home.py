@@ -130,7 +130,7 @@ class TestCustomerHome(unittest.TestCase):
         self.assertIn("Guide Cafe", home)
         self.assertIn("Demand evidence missing.", home)
         self.assertIn(">View Results<", home)
-        self.assertIn('class="card assessment-card"', home)
+        self.assertIn('class="card assessment-card ditem"', home)
         self.assertIn('class="journey card-journey"', home)
         self.assertIn('class="current" aria-current="step">Analyze', home)
         self.assertIn('class="badge badge-blocked"', home)

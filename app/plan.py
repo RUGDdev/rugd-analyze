@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app import display
 from app.report_snapshot import build_report_snapshot, snapshot_markdown
 
 NOT_WRITTEN = "Not written. This section was left blank."
@@ -187,4 +188,4 @@ def _amount_line(key: str, label: str, container: dict[str, Any]) -> str:
 def _number_line(key: str, label: str, value: Any) -> str:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return f"{label}: Not available. This figure is not in the stored projection."
-    return f"{key}: {value}. {label}. Copied from the stored projection."
+    return f"{key}: {display.figure(key, value)}. {label}. Copied from the stored projection."

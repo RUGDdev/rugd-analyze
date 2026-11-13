@@ -5,6 +5,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
+from app import display
 from app.analysis import _WORKSHEET_FIELDS, profile_to_intake
 from app.charts import render_financial_graphics, render_value_chart
 from app.inputs import MONTHLY_FIELDS, field_state, monthly_problems
@@ -206,7 +207,7 @@ def _monthly_charts(financial: dict[str, Any]) -> str:
             lines.append(f"<li>{escape(label)}: not calculated.</li>")
         else:
             lines.append(
-                f"<li>{escape(key)}: {escape(str(value))}. Calculated by the engine for this preview. Not saved.</li>"
+                f"<li>{escape(key)}: {escape(display.figure(key, value))}. Calculated by the engine for this preview. Not saved.</li>"
             )
     revenue = render_value_chart(
         "preview-revenue",
@@ -270,7 +271,7 @@ def _capital_chart(projection: dict[str, Any]) -> str:
             rows.append(f"<li>{escape(str(point['label']))}: not calculated.</li>")
         else:
             rows.append(
-                f"<li>{escape(str(point['key']))}: {escape(str(value))}. Calculated by the engine for this preview. Not saved.</li>"
+                f"<li>{escape(str(point['key']))}: {escape(display.figure(str(point['key']), value))}. Calculated by the engine for this preview. Not saved.</li>"
             )
     return chart + "<ul>" + "".join(rows) + "</ul>"
 

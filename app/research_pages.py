@@ -5,7 +5,9 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from app.pages import _workspace_links, layout
+from app import display as fmt
+from app import ui
+from app.pages import _workspace_links, _ws_header, layout
 from app.federal_register import DOCUMENT_CLASSES, SOURCE_NAME as REGISTER_NAME
 from app.public_retrieval import GEOGRAPHY_CHOICES, INDUSTRY_CHOICES, RETRIEVAL_YEARS, SOURCE_NAME
 from app.research import (
@@ -32,13 +34,20 @@ def _options(pairs: tuple[tuple[str, str], ...], selected: str) -> str:
 
 
 def intelligence_index(records: list[dict[str, Any]], projects_by_assessment: dict[str, list[dict[str, Any]]]) -> str:
+    saved_total = sum(len(projects_by_assessment.get(str(item.get("id") or "")) or []) for item in records)
     if not records:
-        items = "<li>No authorized business is available. Sign in, then open a draft from Explore.</li>"
+        items = ui.empty_state(
+            "No business to research yet",
+            "No authorized business is available. Sign in, then open a draft from Explore.",
+            action_html=ui.button("Start in Explore", "/explore"),
+            icon_name="search",
+        )
+        stats = ""
     else:
         rows = []
         for record in records:
             assessment_id = escape(str(record.get("id") or ""))
-            name = escape(str(record.get("business_name") or "Assessment"))
+            name = str(record.get("business_name") or "Assessment")
             projects = projects_by_assessment.get(str(record.get("id") or "")) or []
             if projects:
                 saved = "".join(
@@ -49,19 +58,31 @@ def intelligence_index(records: list[dict[str, Any]], projects_by_assessment: di
             else:
                 saved = "<li>No research project is saved yet.</li>"
             rows.append(
-                "<section class=\"card\">"
-                f"<h2>{name}</h2>"
-                f"<ul>{saved}</ul>"
-                f'<p><a class="button" href="/assessments/{assessment_id}/intelligence">Open research</a> '
-                f'<a class="button" href="/assessments/{assessment_id}/pulse">Open Market Pulse</a></p>'
-                "</section>"
+                ui.item_card(
+                    name,
+                    href=f"/assessments/{assessment_id}/intelligence",
+                    chips=ui.pill(f"{len(projects)} saved"),
+                    body=f'<ul class="ditem-links">{saved}</ul>',
+                    actions=(
+                        ui.button("Open research", f"/assessments/{assessment_id}/intelligence", small=True)
+                        + ui.button("Open Market Pulse", f"/assessments/{assessment_id}/pulse", small=True, ghost=True)
+                    ),
+                    icon_name="search",
+                )
             )
-        items = "".join(rows)
+        items = f'<div class="ditems">{"".join(rows)}</div>'
+        stats = ui.kpi_grid(
+            [
+                ui.stat("Businesses", fmt.count(len(records)), "you can research", icon_name="layers"),
+                ui.stat("Research projects", fmt.count(saved_total), "saved across them", icon_name="search"),
+            ]
+        )
     body = f"""
-<h1>Research</h1>
-<p>{_NOTE}</p>
-<p>The market snapshot on Market Intelligence remains a separate demonstration. A saved project is customer research, not that snapshot.</p>
-{items}
+{ui.page_header("Research", subtitle="Save what you find about customers, competitors, and rules, with its source.", help_html=ui.simple_help("About Research", _NOTE), header_id="section-welcome")}
+{ui.callout(_NOTE)}
+{stats}
+<p class="muted">The market snapshot on Market Intelligence remains a separate demonstration. A saved project is customer research, not that snapshot.</p>
+<div id="research-list">{items}</div>
 """
     return layout("Research", body)
 
@@ -75,16 +96,31 @@ def assessment_research_page(
 ) -> str:
     assessment_id = escape(str(record.get("id") or ""))
     banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
-    saved = "".join(
-        f'<li><a href="/assessments/{assessment_id}/intelligence/{escape(str(item.get("id") or ""))}">'
-        f'{escape(str(item.get("title") or "Research project"))}</a> · '
-        f'{escape(objective_label(str((item.get("document") or {}).get("objective") or "")))}</li>'
-        for item in projects
-    ) or "<li>No research project is saved yet.</li>"
+    if projects:
+        saved = "".join(
+            ui.item_card(
+                str(item.get("title") or "Research project"),
+                href=f"/assessments/{assessment_id}/intelligence/{escape(str(item.get('id') or ''))}",
+                meta=escape(objective_label(str((item.get("document") or {}).get("objective") or ""))),
+                icon_name="search",
+            )
+            for item in projects
+        )
+        saved = f'<div class="ditem-list" id="saved-research">{saved}</div>'
+    else:
+        saved = (
+            '<div id="saved-research">'
+            + ui.empty_state(
+                "No research project is saved yet.",
+                "A project keeps what you learn in one place, each finding with its source.",
+                icon_name="search",
+            )
+            + "</div>"
+        )
     form = ""
     if writable:
         form = f"""
-<form method="post" action="/assessments/{assessment_id}/intelligence">
+<form method="post" action="/assessments/{assessment_id}/intelligence" class="dform">
 <input type="hidden" name="op" value="create_project">
 <label>Project title <input name="title" maxlength="200" required></label>
 <label>Research objective <select name="objective">{_options(OBJECTIVES, "demand")}</select></label>
@@ -94,14 +130,14 @@ def assessment_research_page(
 <button type="submit">Save research project</button>
 </form>
 """
+        form = ui.card("Start a research project", form, icon_name="plus")
     else:
-        form = "<p>This file cannot be changed from research.</p>"
+        form = ui.callout("This file cannot be changed from research.")
     body = f"""
-<h1>Research for {escape(str(record.get("business_name") or "Assessment"))}</h1>
-{_workspace_links(record)}
+{_ws_header(record, "Research for " + str(record.get("business_name") or "Assessment"), "research", extra_chips=(ui.pill(f"{len(projects)} saved"),))}
 {banner}
-<p>{_NOTE}</p>
-<ul>{saved}</ul>
+{ui.callout(_NOTE)}
+{saved}
 {form}
 <p><a href="/assessments/{assessment_id}/pulse">Market Pulse for this business</a></p>
 """
@@ -285,20 +321,20 @@ def project_page(
         if isinstance(item, dict)
     ) or "<li>No earlier summary is saved.</li>"
     body = f"""
-<h1>{escape(str(project.get("title") or "Research project"))}</h1>
-{_workspace_links(record)}
+{_ws_header(record, str(project.get("title") or "Research project"), "research", extra_chips=(ui.pill(f"{len(evidence)} evidence saved"),))}
 {banner}
-<p>{_NOTE}</p>
+{ui.callout(_NOTE)}
 <p>Objective: {escape(objective_label(str(document.get("objective") or "")))}.
 Area: {escape(str(document.get("geography") or "not recorded"))}.
 Segments: {escape(str(document.get("segments") or "not recorded"))}.</p>
+{ui.goto_links([("Summary", "#research-summary"), ("Saved evidence", "#saved-evidence"), ("Earlier summaries", "#earlier-summaries"), ("Update this project", "#project-tools")], label="On this page")}
 {_summary_block(summary)}
-<h2>Saved evidence</h2>
+<h2 id="saved-evidence">Saved evidence</h2>
 {evidence_html}
 {_retrieval_section(assessment_id, project_id, retrieval, writable=writable)}
-<h2>Earlier summaries</h2>
+<h2 id="earlier-summaries">Earlier summaries</h2>
 <ul>{history}</ul>
-{edit}
+<div id="project-tools">{ui.details("Update the project, add evidence, and use reviewed research", edit, open_=bool(notice)) if edit else ""}</div>
 <p><a href="/assessments/{assessment_id}/advice">Ask the adviser about this assessment</a>. A question is sent only when you choose Ask.</p>
 """
     return layout("Research", body)
@@ -480,15 +516,14 @@ def pulse_page(
 </section>
 """
     body = f"""
-<h1>Market Pulse for {escape(str(record.get("business_name") or "Assessment"))}</h1>
-{_workspace_links(record)}
+{_ws_header(record, "Market Pulse for " + str(record.get("business_name") or "Assessment"), "pulse", extra_chips=(ui.pill(f"{len(developments)} recorded"), ui.pill("Monitoring not running", "warn")))}
 {banner}
-<p>Recorded developments are not the demonstration cards. Monitoring is not running.</p>
+{ui.callout("Recorded developments are not the demonstration cards. Monitoring is not running.")}
 <h2>Recorded developments</h2>
 {development_html}
 <h2>Monitoring configuration</h2>
 {monitors_shown}
-{forms}
+{ui.details("Record a development or configure a topic", forms, open_=bool(notice) or not developments) if forms else ""}
 <p><a href="/assessments/{assessment_id}/intelligence">Back to research</a></p>
 """
     return layout("Research", body)

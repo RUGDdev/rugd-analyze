@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app import display
+
 NOT_STORED = "Not stored. This deck does not fill this in."
 ASSEMBLED = "Assembled from the saved business plan. This is not a live adviser response."
 DISCLAIMER = (
@@ -323,7 +325,7 @@ def _capital_content(document: dict[str, Any], figures: dict[str, Any]) -> tuple
             ["Startup capital allocation is not drawn."],
             None,
         )
-    facts = [f"{item['label']}: {item['amount']}. Copied from the stored projection." for item in uses]
+    facts = [f"{item['label']}: {display.dollars(item['amount'])}. Copied from the stored projection." for item in uses]
     return ("Use of funds is limited to the stored sources and uses. No extra category was added.", facts, "allocation")
 
 
@@ -334,14 +336,15 @@ def _break_even_sentence(figures: dict[str, Any]) -> str:
     if revenue is None or break_even is None or gap is None:
         return "Break-even revenue or entered monthly revenue is not stored, so the difference is not shown."
     if gap > 0:
-        relation = f"The entered monthly revenue is {gap} above the calculated break-even revenue."
+        relation = f"The entered monthly revenue is {display.dollars(gap)} above the calculated break-even revenue."
     elif gap < 0:
-        relation = f"The entered monthly revenue is {abs(gap)} below the calculated break-even revenue."
+        relation = f"The entered monthly revenue is {display.dollars(abs(gap))} below the calculated break-even revenue."
     else:
         relation = "The entered monthly revenue equals the calculated break-even revenue."
     return (
-        f"Entered monthly revenue is {revenue}. Calculated break-even revenue is {break_even}. "
-        f"The difference is {gap}. This difference is entered revenue minus the stored break-even. "
+        f"Entered monthly revenue is {display.dollars(revenue)}. "
+        f"Calculated break-even revenue is {display.dollars(break_even)}. "
+        f"The difference is {display.dollars(gap)}. This difference is entered revenue minus the stored break-even. "
         f"It is not a separate engine output. {relation}"
     )
 
@@ -381,7 +384,7 @@ def _money(value: Any, label: str) -> str:
         return f"{label}: {NOT_STORED}"
     if value == 0:
         return f"{label}: 0. Stored as zero."
-    return f"{label}: {value}."
+    return f"{label}: {display.dollars(value)}."
 
 
 def _section(sections: dict[str, Any], key: str) -> str:
@@ -426,6 +429,7 @@ def _amount_after(lines: list[Any], prefix: str) -> float | None:
         if lowered.startswith("missing") or lowered.startswith("not "):
             return None
         token = rest.split()[0].rstrip(".") if rest else ""
+        token = token.replace("$", "").replace(",", "")
         try:
             return float(token)
         except ValueError:

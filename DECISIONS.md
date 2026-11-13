@@ -745,3 +745,11 @@ Owner input required before replacing `billing_hooks`:
 - Recommendations come only from the stored result and the existing improvement presets. They cite the flag or number they rest on, link to the workflow that tests them, and never claim an official pass. When cash flow before debt service is negative, more capital is not offered as a fix.
 - Verbose explanations moved into "?" help controls. Status, the blocking reason, evidence gaps, and the not-approved limits stay visible. The previous results content stays on the page in collapsed sections so no limitation or export is lost.
 - Sections are URL-hash tabs so they can be linked from other pages and keep the reader's place.
+
+## Decision: One shared page design for every workspace
+
+- Date: 2026-11-13
+- Status: Accepted for the local pilot. Presentation only. No change to formulas, scoring weights, recommend-against criteria, the Investor Readiness Gate, human review controls, or the official baseline. No deployment.
+- The owner approved the Analyze dashboard as the standard. Reuse beats rebuild: `app/ui.py` holds the components and is injected once in `layout()`, so any page, including ones not yet redesigned, gets the same cards, buttons, banners, and header.
+- Money, percent, ratio, and month figures in saved text are formatted by `app/display.py` when the text is generated. Cents are kept when the stored number has them. Stored numbers are never rounded. The deck parser reads both forms.
+- Navigation: one workspace row per business, current page marked, one title per page. Long reference pages keep their content and move optional material into collapsed sections.

@@ -74,6 +74,14 @@ def money(value: Any, *, missing: str = NOT_PROVIDED, cents: bool = False) -> st
     return f"-${body}" if negative else f"${body}"
 
 
+def dollars(value: Any, *, missing: str = NOT_PROVIDED) -> str:
+    """$1,234 when whole, $19,354.84 when the stored number has cents. Nothing is rounded away."""
+    number = number_of(value)
+    if number is None:
+        return missing
+    return money(number, missing=missing, cents=abs(number - round(number)) > 0.004)
+
+
 def percent(value: Any, places: int = 0, *, missing: str = NOT_PROVIDED) -> str:
     """A fraction written as a percent: 0.55 gives 55%, 0.08 with places=1 gives 8.0%."""
     number = number_of(value)
@@ -112,6 +120,28 @@ def decimal_text(value: Any, places: int = 1, unit: str = "", *, missing: str = 
     quantum = Decimal(1).scaleb(-places)
     rounded = Decimal(repr(number)).quantize(quantum, rounding=ROUND_HALF_UP)
     return f"{rounded:,.{places}f} {unit}".strip()
+
+
+def figure(key: str, value: Any, *, missing: str = NOT_CALCULATED) -> str:
+    """Write a stored number the way a person reads it, chosen from the field name.
+
+    Dollar fields get $ and commas. Margins become percents. A downside multiplier becomes 0.6×.
+    Months get a unit. Only the text changes. The stored number is never altered.
+    """
+    number = number_of(value)
+    if number is None:
+        return missing
+    name = str(key).lower()
+    if "multiplier" in name:
+        return f"{number:g}×"
+    if name == "dscr" or "coverage" in name:
+        return multiple(number)
+    if "months" in name:
+        return decimal_text(number, 1, "months")
+    if "margin" in name or name.endswith("_pct") or "percent" in name:
+        return percent(number, 0) if abs(number) <= 1 else f"{decimal_text(number, 1)}%"
+    # Keep stored cents so a copied figure never loses precision: $19,354.84, not $19,355.
+    return dollars(number, missing=missing)
 
 
 def state_from_engine(label: Any) -> str:

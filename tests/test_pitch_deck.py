@@ -15,6 +15,7 @@ import urllib.request
 
 from pptx import Presentation
 
+from app import display
 from app.access import DENIAL
 from app.deck import build_deck_document, edited_deck, included_slides
 from app.deck_export import chart_points, pdf_bytes, powerpoint_bytes
@@ -176,13 +177,13 @@ class TestPitchDeck(unittest.TestCase):
         self.assertIn("Harbor Books", text)
         self.assertIn("weekday neighbors", text)
         self.assertIn("The full narrative is saved in the workspace.", text)
-        self.assertIn(str(expected["base_monthly_cash_flow"]), text)
+        self.assertIn(display.dollars(expected["base_monthly_cash_flow"]), text)
         self.assertIn("not established", text)
         pdf = pdf_bytes(deck, title="Harbor Books Investor presentation")
         self.assertTrue(pdf.startswith(b"%PDF"))
         self.assertIn(b"%%EOF", pdf)
         self.assertIn(b"Harbor Books", pdf)
-        self.assertIn(str(expected["base_monthly_cash_flow"]).encode(), pdf)
+        self.assertIn(display.dollars(expected["base_monthly_cash_flow"]).encode(), pdf)
         self.assertIn(b"weekday neighbors", pdf)
 
     def test_http_deck_persists_exports_and_stays_private(self) -> None:
@@ -239,7 +240,7 @@ class TestPitchDeck(unittest.TestCase):
             self.assertEqual(page[0], 200)
             self.assertIn("Investor presentation", page[1])
             self.assertIn("Harbor Books", page[1])
-            self.assertIn(f"Monthly cash flow: {expected['base_monthly_cash_flow']}", page[1])
+            self.assertIn(f"Monthly cash flow: {display.dollars(expected['base_monthly_cash_flow'])}", page[1])
             self.assertIn("Save deck", page[1])
             self.assertIn("Export PowerPoint", page[1])
             self.assertIn("Export PDF", page[1])
@@ -268,7 +269,7 @@ class TestPitchDeck(unittest.TestCase):
             self.assertEqual(saved[0], 303)
             reloaded = self._get(base + deck_path, cookie)
             self.assertIn("Ask weekday neighbors before ordering inventory.", reloaded[1])
-            self.assertIn(f"Monthly cash flow: {expected['base_monthly_cash_flow']}", reloaded[1])
+            self.assertIn(f"Monthly cash flow: {display.dollars(expected['base_monthly_cash_flow'])}", reloaded[1])
             self.assertIn("Include this slide", reloaded[1])
             financials = reloaded[1].find('id="slide-financials"')
             operations = reloaded[1].find('id="slide-operations"')

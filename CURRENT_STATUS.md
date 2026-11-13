@@ -1,10 +1,10 @@
 # Current status
 
-Updated: 2026-11-12
+Updated: 2026-11-13
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 336 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 345 tests, all passing.
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
 ## Repository
@@ -655,3 +655,13 @@ Further work on production authentication, real market data, an approved scoring
 - The older results content (tables, engine cases, official detail, reports and exports, about this prototype) is kept in collapsed sections on the same page. Narrow screens use a smaller logo and a one-row scrolling sidebar menu and tab bar.
 - Not changed: the engine, scoring weights, recommend-against criteria, the Investor Readiness Gate, human review controls, the official baseline page, and the database schema. No Render deployment.
 - The unittest suite is 336 tests, all passing (13 new in `tests/test_analyze_dashboard.py`). Authenticated browser checks on a temporary database: every tab, tile, and "Details" control switched the right panel, every dashboard link returned 200, help controls opened, and narrow layout had no horizontal overflow. Not changed by this work: the baseline and not-yet-analyzed pages keep their earlier layout.
+
+## Unified platform design (2026-11-13)
+
+- The approved Analyze dashboard is now the visual and usability standard for the whole app. Shared pieces live in `app/ui.py` (page header, workspace row, KPI tiles, item cards, empty states, callouts, "?" help, tabs, details, dates, pills). The Analyze dashboard itself imports them and is unchanged in content.
+- One workspace row (Explore, Research, Analyze, Improve, Business plan, Pitch deck, Reports, Adviser, Action Center, Market Pulse) sits under the title on every business page, with the current workspace marked. Every page has exactly one title.
+- Redesigned onto the shared design: Dashboard and My Assessments (KPI tiles from stored data, assessment cards, starters and guides collapsed), Explore, New assessment, Analyze index, Research (index, business, project), Improve, Benchmarks, Revenue worksheet, Business plan (index, business, saved plan with a scrolling section row), Pitch deck (index, business, saved deck), Adviser (index, conversation as a chat log), Reports, Action Center, History, Market Pulse (business). Older pages (Settings, Validate, Partner, Market Intelligence, Audit, Login) pick up the rounded cards, buttons, and banners through the shared stylesheet.
+- Financial text is written once in `app/display.py`: `figure` and `dollars` give `$5,360`, `-$1,584`, `$19,354.84` (cents kept when stored), `33.6 months`, `62%`, `1.25×`. Reports, plans, decks, charts, and previews now use them. The stored numbers are unchanged. The deck reads figures back from plan text, so its parser accepts the new `$1,234.56` form and the older plain numbers.
+- Dates use `ui.when` (`Nov 13, 2026, 13:32 UTC`) with the stored ISO value kept in a `<time>` tag.
+- Tests: `tests/test_ui_platform.py` (shared components, one title and workspace row with the right current tab on all ten workspaces, all list pages, formatted money in saved report/plan/deck, no review-approval control). Existing assertions that expected raw numbers or one exact card class were updated to the new text.
+- Not changed: engine, scoring, recommend-against criteria, Investor Readiness Gate, human review controls, official baseline, database schema, accounts and isolation. No Render deployment.
