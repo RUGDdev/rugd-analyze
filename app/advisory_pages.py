@@ -10,7 +10,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from app import advisory, benchmarks, improve
+from app import advisory, benchmarks, display, improve
 from app import revenue_worksheet as rw
 from app.field_help import DAYS
 from app.pages import _workspace_links, layout
@@ -47,11 +47,11 @@ button.ghost { background: white; color: var(--ink); border: 1px solid var(--ink
 
 
 def _n(value: Any) -> str:
-    return "n/a" if value is None else f"{float(value):,.0f}"
+    return display.money(value, missing="n/a")
 
 
 def _x(value: Any) -> str:
-    return "n/a" if value is None else f"{float(value):.2f}×"
+    return display.multiple(value, missing="n/a")
 
 
 def _id(record: dict[str, Any]) -> str:
@@ -69,7 +69,16 @@ def _subnav(record: dict[str, Any], current: str) -> str:
         f'<a href="/assessments/{assessment_id}/{slug}"{" class=on aria-current=page" if slug == current else ""}>{label}</a>'
         for slug, label in items
     )
-    return f'<div class="adv-sub no-print" aria-label="Planning tools">{links}<a href="/assessments/{assessment_id}">Back to your draft</a></div>'
+    section = {"benchmarks": "benchmarks", "revenue-worksheet": "revenue-model", "improve": "scenarios"}.get(current, "overview")
+    back = (
+        f'<a href="/assessments/{assessment_id}/results#{section}">Back to Analyze results</a>'
+        if improve.explain_official(record)["ran"]
+        else ""
+    )
+    return (
+        f'<div class="adv-sub no-print" aria-label="Planning tools">{links}{back}'
+        f'<a href="/assessments/{assessment_id}">Back to your draft</a></div>'
+    )
 
 
 def _shell(record: dict[str, Any], title: str, current: str, body: str) -> str:

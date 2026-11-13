@@ -735,3 +735,13 @@ Owner input required before replacing `billing_hooks`:
 - Suggestion cards, the revenue worksheet, and scenarios never write to the draft on their own. Each change needs an explicit customer action (Use with confirm, or the approval box). Decisions, worksheets, and scenarios live in `advisory_records`, apart from the draft and the official result.
 - The revenue worksheet does not replace the seat revenue model. `PROPOSAL_REVENUE_TURNOVER.md` stays unauthorized.
 - A scenario that improves projections is not approved, and the page says so. Applying one does not run Analyze or touch review status.
+
+## Decision: Analyze results are a dashboard, not a report page
+
+- Date: 2026-11-13
+- Status: Accepted for the local pilot. This does not change the 0.1 formulas, scoring weights, recommend-against criteria, Investor Readiness Gate, human review controls, or the official baseline. It does not deploy.
+- The results page leads with qualitative status labels and the engine's own recommendation, readiness, and review status. No percentage readiness, composite, or feasibility score is shown, because no authorized methodology produces one.
+- Numbers are formatted once, at display time, in `app/display.py`. Stored and engine values keep full precision. A missing value is words, never zero.
+- Recommendations come only from the stored result and the existing improvement presets. They cite the flag or number they rest on, link to the workflow that tests them, and never claim an official pass. When cash flow before debt service is negative, more capital is not offered as a fix.
+- Verbose explanations moved into "?" help controls. Status, the blocking reason, evidence gaps, and the not-approved limits stay visible. The previous results content stays on the page in collapsed sections so no limitation or export is lost.
+- Sections are URL-hash tabs so they can be linked from other pages and keep the reader's place.

@@ -4,7 +4,7 @@ Updated: 2026-11-12
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 323 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 336 tests, all passing.
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
 
 ## Repository
@@ -643,3 +643,15 @@ Further work on production authentication, real market data, an approved scoring
 - Scenarios use the unmodified `project_startup` and judge coverage against the readiness gate's downside measure at 1.00x and 1.25x. They are saved separately (limit 12), compared side by side, and applied to the working draft only when the customer ticks the approval box. Apply never runs Analyze and never changes flags, scoring, readiness, review status, or the stored result.
 - Storage: table `advisory_records` (created with IF NOT EXISTS). Details: `BENCHMARKS.md`.
 - The unittest suite is 323 tests, all passing (67 new in `tests/test_advisory_logic.py` and `tests/test_advisory_server.py`, plus a results-page card test). Authenticated browser checks on a temporary database covered Use with replace confirm, autosave, dismiss and reload, scenario save and comparison, apply refused without the tick, and apply with the tick. Render was not deployed. The official sample is unchanged.
+
+## Interactive Analyze dashboard (2026-11-13)
+
+- The Analyze results page for a customer draft is now a tabbed dashboard: Overview, Key Numbers, Benchmarks, Revenue Model, Scenarios, Recommendations. Tabs follow the URL hash (`#key-numbers` and so on), so every section can be linked and the Benchmarks, Revenue worksheet, and Improve pages return to the matching section with "Back to Analyze results". Without JavaScript every panel is in the page. Printing shows all panels.
+- Status is a set of qualitative labels (Not assessed, Needs evidence, Recommend-against flag active, Financial assumptions incomplete, Review required) beside the engine's recommendation, readiness, and review status. No percentage, readiness score, or feasibility score is shown. The engine's "Not calculated — methodology pending approval." line stays.
+- Presentation formatting is in `app/display.py` (`$2,537,206`, `-$125,000`, `55%`, `8.0%`, `1.25×`). It rounds half up at display time only. The database and the engine keep full precision. Missing is words ("Not provided", "Not calculated"), never zero. Chips mark Calculated, Your assumption, Default placeholder, Missing. The Improve and Benchmarks pages use the same formats.
+- Repeated paragraphs became "?" help controls (what it means, how calculated, where from, assumptions, limits). The status banner, evidence gaps, the primary blocking reason, and the not-approved wording stay visible.
+- Benchmarks panel lists the stored records with source, dates, geography, applicability, and limits, and says "No verified benchmark available" when none is verified. It never invents a range. A customer-recorded figure is shown as unverified.
+- Recommendations are built from the stored result (`build_recommendations` in `app/analyze_dashboard.py`): demand evidence, unmeasured inputs, operating economics when cash flow before debt service is negative, and solved or what-if scenario presets with the coverage each would give. Each links to Research, the revenue worksheet, Benchmarks, or Improve feasibility. Increased capital is not offered when operating cash flow is negative. Nothing is called an official pass. The dashboard shows the top six.
+- The older results content (tables, engine cases, official detail, reports and exports, about this prototype) is kept in collapsed sections on the same page. Narrow screens use a smaller logo and a one-row scrolling sidebar menu and tab bar.
+- Not changed: the engine, scoring weights, recommend-against criteria, the Investor Readiness Gate, human review controls, the official baseline page, and the database schema. No Render deployment.
+- The unittest suite is 336 tests, all passing (13 new in `tests/test_analyze_dashboard.py`). Authenticated browser checks on a temporary database: every tab, tile, and "Details" control switched the right panel, every dashboard link returned 200, help controls opened, and narrow layout had no horizontal overflow. Not changed by this work: the baseline and not-yet-analyzed pages keep their earlier layout.

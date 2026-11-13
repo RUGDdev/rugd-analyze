@@ -22,6 +22,7 @@ import re
 from datetime import date
 from typing import Any
 
+from app import display
 from app.guidance import family_for
 from scoring import industry_benchmarks as secondary
 
@@ -105,7 +106,7 @@ def _display(value: float, kind: str, unit: str) -> str:
     if kind == "share":
         return f"{value * 100:.1f}% of sales"
     if unit.startswith("currency"):
-        return f"{value:,.2f} {unit.replace('currency ', '')}"
+        return f"{display.money(value, cents=True)} {unit.replace('currency ', '')}"
     return f"{value:g} {unit}"
 
 

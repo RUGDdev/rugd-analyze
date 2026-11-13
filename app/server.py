@@ -630,12 +630,14 @@ class AppHandler(BaseHTTPRequestHandler):
         action = parts[2] if len(parts) > 2 else ""
         if action == "results":
             stored = record.get("result") or {"engine_ran": False, "message": "Analyze has not been run."}
+            state = self._account_state(connection)
             self._html(
                 results_page(
                     record,
                     stored,
                     list_guidance_notes(connection, record["id"]),
-                    writable=may_write(self._account_state(connection), record),
+                    writable=may_write(state, record),
+                    context=self._dashboard_context(connection, state, record),
                 )
             )
         elif action == "reports":
@@ -2018,6 +2020,15 @@ class AppHandler(BaseHTTPRequestHandler):
             for item in advisory_store.list_records(connection, str(record["id"]), kind)
             if may_see_attachment(state, record, str(item.get("created_by") or ""))
         ]
+
+    def _dashboard_context(self, connection: Any, state: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+        """Saved benchmark figures, revenue worksheet, and scenarios this viewer may see. Read only."""
+        worksheets = self._advisory_visible(connection, state, record, "revenue_worksheet")
+        return {
+            "benchmark_entries": self._advisory_visible(connection, state, record, "benchmark_entry"),
+            "worksheet": worksheets[-1] if worksheets else None,
+            "scenarios": self._advisory_visible(connection, state, record, "scenario"),
+        }
 
     def _advice_slots(self, connection: Any, state: dict[str, Any], record: dict[str, Any], profile: dict[str, Any]) -> dict[str, str]:
         if venture_path_of(record) == "existing":

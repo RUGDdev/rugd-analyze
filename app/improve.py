@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from app import display
 from app.inputs import field_state
 from engine.startup_projection import (
     DEFAULT_AMORTIZATION_YEARS,
@@ -416,7 +417,7 @@ def presets(
                     "overrides": {"average_ticket": ticket},
                     "basis": (
                         f"Downside revenue would need to be {_money(needed_revenue)} for {target:g}× coverage, "
-                        f"{factor:.2f}× today's downside revenue. Through the ticket alone, that is {ticket:,.2f} per cover{' (a very large change, so look at seat turns in the revenue worksheet before trusting it)' if factor > 1.5 else ''}. "
+                        f"{factor:.2f}× today's downside revenue. Through the ticket alone, that is {display.money(ticket, cents=True)} per cover{' (a very large change, so look at seat turns in the revenue worksheet before trusting it)' if factor > 1.5 else ''}. "
                         "Through occupancy alone it would take "
                         f"weekday {base['weekday_occupancy'] * factor:.2f} and weekend {base['weekend_occupancy'] * factor:.2f}"
                         f"{' (above 1.00, so it cannot be done with occupancy alone)' if max(base['weekday_occupancy'], base['weekend_occupancy']) * factor > 1 else ''}."
@@ -662,7 +663,7 @@ def _plain(value: float) -> str:
 
 
 def _money(value: float | None) -> str:
-    return "n/a" if value is None else f"{value:,.0f}"
+    return display.money(value, missing="n/a")
 
 
 def explain_official(record: dict[str, Any]) -> dict[str, Any]:

@@ -381,8 +381,12 @@ details.more > summary {{ padding: 0.7rem 0; font-weight: 600; }}
 @media (max-width: 800px) {{
   .shell {{ flex-direction: column; }}
   .sidebar {{ width: 100%; flex-basis: auto; }}
-  nav {{ flex-direction: row; flex-wrap: wrap; }}
-  .nav-tip {{ left: 0; top: calc(100% + 0.2rem); width: 12.5rem; }}
+  .brand {{ padding: 0.5rem 0.9rem 0.2rem; }}
+  .brand img {{ width: 8.5rem; }}
+  .brand-meta {{ margin: 0.2rem 1rem 0.5rem; }}
+  nav {{ flex-direction: row; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }}
+  nav > * {{ flex: 0 0 auto; white-space: nowrap; }}
+  .nav-tip {{ display: none !important; }}
   main {{ padding: 1.25rem 1rem 2rem; }}
   .glance {{ grid-template-columns: 1fr; }}
   .finance-workspace {{ grid-template-columns: 1fr; }}
@@ -2508,7 +2512,12 @@ def results_page(
     notes: list[dict[str, Any]] | None = None,
     *,
     writable: bool = True,
+    context: dict[str, Any] | None = None,
 ) -> str:
+    """The Analyze dashboard. It reads the stored result and adds no score or readiness percentage."""
+    from app import analyze_dashboard
+    from app.checklist import build_checklist
+
     if not result.get("engine_ran"):
         body = _results_not_run(record, result, notes, writable=writable)
         return layout("Analyze", body)
@@ -2526,31 +2535,13 @@ def results_page(
     else:
         standing = "Draft recommendation. Human review is pending. This is not a final or investor-ready result."
     links = _output_links(record)
-    body = f"""
-<h1>Results for {escape(record['business_name'])}</h1>
-{_workspace_links(record)}
-<p class="muted">Saved research and Market Pulse stay beside this result. They do not change the financial inputs or the recommendation.</p>
-<p>This page shows the stored engine result, the hard gate, and the next step. It does not grant investor-ready status.</p>
-{_pilot_banner(record)}
-{_SURFACE_NOTE}
-{_pilot_purpose()}
-{_journey_progress(_journey_stage(record))}
-<div class="banner">{escape(standing)}</div>
-{_adviser_nudge(record, "results")}
-<div class="card" id="improve-card">
-<h3>What could change this?</h3>
-<p>See the funding gap, test a smaller venue or other changes side by side, and save a scenario. A scenario is a projection from your assumptions. It does not change this result.</p>
-<p><a class="button" href="/assessments/{escape(str(record.get('id') or ''))}/improve">Improve feasibility</a></p>
-</div>
-<div class="card" id="results-lead">
-{_at_a_glance(record, result)}
-{_view_summary_block(result)}
-{_indicative_block(result, notes)}
-{_your_next_step(record)}
-<p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
+    profile = record.get("profile") or {}
+    startup_missing = [] if venture_path_of(record) == "existing" else _missing_labels(profile, _STARTUP_REQUIRED)
+    tables = f"""
 <div class="figure-block">
 <h2>Key engine figures</h2>
 <p>These are the stored engine figures. The sentence under a name explains it. The sentence does not change the number.</p>
+<p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
 <h2>Monthly base and downside</h2>{financial}
 {render_engine_charts(result.get("financial") if isinstance(result.get("financial"), dict) else None, live=bool(getattr(get_analyst(), "uses_network", False)))}
 <h2>Sources and uses, scenarios, and DSCR</h2>
@@ -2558,14 +2549,24 @@ def results_page(
 {_plain("dscr")}
 {projection}
 </div>
+"""
+    engine_cases = (
+        '<details class="dmore"><summary>Base, downside, and upside engine cases</summary>'
+        f"{_scenario_comparison(record, result)}</details>"
+    )
+    recommendations_extra = (
+        f"{_evidence_checklist(record, result, notes, return_to='results', writable=writable)}"
+        '<details class="dmore"><summary>Research steps and evidence notes</summary>'
+        f"{_tier_research(record, result)}</details>"
+    )
+    official = f"""
+<details class="dmore" id="official-details"><summary>Official gate details and demand evidence</summary>
+<div class="card" id="results-lead">
+{_at_a_glance(record, result)}
+{_view_summary_block(result)}
+{_indicative_block(result, notes)}
+{_your_next_step(record)}
 </div>
-{_draft_market_context(record)}
-{links}
-{_scenario_comparison(record, result)}
-{_evidence_checklist(record, result, notes, return_to="results", writable=writable)}
-{_assistant_panel(record, surface="results")}
-{_analyst_panel(record, result)}
-{_LIMITATIONS}
 <h2>Demand evidence</h2>
 {_demand_status(result.get("demand") or {})}
 <h2>Recommend-against flags</h2>
@@ -2573,11 +2574,45 @@ def results_page(
 <ul>{flags}</ul>
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
 <h2>Missing information</h2><ul>{missing}</ul>
+</details>
+<details class="dmore"><summary>Research, market context, and guidance</summary>
+{_draft_market_context(record)}
 {_guidance_section("explore" if str(record.get("tier")) == "explore" else "analyze", result, notes, record)}
-{_tier_research(record, result)}
+</details>
+<details class="dmore"><summary>Adviser and analyst</summary>
+{_adviser_nudge(record, "results")}
+{_assistant_panel(record, surface="results")}
+{_analyst_panel(record, result)}
+</details>
+<details class="dmore"><summary>Reports, exports, and audit</summary>
 {links}
+</details>
+<details class="dmore"><summary>About this prototype</summary>
+{_SURFACE_NOTE}
+{_pilot_purpose()}
+{_journey_progress(_journey_stage(record))}
+{_LIMITATIONS}
+<p class="muted">Saved research and Market Pulse stay beside this result. They do not change the financial inputs or the recommendation.</p>
+</details>
 """
-    return layout("Results", body)
+    checklist = build_checklist(record, result, notes)
+    dashboard = analyze_dashboard.render(
+        record,
+        result,
+        context=context or {},
+        startup_missing=startup_missing,
+        checklist=checklist,
+        next_step=_next_step_for(record),
+        standing=standing,
+        legacy={
+            "tables": tables,
+            "scenarios": engine_cases,
+            "recommendations": recommendations_extra,
+            "more": official,
+            "banner_extra": _pilot_banner(record),
+        },
+    )
+    return layout("Results", dashboard)
 
 
 _LIMITATIONS = """

@@ -150,9 +150,9 @@ class TestPagesAndIntake(AdvisoryServerCase):
         status, body, headers = self.request(f"/assessments/{assessment_id}/analyze", {}, cookie)
         if status in (301, 302, 303):
             body = self.request(headers["Location"], None, cookie)[1]
-        self.assertIn('id="improve-card"', body)
-        self.assertIn("What could change this?", body)
+        self.assertIn('id="analyze-dashboard"', body)
         self.assertIn(f"/assessments/{assessment_id}/improve", body)
+        self.assertIn(f"/assessments/{assessment_id}/benchmarks", body)
 
     def test_nonrestaurant_benchmark_page_says_nothing_is_loaded(self) -> None:
         cookie = self.sign_in("owner@pilot.example")
