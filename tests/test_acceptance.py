@@ -101,7 +101,7 @@ class TestAcceptanceChecklist(unittest.TestCase):
         self.assertIn("Authoritative financial numbers below come only from the 0.1 engine.", pages["results"])
         self.assertIn("Insufficient verified information to calculate.", pages["results"])
         self.assertIn("Recurring monitoring is not active", pages["partner"])
-        self.assertIn("This screen cannot set human_review_approved.", pages["validate"])
+        self.assertIn("This screen cannot approve an assessment.", pages["validate"])
 
 
 if __name__ == "__main__":

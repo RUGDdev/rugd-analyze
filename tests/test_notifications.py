@@ -148,7 +148,7 @@ class TestNotificationPreferences(unittest.TestCase):
                 cookie,
             )
             self.assertEqual(denied[0], 403)
-            self.assertIn("cannot set human_review_approved", denied[1])
+            self.assertIn("cannot approve an assessment", denied[1])
             after_denial = get_user_by_id(self.connection, self.owner["id"])
             assert after_denial is not None
             self.assertEqual(after_denial["notification_preferences"], user["notification_preferences"])
@@ -211,7 +211,7 @@ class TestNotificationPreferences(unittest.TestCase):
             self.assertEqual(len(OUTBOX), 1)
             self.assertEqual(OUTBOX[0]["to"], OWNER_EMAIL)
             self.assertNotIn(token, OUTBOX[0]["body"])
-            self.assertIn("does not set human_review_approved", OUTBOX[0]["body"])
+            self.assertIn("does not approve the assessment", OUTBOX[0]["body"])
             after_share = get_assessment(self.connection, self.assessment_id)
             assert after_share is not None
             self.assertEqual(json.dumps(after_share["result"], sort_keys=True), stored_result)
@@ -242,7 +242,7 @@ class TestNotificationPreferences(unittest.TestCase):
             self.assertEqual(approved[0], 303, approved[1])
             self.assertEqual(len(OUTBOX), 3)
             self.assertEqual(OUTBOX[2]["to"], OWNER_EMAIL)
-            self.assertIn("does not set human_review_approved", OUTBOX[2]["body"])
+            self.assertIn("does not approve the assessment", OUTBOX[2]["body"])
             after_approval = get_assessment(self.connection, self.assessment_id)
             assert after_approval is not None
             self.assertEqual(after_approval["result"]["recommendation"], "do-not-proceed")

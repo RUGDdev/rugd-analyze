@@ -5,7 +5,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from app import display
+from app import display, wording
 from app.analysis import _WORKSHEET_FIELDS, profile_to_intake
 from app.charts import render_financial_graphics, render_value_chart
 from app.inputs import MONTHLY_FIELDS, field_state, monthly_problems
@@ -207,7 +207,7 @@ def _monthly_charts(financial: dict[str, Any]) -> str:
             lines.append(f"<li>{escape(label)}: not calculated.</li>")
         else:
             lines.append(
-                f"<li>{escape(key)}: {escape(display.figure(key, value))}. Calculated by the engine for this preview. Not saved.</li>"
+                f"<li>{escape(wording.field_label(key))}: {escape(display.figure(key, value))}. Calculated by RUGD for this preview. Not saved.</li>"
             )
     revenue = render_value_chart(
         "preview-revenue",
@@ -217,7 +217,7 @@ def _monthly_charts(financial: dict[str, Any]) -> str:
             _point("downside_monthly_revenue", "Downside monthly revenue", financial),
             _point("downside_monthly_contribution", "Downside monthly contribution", financial),
         ],
-        "Preview. Calculated by the engine for this request. Not saved.",
+        "Preview. Calculated by RUGD for this request. Not saved.",
     )
     cash = render_value_chart(
         "preview-cash-flow",
@@ -232,7 +232,7 @@ def _monthly_charts(financial: dict[str, Any]) -> str:
         "preview-break-even",
         "Break-even monthly revenue",
         [_point("break_even_monthly_revenue", "Break-even monthly revenue", financial)],
-        "Preview. Calculated by the engine. The customer's projected revenue is not drawn on this bar.",
+        "Preview. Calculated by RUGD. The customer's projected revenue is not drawn on this bar.",
     )
     return (
         '<div class="chart-grid">'
@@ -271,7 +271,7 @@ def _capital_chart(projection: dict[str, Any]) -> str:
             rows.append(f"<li>{escape(str(point['label']))}: not calculated.</li>")
         else:
             rows.append(
-                f"<li>{escape(str(point['key']))}: {escape(display.figure(str(point['key']), value))}. Calculated by the engine for this preview. Not saved.</li>"
+                f"<li>{escape(wording.field_label(str(point['key'])))}: {escape(display.figure(str(point['key']), value))}. Calculated by RUGD for this preview. Not saved.</li>"
             )
     return chart + "<ul>" + "".join(rows) + "</ul>"
 

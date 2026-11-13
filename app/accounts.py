@@ -179,7 +179,7 @@ def create_reviewer_account(
         authentication_method=str(session.get("authentication_method") or ""),
         note=(
             f"Created reviewer account {created['email']}. "
-            "This does not change an assessment, clear a flag, or set human_review_approved."
+            "This does not change an assessment, lift a concern, or approve the assessment."
         ),
     )
     return created

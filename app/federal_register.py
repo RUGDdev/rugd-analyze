@@ -44,7 +44,7 @@ _STALE_DAYS = 540
 LIMITATION = (
     "Federal Register documents are public notices and rules. A proposed rule or a notice is not an enacted requirement. "
     "A final rule is not verified as applicable to this business. This record does not clear INSUFFICIENT_DEMAND_EVIDENCE, "
-    "does not set human_review_approved, and is not a live feed."
+    "does not approve the assessment, and is not a live feed."
 )
 _CLASS_STATEMENT = {
     "proposed_rule": "Proposed rule. This is not an enacted requirement.",

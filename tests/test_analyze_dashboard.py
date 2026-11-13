@@ -41,7 +41,7 @@ class TestDisplayFormatting(unittest.TestCase):
 
     def test_chip_states_are_distinct(self) -> None:
         self.assertIn("Calculated", display.chip("calculated"))
-        self.assertIn("Your assumption", display.chip("estimated"))
+        self.assertIn("Your estimate", display.chip("estimated"))
         self.assertIn("Missing", display.chip("missing"))
         self.assertEqual(display.state_from_engine("calculated by the deterministic engine"), "calculated")
         self.assertEqual(display.state_from_engine("user-supplied assumption"), "estimated")
@@ -69,7 +69,7 @@ class TestAnalyzeDashboard(AdvisoryServerCase):
     def test_status_uses_labels_not_a_made_up_score(self) -> None:
         cookie = self.sign_in("owner@pilot.example")
         _aid, body = self.analyzed(cookie)
-        for text in ("Needs evidence", "Review required", "INSUFFICIENT_DEMAND_EVIDENCE", "Not calculated — methodology pending approval."):
+        for text in ("Customer evidence needed", "Waiting for an authorized review", "Not enough evidence of customer demand", "INSUFFICIENT_DEMAND_EVIDENCE", "Not calculated — methodology pending approval."):
             self.assertIn(text, body)
         self.assertIsNone(re.search(r"readiness[^<]{0,40}\d+\s?%", body, re.I))
         self.assertNotIn('name="human_review_approved"', body)
@@ -83,7 +83,7 @@ class TestAnalyzeDashboard(AdvisoryServerCase):
         self.assertIn("-0.69×", body)
         self.assertIn("$167,713", body)
         self.assertIn("8.0%", body)
-        self.assertIn("Default placeholder", body)
+        self.assertIn("Starting number, not yours", body)
         self.assertIsNone(re.search(r"\$\d{4,}(?!,)", body), "currency must carry thousands separators")
         sparse = dict(PROFILE, average_ticket="", weekday_occupancy="", weekend_occupancy="")
         _aid2, page = self.analyzed(cookie, sparse)
@@ -110,8 +110,8 @@ class TestAnalyzeDashboard(AdvisoryServerCase):
         cookie = self.sign_in("owner@pilot.example")
         aid, body = self.analyzed(cookie)
         panel = body.split('id="recommendations"')[1]
-        self.assertIn("Strengthen demand evidence", panel)
-        self.assertIn("Fix operating economics first", panel)
+        self.assertIn("Show that customers will buy", panel)
+        self.assertIn("Make the business earn more than it costs first", panel)
         self.assertIn(f"/assessments/{aid}/improve?target=1&amp;preset=", panel.replace("&preset=", "&amp;preset="))
         self.assertIn(f"/assessments/{aid}/revenue-worksheet", panel)
         self.assertIn("#evidence-checklist-", panel)

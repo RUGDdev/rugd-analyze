@@ -188,7 +188,7 @@ class TestAdviserWorkspace(unittest.TestCase):
         self.assertIn("Demand evidence", context["missing_evidence"])
         reply = ask_adviser(context, "What cash flow and missing market evidence are stored?", get_analyst(environ={}))
         self.assertEqual(reply["source"], "deterministic")
-        self.assertIn("No live model was called", reply["text"])
+        self.assertIn("No outside AI service was used", reply["text"])
         self.assertIn(str(before), reply["text"])
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", reply["text"])
         self.assertIn("Market size is not treated as verified", reply["text"])

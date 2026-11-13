@@ -124,11 +124,12 @@ class TestPresentation(unittest.TestCase):
             viewer_id="step-owner",
         )
         self.assertIn("Next recommended step:", page)
-        self.assertIn("Demand evidence missing.", page)
-        self.assertIn("Gate status:</strong> Blocked", page)
+        self.assertIn("Next step: show evidence that customers will buy.", page)
+        self.assertIn("Important information still needed", page)
+        self.assertIn('data-gate="Blocked"', page)
         self.assertIn("Continue Step Cafe", page)
-        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE is present", page)
-        self.assertIn("does not clear the flag", page)
+        self.assertIn("add evidence that customers will buy", page)
+        self.assertNotIn("INSUFFICIENT_DEMAND_EVIDENCE is present", page)
         self.assertNotIn("Investor readiness:</strong> investor-ready", page)
         stored = get_assessment(self.connection, assessment_id)
         assert stored is not None
@@ -236,7 +237,7 @@ class TestPresentation(unittest.TestCase):
             self.assertIn('value="42"', form)
             self.assertIn("Keep this concept.", form)
             self.assertIn("Guidance. Not a decision.", form)
-            self.assertIn("The next missing required item is", form)
+            self.assertIn("The next thing to add is", form)
         finally:
             server.shutdown()
             server.server_close()
@@ -254,7 +255,7 @@ class TestPresentation(unittest.TestCase):
         before_profile = dict(current["profile"])
         unanswered = assessment_form(current)
         self.assertIn("Guidance. Not a decision.", unanswered)
-        self.assertIn("The next missing required item is demand evidence", unanswered)
+        self.assertIn("The next thing to add is evidence that customers will buy.", unanswered)
         self.assertEqual(get_assessment(self.connection, assessment_id)["profile"], before_profile)
         result = analyze_record(current)
         save_result(self.connection, assessment_id, result.get("intake"), result)
@@ -262,8 +263,7 @@ class TestPresentation(unittest.TestCase):
         assert stored is not None
         flags = list(stored["result"]["blocking_flags"])
         page = assessment_form(stored)
-        self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE is present", page)
-        self.assertIn("This note does not clear the flag", page)
+        self.assertIn("The next step is to add evidence that customers will buy", page)
         self.assertIn("Recommendation:</strong> do-not-proceed", page)
         self.assertIn("Investor readiness:</strong> internal", page)
         self.assertIn("Human review status:</strong> pending", page)
@@ -568,7 +568,7 @@ class TestPresentation(unittest.TestCase):
         self.assertIn("Reviewer notes placeholder", validate)
         self.assertIn("Request review", validate)
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", validate)
-        self.assertIn("This screen cannot set human_review_approved.", validate)
+        self.assertIn("This screen cannot approve an assessment.", validate)
         self.assertNotIn("Record reviewer approval", validate)
         session = {
             "active": True,

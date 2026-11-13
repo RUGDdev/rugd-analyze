@@ -57,19 +57,35 @@ def help_tip(
     source: str,
     assumptions: str,
     limits: str,
+    matters: str = "",
+    todo: str = "",
 ) -> str:
-    """A compact help control. It explains a figure and never changes it."""
-    rows = "".join(
-        f"<p><strong>{label}.</strong> {escape(text)}</p>"
-        for label, text in (
-            ("What it means", means),
-            ("How it is calculated", how),
-            ("Where it came from", source),
-            ("Assumptions used", assumptions),
-            ("Limits", limits),
-        )
-        if text
+    """A compact help control. It explains a figure and never changes it.
+
+    With ``matters`` and ``todo`` it answers three plain questions first (what it means, why it matters,
+    what to do) and keeps the working behind a "How this is worked out" fold.
+    """
+    technical = (
+        ("How it is calculated", how),
+        ("Where it came from", source),
+        ("Assumptions used", assumptions),
+        ("Limits", limits),
     )
+    if matters or todo:
+        first = "".join(
+            f"<p><strong>{label}.</strong> {escape(text)}</p>"
+            for label, text in (("What it means", means), ("Why it matters", matters), ("What to do", todo))
+            if text
+        )
+        inner = "".join(f"<p><strong>{label}.</strong> {escape(text)}</p>" for label, text in technical if text)
+        more = f'<details class="dh-more"><summary>How this is worked out</summary>{inner}</details>' if inner else ""
+        rows = first + more
+    else:
+        rows = "".join(
+            f"<p><strong>{label}.</strong> {escape(text)}</p>"
+            for label, text in (("What it means", means),) + technical
+            if text
+        )
     return (
         '<details class="dh">'
         f'<summary aria-label="About {escape(title)}"><span aria-hidden="true">?</span></summary>'
@@ -350,6 +366,16 @@ EXTRA_STYLE = """
 .dws a:hover, main #journey-nav.dws a:hover { background: #F1E9D8; color: var(--ink); }
 .dws a.on, main #journey-nav.dws a.on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .dnote-warn { background: #F6E7CB; border-left-color: #D9BE88; }
+.dfinding { margin: 0.4rem 0 0.6rem; }
+.dfinding p { margin: 0.25rem 0; }
+.dfinding .dfinding-t { font-size: 1.05rem; margin: 0.2rem 0; }
+.techref { margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--sub); }
+.techref summary { cursor: pointer; }
+.techref code { background: #F1ECDF; padding: 0 0.3rem; border-radius: 4px; }
+.dh-more { margin-top: 0.4rem; }
+.dh-more summary { cursor: pointer; color: var(--sub); font-size: 0.85rem; }
+.dwhere { margin: 0.4rem 0 0; }
+.dwhere .dlabel-s { display: block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--sub); margin-bottom: 0.2rem; }
 .dempty { display: flex; gap: 0.8rem; align-items: flex-start; background: var(--card); border: 1px dashed #cfc9bb; border-radius: 16px; padding: 1rem 1.2rem; margin: 0.4rem 0 0.9rem; }
 .dempty-t { font-weight: 600; margin: 0 0 0.2rem; }
 .dempty .muted { margin: 0.1rem 0; }

@@ -46,7 +46,7 @@ NAV_LABELS = (
 NAV_TIPS = (
     ('href="/"', "Dashboard", "See saved drafts and the next recommended step."),
     ('href="/explore"', "Explore", "Start or continue an intake and save a draft."),
-    ('href="/analyze"', "Analyze", "Run the engine on a saved draft and read the result."),
+    ('href="/analyze"', "Analyze", "See what RUGD found for a saved draft."),
     (
         'href="/validate"',
         "Validate (demonstration)",
@@ -142,7 +142,7 @@ class TestBrandShell(unittest.TestCase):
         self.assertIn('href="/login"', home)
         self.assertIn('href="/register"', home)
         signed_home = dashboard([], signed_in=True, viewer_id="brand-reader")
-        self.assertIn("indicative assessment", signed_home)
+        self.assertIn("preliminary business evaluation", signed_home)
         self.assertIn("read-only share", signed_home)
         self.assertIn("No feasibility score is calculated.", signed_home)
         self.assertIn('class="sidebar"', home)
@@ -181,7 +181,7 @@ class TestBrandShell(unittest.TestCase):
         self.assertIn("Sign in with a local account to store which notices this account receives.", preferences)
         self.assertIn("Is this a startup idea or an existing or expanding business?", fresh)
         self.assertIn("Read-only share.", shared)
-        self.assertIn("Indicative assessment is shown after Analyze has been run.", shared)
+        self.assertIn("The preliminary business evaluation is shown after Analyze has been run.", shared)
         self.assertIn('class="bar"', results_page(
             {
                 "id": "rugd-intelligence-baseline",

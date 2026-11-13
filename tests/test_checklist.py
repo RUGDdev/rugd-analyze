@@ -63,9 +63,9 @@ class TestEvidenceChecklist(unittest.TestCase):
         self.assertFalse(view["changes_recommendation"])
         by_id = {item["id"]: item for item in view["items"]}
         self.assertEqual(by_id["verified-demand"]["status"], "open")
-        self.assertIn("Missing financial inputs: Initial capital", by_id["monthly-inputs"]["guidance"])
+        self.assertIn("Still to enter: Initial capital", by_id["monthly-inputs"]["guidance"])
         self.assertIn("Gross margin", by_id["monthly-inputs"]["guidance"])
-        self.assertIn("Missing startup inputs: Construction cost", by_id["startup-inputs"]["guidance"])
+        self.assertIn("Still to enter: Construction cost", by_id["startup-inputs"]["guidance"])
         self.assertEqual(by_id["note-market-demand"]["status"], "open")
         self.assertEqual(by_id["note-financial-feasibility"]["status"], "open")
         self.assertEqual(by_id["note-stewardship"]["status"], "open")
@@ -124,7 +124,7 @@ class TestEvidenceChecklist(unittest.TestCase):
         self.assertEqual(completed_by_id["monthly-inputs"]["status"], "recorded")
         self.assertEqual(completed_by_id["note-stewardship"]["status"], "recorded")
         self.assertIn(
-            "INSUFFICIENT_DEMAND_EVIDENCE is still active",
+            "The demand concern is still open",
             completed_by_id["verified-demand"]["guidance"],
         )
         self.assertEqual(completed["result"]["recommendation"], "do-not-proceed")
@@ -169,7 +169,7 @@ class TestEvidenceChecklist(unittest.TestCase):
         for shown in (page, results, explore):
             self.assertIn("Evidence checklist", shown)
             self.assertIn(DISCLAIMER, shown)
-            self.assertIn("Verified demand evidence", shown)
+            self.assertIn("Proof that customers will buy", shown)
             self.assertIn("Checklist status:</strong> Recorded", shown)
             self.assertIn("do-not-proceed", results)
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE:</strong> present", results)
@@ -215,8 +215,8 @@ class TestEvidenceChecklist(unittest.TestCase):
             results = _get(base + f"/assessments/{self.assessment_id}/results", cookie)
             for page in (draft, explore, results):
                 self.assertIn("Evidence checklist", page)
-                self.assertIn("Verified demand evidence", page)
-                self.assertIn("Missing financial inputs:", page)
+                self.assertIn("Proof that customers will buy", page)
+                self.assertIn("Still to enter:", page)
                 self.assertIn("Durable Value note:", page)
             self.assertIn("Recommendation:</strong> do-not-proceed", results)
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE:</strong> present", results)

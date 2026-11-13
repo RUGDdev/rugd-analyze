@@ -12,13 +12,19 @@ import re
 from typing import Any
 
 DISCLAIMER = (
-    "Checking or completing an item updates guidance only. "
-    "It does not clear a recommend-against flag, change the recommendation, "
-    "or set human_review_approved."
+    "Ticking an item records your progress only. "
+    "It does not lift a serious concern, change the recommendation, "
+    "or approve the assessment."
 )
 
 ITEM_ID = re.compile(r"^[A-Za-z0-9]+(?:-[A-Za-z0-9_]+)*$")
 _FLAG_ID = re.compile(r"^[A-Z0-9_]+$")
+
+
+def _flag_title(flag: str) -> str:
+    from app import wording
+
+    return wording.title_of(flag)
 
 _MONTHLY = (
     ("initial_capital", "Initial capital"),
@@ -78,25 +84,24 @@ def build_checklist(
         )
 
     demand_extra = (
-        " INSUFFICIENT_DEMAND_EVIDENCE is still active. This checklist did not clear it."
+        " The demand concern is still open. This checklist did not clear it."
         if "INSUFFICIENT_DEMAND_EVIDENCE" in blocking
         else (
-            " Analyze has not been run. Checking this item does not clear INSUFFICIENT_DEMAND_EVIDENCE."
+            " Analyze has not been run. Checking this item does not settle the demand question."
             if not stored.get("engine_ran")
-            else " Checking this item does not clear a recommend-against flag."
+            else " Checking this item does not clear a serious concern."
         )
     )
     add(
         "verified-demand",
-        "Verified demand evidence",
+        "Proof that customers will buy",
         (
-            "A strengthening record has source verified, a rationale, and either a true "
-            "demand_evidence value or trailing revenue greater than zero. "
+            "Documented evidence counts: signed commitments, deposits, or sales records, saved as a documented record with an explanation. "
             "A check here does not create that record."
             + demand_extra
         ),
         _verified_support(profile),
-        "In everyday words: show proof that people will pay, such as signed orders or past sales. Checking this box does not create that proof.",
+        "Show proof that people will pay, such as signed orders or past sales. Checking this box does not create that proof.",
     )
     monthly_guidance, monthly_recorded = _financial_copy(profile, _MONTHLY, "monthly")
     add(
@@ -104,7 +109,7 @@ def build_checklist(
         "Monthly financial inputs",
         monthly_guidance,
         monthly_recorded,
-        "In everyday words: enter the four monthly money figures. A blank stays blank, and checking the box does not invent a number.",
+        "Enter the four monthly money figures. A blank stays blank, and checking the box does not invent a number.",
     )
     if _venture_path(record) != "existing":
         startup_guidance, startup_recorded = _financial_copy(profile, _STARTUP, "startup")
@@ -113,7 +118,7 @@ def build_checklist(
             "Startup capital inputs",
             startup_guidance,
             startup_recorded,
-            "In everyday words: enter the one-time opening costs and the seat assumptions. Checking the box does not fill them in.",
+            "Enter the one-time opening costs and the seat assumptions. Checking the box does not fill them in.",
         )
     for pillar in _note_pillars(blocking):
         stored_note = any(
@@ -125,23 +130,23 @@ def build_checklist(
             f"Durable Value note: {pillar['title']}",
             (
                 "An educational note on this pillar records the open question. "
-                "Checking this item or saving a note does not clear a flag and is not a DVT evaluation."
+                "Ticking this item or saving a note does not lift a concern and is not a DVT evaluation."
             ),
             stored_note,
-            "In everyday words: write the open question in your own words. The note is guidance, not a score.",
+            "Write the open question in your own words. The note is guidance, not a score.",
         )
     for flag in blocking:
         if flag == "INSUFFICIENT_DEMAND_EVIDENCE" or not _FLAG_ID.fullmatch(flag):
             continue
         add(
             f"gate-{flag}",
-            f"Hard gate still active: {flag}",
+            f"Still open: {_flag_title(flag)}",
             (
-                f"{flag} remains an engine recommend-against flag. "
+                "This is a serious concern on file. "
                 "Checking this item does not clear it."
             ),
             False,
-            "In everyday words: the engine still blocks a go-ahead on this point. Checking the box does not remove the block.",
+            "RUGD still cannot recommend going ahead on this point. Checking the box does not remove that.",
         )
     noted_or_recorded = sum(1 for item in items if item["status"] != "open")
     return {
@@ -202,24 +207,24 @@ def _financial_copy(
         names = ", ".join(missing)
         if kind == "monthly":
             text = (
-                f"Missing financial inputs: {names}. Enter them on the intake. "
-                "Checking this item does not invent a figure and does not clear a flag."
+                f"Still to enter: {names}. Add them in Explore. "
+                "Ticking this item does not invent a figure and does not lift a concern."
             )
         else:
             text = (
-                f"Missing startup inputs: {names}. Enter them on the intake. "
-                "Checking this item does not invent a figure and does not clear a flag."
+                f"Still to enter: {names}. Add them in Explore. "
+                "Ticking this item does not invent a figure and does not lift a concern."
             )
         return text, False
     if kind == "monthly":
         text = (
-            "The four monthly engine inputs are saved. They remain user-supplied assumptions "
-            "and do not clear a recommend-against flag."
+            "The four monthly figures are saved. They remain your own estimates "
+            "and do not lift a serious concern."
         )
     else:
         text = (
-            "The startup capital inputs are saved. They remain user-supplied assumptions "
-            "and do not clear a recommend-against flag."
+            "The startup cost figures are saved. They remain your own estimates "
+            "and do not lift a serious concern."
         )
     return text, True
 

@@ -4,8 +4,14 @@ Updated: 2026-11-13
 
 ## Engine
 
-RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 345 tests, all passing.
+RUGD Business Engine 0.1-pilot is the analytical authority. The unittest suite is 359 tests, all passing.
 The official baseline in `intake/samples/rugd_intelligence.json` is unchanged: draft do-not-proceed, `INSUFFICIENT_DEMAND_EVIDENCE`, investor readiness internal, human review pending, `human_review_approved` false, no feasibility score. `reports/output/rugd-intelligence-draft.md` still records that draft. The local app reads the sample and does not overwrite it.
+
+## Plain-language layer (2026-11-13, after 22c9364)
+
+Customer pages now speak plain business English. `app/wording.py` is a translation layer only. It turns stored codes and classifications into plain titles, what RUGD found, why it matters, and what to do next, each with a link to an existing workflow (Research, Improve, Revenue worksheet, Explore, Benchmarks, evidence checklist). Stored results, flag codes, scoring, gates, and saved assessments are unchanged. Codes stay in the data and appear on pages only inside collapsed "Technical reference" blocks and `data-gate` / `data-band` attributes. Saved plans, reports, and the adviser page translate stored text at display time (`wording.humanize_lines`) and leave the stored text untouched. "?" controls answer what it means, why it matters, and what to do (`wording.explain`). The coverage-ratio display bug (`startup_base_dscr` shown with a dollar sign) is fixed. `tests/test_plain_language.py` covers wording, blocking findings, links, help controls, preserved codes, and the untouched baseline. The official baseline is still a draft do-not-proceed with `INSUFFICIENT_DEMAND_EVIDENCE`, readiness internal, and human review pending.
+
+Known remaining technical wording is listed in the completion report (adviser-only detail tables, stored export files, Validate, Partner, and Audit pages).
 
 ## Repository
 

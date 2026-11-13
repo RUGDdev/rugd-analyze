@@ -13,7 +13,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from app import benchmarks, improve, ui
+from app import benchmarks, improve, ui, wording
 from app import display as d
 from app import revenue_worksheet as rw
 from app.plain import TERMS
@@ -37,17 +37,7 @@ SECTION_IDS = tuple(key for key, _label in SECTIONS)
 
 OFFICIAL_UNCHANGED = "The official result, flags, and review status are unchanged by this."
 
-_FLAG_SHORT = {
-    rules.FLAG_DEMAND: "No verified demand evidence on file",
-    rules.FLAG_DEMAND_UNVERIFIED: "Demand support is user-supplied only",
-    rules.FLAG_OPERATOR: "Operator capacity is stated as inadequate",
-    rules.FLAG_REGULATORY: "An unresolved regulatory or liability issue is recorded",
-    rules.FLAG_EXTRACTION: "Extraction without reinvestment is recorded",
-    rules.FLAG_OPERATOR_GAP: "Operator capacity has not been evaluated",
-    rules.FLAG_REGULATORY_GAP: "Regulatory or liability review has not been recorded",
-    rules.FLAG_STEWARDSHIP_GAP: "Reinvestment (stewardship) has not been recorded",
-    rules.FLAG_FINANCIALS_UNMEASURED: "Financial inputs are not marked as measured",
-}
+_FLAG_SHORT = {code: item.title for code, item in wording.FINDINGS.items()}
 
 def _aid(record: dict[str, Any]) -> str:
     return escape(str(record.get("id") or ""))
@@ -58,8 +48,8 @@ def _aid(record: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-_ENGINE = "Calculated by the 0.1-pilot deterministic engine from your entries."
-_YOURS = "Each input is your own assumption unless you attached a quote or a measurement."
+_ENGINE = "Calculated by RUGD's analysis from the numbers you entered."
+_YOURS = "Each input is your own estimate unless you attached a quote or a measurement."
 
 METRIC_HELP: dict[str, dict[str, str]] = {
     "total_project_cost": {
@@ -67,7 +57,7 @@ METRIC_HELP: dict[str, dict[str, str]] = {
         "means": "All the money the opening needs: build, equipment, soft costs, working capital, and a contingency.",
         "how": "The five uses added together. Contingency is your contingency percentage times the other four.",
         "source": _ENGINE,
-        "assumptions": _YOURS + " Contingency may still be a coded placeholder.",
+        "assumptions": _YOURS + " Contingency may still be a standard starting number.",
         "limits": "It is not a contractor quote and leaves out any cost you did not enter.",
     },
     "debt": {
@@ -75,7 +65,7 @@ METRIC_HELP: dict[str, dict[str, str]] = {
         "means": "The part of the project paid for by borrowing.",
         "how": "Debt share times total project cost.",
         "source": _ENGINE,
-        "assumptions": "The debt share is your assumption or a placeholder.",
+        "assumptions": "The debt share is your estimate or a standard starting number.",
         "limits": "A lender, not RUGD, decides what can be borrowed.",
     },
     "equity": {
@@ -91,7 +81,7 @@ METRIC_HELP: dict[str, dict[str, str]] = {
         "means": "What the loan costs each year in payments.",
         "how": "A level monthly payment on the debt at your interest rate over your repayment years, times 12.",
         "source": _ENGINE,
-        "assumptions": "Interest rate and repayment years are your assumptions or placeholders.",
+        "assumptions": "Interest rate and repayment years are your estimates or standard starting numbers.",
         "limits": "A lender sets real terms and fees.",
     },
     "base_revenue": {
@@ -107,7 +97,7 @@ METRIC_HELP: dict[str, dict[str, str]] = {
         "means": "Yearly sales in a weaker year.",
         "how": "The base calculation with occupancy cut by the downside multiplier.",
         "source": _ENGINE,
-        "assumptions": "The downside multiplier is yours or a placeholder.",
+        "assumptions": "The weaker-year factor is yours or a standard starting number.",
         "limits": "It is not a forecast of the worst case.",
     },
     "cash_flow": {
@@ -119,12 +109,12 @@ METRIC_HELP: dict[str, dict[str, str]] = {
         "limits": "No taxes, ramp-up, or one-time costs.",
     },
     "dscr": {
-        "title": "Debt service coverage (DSCR)",
+        "title": "Loan coverage (DSCR)",
         "means": "How many times cash flow covers the yearly loan payment. Below 1.00× means it does not cover it. A negative number means cash flow itself is negative.",
         "how": "Cash flow before debt service divided by yearly debt service.",
         "source": _ENGINE,
         "assumptions": "RUGD pages compare it with 1.00× (readiness default) and 1.25× (lender oriented).",
-        "limits": "A lender sets its own test. Meeting a ratio does not clear a flag.",
+        "limits": "A lender sets its own test. Meeting a ratio does not by itself settle anything else on the assessment.",
     },
     "break_even": {
         "title": "Break-even revenue (per year)",
@@ -145,8 +135,53 @@ METRIC_HELP: dict[str, dict[str, str]] = {
 }
 
 
+METRIC_WHY: dict[str, tuple[str, str]] = {
+    "total_project_cost": (
+        "It is the amount you have to raise or borrow before the doors open.",
+        "Check each cost against a quote. Costs you have not entered are left out.",
+    ),
+    "debt": (
+        "Borrowed money has to be paid back with interest, whatever sales turn out to be.",
+        "Ask a lender what you could really borrow. Change the borrowing share in Explore.",
+    ),
+    "equity": (
+        "Lenders expect you to put in your own money and share the risk.",
+        "Check how much you can really put in, and keep a bank statement or commitment ready.",
+    ),
+    "annual_debt_service": (
+        "These payments come out of the business's cash every year.",
+        "If they look too high, test a longer repayment term or less borrowing in Improve.",
+    ),
+    "base_revenue": (
+        "Everything else in the plan depends on this sales estimate.",
+        "Test it in the revenue worksheet, and back it up with a similar business's sales.",
+    ),
+    "downside_revenue": (
+        "Plans should survive a weaker year, not only a good one.",
+        "Check that the loan could still be paid at this level.",
+    ),
+    "cash_flow": (
+        "It is the money left to pay the loan and to keep the business going.",
+        "If it is low or negative, test higher sales or lower costs in Improve.",
+    ),
+    "dscr": (
+        "Below 1.00× the cash does not cover the loan. Lenders often want about 1.25× or more.",
+        "If it is low, test lower costs, higher sales, a smaller project, or more of your own money in Improve.",
+    ),
+    "break_even": (
+        "If your expected sales are below it, the business loses money.",
+        "Compare it with your expected sales, then test ways to raise sales or cut costs.",
+    ),
+    "monthly": (
+        "It shows whether an ordinary month leaves cash, and how a weak month would look.",
+        "Check the four monthly figures behind it. Replace estimates with real records.",
+    ),
+}
+
+
 def _metric_help(key: str) -> str:
-    return help_tip(**METRIC_HELP[key])
+    matters, todo = METRIC_WHY.get(key, ("", ""))
+    return help_tip(matters=matters, todo=todo, **METRIC_HELP[key])
 
 
 def _term_help(key: str) -> str:
@@ -154,10 +189,12 @@ def _term_help(key: str) -> str:
     return help_tip(
         item["term"],
         means=item["plain"],
-        how="Read from the stored engine result. It is not recalculated on this page.",
-        source="The official engine result for this draft.",
+        how="Read from the stored result. It is not recalculated on this page.",
+        source="The official analysis for this draft.",
         assumptions="",
         limits=item["precise"],
+        matters=item["matters"],
+        todo=item["todo"],
     )
 
 
@@ -197,25 +234,21 @@ def status_summary(result: dict[str, Any], startup_missing: list[str]) -> dict[s
     gaps = [str(flag) for flag in result.get("gap_flags") or []]
     labels: list[str] = []
     if rules.FLAG_DEMAND in blocking or rules.FLAG_DEMAND_UNVERIFIED in blocking:
-        labels.append("Needs evidence")
+        labels.append("Customer evidence needed")
     other = [flag for flag in blocking if flag not in {rules.FLAG_DEMAND, rules.FLAG_DEMAND_UNVERIFIED}]
     if other:
-        labels.append("Recommend-against flag active")
+        labels.append("A serious concern is on file")
     if rules.FLAG_FINANCIALS_UNMEASURED in gaps or startup_missing:
-        labels.append("Financial assumptions incomplete")
+        labels.append("Some figures are still estimates")
     if str(result.get("human_review_status") or "pending") != "approved" or not result.get("human_review_approved"):
-        labels.append("Review required")
+        labels.append("Waiting for an authorized review")
     if not labels:
         labels.append("Review recorded")
     primary = blocking[0] if blocking else (gaps[0] if gaps else "")
-    reason = ""
-    if rules.FLAG_DEMAND in blocking:
-        reason = TERMS["insufficient_demand_evidence"]["plain"]
-    elif primary:
-        reason = _FLAG_SHORT.get(primary) or rules.NEXT_ACTIONS.get(primary, "")
+    reason = wording.finding(primary).found if primary else ""
     return {
         "label": labels[0],
-        "tone": "warn" if blocking or "Financial assumptions incomplete" in labels else "plain",
+        "tone": "warn" if blocking or "Some figures are still estimates" in labels else "plain",
         "labels": labels,
         "primary": primary,
         "reason": reason,
@@ -328,7 +361,7 @@ def _startup_block(result: dict[str, Any], projection: dict[str, Any], profile: 
     base_dscr = d.multiple(base.get("dscr"))
     down_dscr = d.multiple(downside.get("dscr"))
     coverage = _table(
-        ["Case (per year)", "Revenue", "Cash flow before debt service", "Coverage"],
+        ["Case (per year)", "Revenue", "Cash left before loan payments", "Loan coverage"],
         [
             [
                 "Base",
@@ -345,8 +378,8 @@ def _startup_block(result: dict[str, Any], projection: dict[str, Any], profile: 
         ],
     )
     chart_rows = [
-        ("Base", d.number_of(base.get("dscr")), base_dscr),
-        ("Downside", d.number_of(downside.get("dscr")), down_dscr),
+        ("Typical year", d.number_of(base.get("dscr")), base_dscr),
+        ("Weaker year", d.number_of(downside.get("dscr")), down_dscr),
     ]
     coverage_chart = _bars(
         chart_rows,
@@ -355,17 +388,17 @@ def _startup_block(result: dict[str, Any], projection: dict[str, Any], profile: 
     )
     revenue_chart = _bars(
         [
-            ("Downside revenue", d.number_of(downside.get("revenue")), d.money(downside.get("revenue"), missing="Not calculated")),
-            ("Base revenue", d.number_of(base.get("revenue")), d.money(base.get("revenue"), missing="Not calculated")),
+            ("Weaker-year revenue", d.number_of(downside.get("revenue")), d.money(downside.get("revenue"), missing="Not calculated")),
+            ("Typical-year revenue", d.number_of(base.get("revenue")), d.money(base.get("revenue"), missing="Not calculated")),
             ("Break-even revenue", d.number_of(break_even.get("revenue")), d.money(break_even.get("revenue"), missing="Not calculated")),
         ],
-        unit_label="Yearly amounts from the engine.",
+        unit_label="Yearly amounts worked out by RUGD.",
     )
     return f"""
 <div class="dgrid2">
   <div class="dcard"><h3>Uses of money {_metric_help('total_project_cost')}</h3>{_table(['Use', 'Amount'], _uses_rows(projection, profile))}</div>
   <div class="dcard"><h3>Sources and financing</h3>{_table(['Source', 'Amount'], _sources_rows(projection, profile))}
-  <p class="muted">Financing terms are your assumptions or placeholders. A lender sets real terms.</p></div>
+  <p class="muted">Loan terms here are your estimates or standard starting numbers. A lender sets the real terms.</p></div>
 </div>
 <div class="dcard"><h3>Coverage of the loan payment {_metric_help('dscr')}</h3>{coverage}{coverage_chart}</div>
 <div class="dgrid2">
@@ -425,12 +458,12 @@ def key_numbers_html(result: dict[str, Any], profile: dict[str, Any], startup_mi
         missing = ", ".join(startup_missing)
         parts.append(
             '<div class="dcard"><h3>Startup cost build</h3>'
-            f'<p>{d.chip("missing", "Not calculated")} The engine did not calculate the startup cost build.'
+            f'<p>{d.chip("missing", "Not calculated")} RUGD could not work out the startup costs yet.'
             f"{(' Still needed: ' + escape(missing) + '.') if missing else ''} Nothing was filled in for you.</p></div>"
         )
     parts.append(_monthly_block(_financial(result), startup_ran=bool(projection)))
     parts.append(
-        '<details class="dmore"><summary>Full engine tables and charts</summary>'
+        '<details class="dmore"><summary>Detailed tables and charts (for advisers)</summary>'
         f"{legacy_tables}</details>"
     )
     return "".join(parts)
@@ -726,9 +759,9 @@ _PRESET_TITLES = {
     "owner_cash": "Increase available capital",
     "lower_build": "Revise construction costs",
     "smaller_venue": "Reduce project size",
-    "higher_ticket": "Improve operating economics: revenue",
-    "lower_fixed": "Improve operating economics: fixed costs",
-    "longer_term": "Review financing assumptions",
+    "higher_ticket": "Raise the average spend per guest",
+    "lower_fixed": "Lower the yearly fixed costs",
+    "longer_term": "Revisit the loan terms",
 }
 _PRESET_ORDER = ("owner_cash", "lower_build", "smaller_venue", "higher_ticket", "lower_fixed", "longer_term")
 
@@ -756,15 +789,17 @@ def build_recommendations(
                 "id": "demand",
                 "priority": 1,
                 "icon": "shield",
-                "title": "Strengthen demand evidence",
-                "why": TERMS["insufficient_demand_evidence"]["plain"] if flag == rules.FLAG_DEMAND else _FLAG_SHORT[flag],
-                "basis": f"Active flag {flag}.",
+                "title": "Show that customers will buy",
+                "why": wording.finding(flag).found,
+                "matters": wording.finding(flag).matters,
+                "do": wording.finding(flag).todo,
+                "basis": f"The saved results list this as open: {wording.title_of(flag).lower()}.",
                 "detail": rules.NEXT_ACTIONS[flag],
                 "links": [
                     ("Save evidence in Research", f"/assessments/{aid}/intelligence"),
                     ("Evidence checklist", f"/assessments/{aid}/results#evidence-checklist-{aid}"),
                 ],
-                "caveat": "Adding evidence does not clear the flag. A verified demand record and an authorized review do.",
+                "caveat": "Adding evidence does not lift this by itself. A verified demand record and an authorized review do.",
             }
         )
     unevaluated = [flag for flag in gaps if flag.startswith("UNEVALUATED")]
@@ -774,9 +809,11 @@ def build_recommendations(
                 "id": "criteria",
                 "priority": 7,
                 "icon": "layers",
-                "title": "Record the criteria not yet evaluated",
+                "title": "Answer the questions still open",
                 "why": "; ".join(_FLAG_SHORT[flag] for flag in unevaluated) + ".",
-                "basis": "Engine gap flags: " + ", ".join(unevaluated) + ".",
+                "matters": "These are among the first things a reviewer checks, and a blank answer is not treated as a good one.",
+                "do": "Answer each question in Explore, even if the answer is that a problem exists.",
+                "basis": "Questions not yet answered: " + ", ".join(unevaluated) + ".",
                 "detail": "",
                 "links": [("Answer in Explore", f"/assessments/{aid}")],
                 "caveat": "Recording an answer does not by itself change the official recommendation.",
@@ -787,17 +824,19 @@ def build_recommendations(
     startup = not base["missing"]
     placeholders = [improve.LABELS[key] for key in base["placeholders"]] if startup else []
     if rules.FLAG_FINANCIALS_UNMEASURED in gaps or placeholders:
-        why = "The financial inputs are not marked as measured."
+        why = "The money figures are your own estimates, not quotes or records."
         if placeholders:
-            why += " Still blank or at a coded placeholder: " + ", ".join(placeholders) + "."
+            why += " Still blank or using a standard starting number: " + ", ".join(placeholders) + "."
         recs.append(
             {
                 "id": "assumptions",
                 "priority": 2,
                 "icon": "cost",
-                "title": "Replace estimates with quotes or measurements",
+                "title": "Replace estimates with quotes or records",
                 "why": why,
-                "basis": "Engine gap flag FINANCIAL_INPUTS_NOT_MEASURED." if rules.FLAG_FINANCIALS_UNMEASURED in gaps else "Your entries.",
+                "matters": "Estimates can be far off. Quotes and records make every result on this page more reliable.",
+                "do": "Start with the biggest costs and your sales estimate. Enter contractor quotes, supplier prices, or real sales.",
+                "basis": "The saved results list your costs and revenue as still estimates." if rules.FLAG_FINANCIALS_UNMEASURED in gaps else "Your entries.",
                 "detail": rules.NEXT_ACTIONS[rules.FLAG_FINANCIALS_UNMEASURED] if rules.FLAG_FINANCIALS_UNMEASURED in gaps else "",
                 "links": [("Update inputs in Explore", f"/assessments/{aid}")],
                 "caveat": "Placeholders are not market figures. Changing them does not run Analyze.",
@@ -821,13 +860,14 @@ def build_recommendations(
                         "id": "operating",
                         "priority": 3,
                         "icon": "chart",
-                        "title": "Fix operating economics first",
+                        "title": "Make the business earn more than it costs first",
                         "why": (
-                            f"Cash flow before debt service is {d.money(metrics.get('base_cash_flow'))} per year in the base case and "
-                            f"{d.money(metrics.get('downside_cash_flow'))} in the downside case. "
-                            "Changing the financing cannot fix that. More capital only pays for the losses."
+                            f"Before loan payments, the business keeps {d.money(metrics.get('base_cash_flow'))} a year in a typical year and "
+                            f"{d.money(metrics.get('downside_cash_flow'))} in a weaker year. "
                         ),
-                        "basis": "Official base and downside views of the startup build.",
+                        "matters": "Better financing cannot fix this. More money only pays for the losses.",
+                        "do": "Test higher sales or lower yearly costs, and see which change closes the gap.",
+                        "basis": "The typical-year and weaker-year views of the startup numbers.",
                         "detail": "",
                         "links": [
                             ("Test revenue in the worksheet", f"/assessments/{aid}/revenue-worksheet"),
@@ -867,9 +907,11 @@ def build_recommendations(
                         "icon": "cost" if key in {"owner_cash", "lower_build", "smaller_venue"} else "chart",
                         "title": _PRESET_TITLES[key],
                         "why": item["basis"],
+                        "matters": f"Loan coverage in a weaker year is {d.multiple(down)}. Lenders often want at least {d.multiple(target)}.",
+                        "do": "Try it in Improve, compare it with your current plan, and keep the change only if you can really do it.",
                         "basis": (
-                            f"Your downside coverage is {d.multiple(down)}, below {d.multiple(target)}. "
-                            + ("Solved with the same arithmetic as the engine." if solved else "A what-if, not a solved answer.")
+                            f"Your weaker-year loan coverage is {d.multiple(down)}, below {d.multiple(target)}. "
+                            + ("Worked out with the same arithmetic as the official analysis." if solved else "A what-if, not a solved answer.")
                         ),
                         "detail": "",
                         "links": [("Try it in Improve feasibility", f"/assessments/{aid}/improve?target={target:g}&preset={key}#draft")],
@@ -883,12 +925,14 @@ def build_recommendations(
                     "id": "revenue",
                     "priority": 4,
                     "icon": "seat",
-                    "title": "Test revenue with seat turns",
+                    "title": "Test how often your seats can be filled",
                     "why": (
-                        f"Base revenue of {d.money(base_revenue)} is {d.percent(share)} of break-even revenue of {d.money(revenue_gap)}. "
-                        "The official formula allows one cover per occupied seat per day and has no service periods."
+                        f"Expected yearly sales of {d.money(base_revenue)} are {d.percent(share)} of the {d.money(revenue_gap)} needed to break even. "
+                        "The official calculation counts one guest per seat per day, with no separate lunch and dinner."
                     ),
-                    "basis": "Official base and break-even revenue.",
+                    "matters": "If real sales could be higher, the picture changes. If not, the plan needs a different shape.",
+                    "do": "Use the revenue worksheet to count service periods and days open, then back the figures with a similar business.",
+                    "basis": "Typical-year sales and sales needed to break even.",
                     "detail": "",
                     "links": [("Open the revenue worksheet", f"/assessments/{aid}/revenue-worksheet")],
                     "caveat": "A higher worksheet figure is a proposal and needs evidence. It does not change the official result.",
@@ -905,12 +949,14 @@ def build_recommendations(
                         "id": "operating",
                         "priority": 3,
                         "icon": "chart",
-                        "title": "Improve operating economics",
+                        "title": "Improve what the business earns each month",
                         "why": (
-                            f"Base cash flow is {d.money(financial.get('base_monthly_cash_flow'), missing='not calculated')} per month "
-                            f"and downside cash flow is {d.money(financial.get('downside_monthly_cash_flow'), missing='not calculated')} per month."
+                            f"In a typical month the business keeps {d.money(financial.get('base_monthly_cash_flow'), missing='not calculated')} "
+                            f"and in a weaker month {d.money(financial.get('downside_monthly_cash_flow'), missing='not calculated')}."
                         ),
-                        "basis": "Monthly engine result.",
+                        "matters": "A business that keeps little or nothing each month has no room for surprises or growth.",
+                        "do": "Check the four monthly figures, then look for higher sales or lower fixed costs.",
+                        "basis": "The monthly view of your numbers.",
                         "detail": "",
                         "links": [("Review inputs in Explore", f"/assessments/{aid}")],
                         "caveat": "Changing an input does not change the official result until you run Analyze yourself.",
@@ -923,8 +969,10 @@ def build_recommendations(
                 "id": "sources",
                 "priority": 6,
                 "icon": "book",
-                "title": "Add a source for the assumptions that matter most",
+                "title": "Add a source for the numbers that matter most",
                 "why": "No verified benchmark is on file, and none of your assumptions has a recorded source.",
+                "matters": "A named source makes a number believable to a lender, an investor, or a reviewer.",
+                "do": "Pick two or three key numbers, such as average spending per guest, and record where each comes from.",
                 "basis": "Benchmarks on file.",
                 "detail": "",
                 "links": [("Open Benchmarks", f"/assessments/{aid}/benchmarks#record-figure")],
@@ -938,17 +986,28 @@ def _recommendation_card(rec: dict[str, Any], number: int) -> str:
     links = "".join(
         f'<a class="dbtn dbtn-small" href="{escape(href)}">{escape(label)}</a>' for label, href in rec["links"]
     )
-    detail = f'<details class="dmore dmore-tight"><summary>What the engine says to do</summary><p>{escape(rec["detail"])}</p></details>' if rec.get("detail") else ""
+    detail = (
+        '<details class="techref"><summary>Technical reference</summary>'
+        f"<p><strong>The official record says.</strong> {escape(rec['detail'])}</p></details>"
+        if rec.get("detail")
+        else ""
+    )
+    matters = f'<p><strong>Why it matters.</strong> {escape(rec["matters"])}</p>' if rec.get("matters") else ""
+    todo = f'<p><strong>What to do.</strong> {escape(rec["do"])}</p>' if rec.get("do") else ""
+    fine_print = ui.details(
+        "How this was worked out",
+        f'<p><strong>Based on.</strong> {escape(rec["basis"])}</p>{detail}<p class="muted">{escape(rec["caveat"])}</p>',
+        tight=True,
+    )
     return (
         '<article class="drec">'
         f'<div class="drec-n" aria-hidden="true">{number}</div>'
         '<div class="drec-body">'
         f'<h3>{_icon(rec["icon"])}{escape(rec["title"])}</h3>'
-        f'<p>{escape(rec["why"])}</p>'
-        f'<p class="muted"><strong>Based on:</strong> {escape(rec["basis"])}</p>'
-        f"{detail}"
-        f'<p class="drec-links">{links}</p>'
-        f'<p class="muted drec-caveat">{escape(rec["caveat"])}</p>'
+        f'<p><strong>What RUGD found.</strong> {escape(rec["why"])}</p>'
+        f"{matters}{todo}"
+        f'<p class="drec-links"><span class="dlabel-s">Where to go</span>{links}</p>'
+        f"{fine_print}"
         "</div></article>"
     )
 
@@ -967,11 +1026,11 @@ def recommendations_html(recs: list[dict[str, Any]], legacy: str, aid: str = "")
         )
         cards += more
         head = (
-            '<p class="muted">Ordered by what the stored result supports. Each one links to the workflow that tests it. '
-            "None is an instruction to proceed, and none changes the official result.</p>"
+            '<p class="muted">Most important first. Each one links to the page where you can act on it. '
+            "These are suggestions to test, not approvals, and none changes the official result.</p>"
         )
     else:
-        cards = '<div class="dcard"><p>The stored result does not support a specific recommendation yet. Run Analyze once the startup or monthly numbers are saved.</p></div>'
+        cards = f'<div class="dcard"><p>There is nothing specific to suggest yet. Enter the startup or monthly numbers in <a href="/assessments/{escape(aid)}">Explore</a> and run Analyze to get suggestions.</p></div>'
         head = ""
     return f"{head}{cards}{legacy}"
 
@@ -985,25 +1044,34 @@ def _facts(result: dict[str, Any]) -> str:
     from app.analysis import build_view_summary
 
     summary = build_view_summary(result)
+    raw = (
+        ("Draft recommendation", str(summary.get("recommendation"))),
+        ("Readiness to show investors", str(summary.get("investor_readiness"))),
+        ("Expert review", str(summary.get("human_review_status"))),
+        ("Overall score", str(result.get("score_line") or "Not calculated")),
+    )
     items = (
-        ("Recommendation", str(summary.get("recommendation")), "recommendation"),
-        ("Investor readiness", str(summary.get("investor_readiness")), "investor_readiness"),
-        ("Human review", str(summary.get("human_review_status")), ""),
-        ("Feasibility score", str(result.get("score_line") or "Not calculated"), "indicative_score"),
+        ("Draft recommendation", wording.recommendation_label(raw[0][1]), "recommendation"),
+        ("Ready to show investors?", wording.readiness_label(raw[1][1]), "investor_readiness"),
+        ("Expert review", wording.review_label(raw[2][1]), ""),
+        ("Overall score", wording.score_words(raw[3][1]), "indicative_score"),
     )
     cells = []
     for label, value, term in items:
         help_html = _term_help(term) if term else ""
         cells.append(f'<div class="dfact"><dt>{escape(label)} {help_html}</dt><dd>{escape(value)}</dd></div>')
-    return f'<dl class="dfacts">{"".join(cells)}</dl>'
+    reference = wording.tech_ref(*[f"{label}: {value}" for label, value in raw])
+    return f'<dl class="dfacts">{"".join(cells)}</dl>{reference}'
 
 
-def _gaps_list(result: dict[str, Any]) -> str:
+def _gaps_list(result: dict[str, Any], aid: str = "") -> str:
     items = []
     for flag in [str(f) for f in result.get("blocking_flags") or []] + [str(f) for f in result.get("gap_flags") or []]:
-        items.append(f'<li>{escape(_FLAG_SHORT.get(flag, flag))} <code>{escape(flag)}</code></li>')
+        links = wording.links_for(flag, aid) if aid else []
+        go = f' <a class="dgap-go" href="{escape(links[0][1])}">{escape(links[0][0])}</a>' if links else ""
+        items.append(f"<li>{escape(wording.title_of(flag))}{go}</li>")
     if not items:
-        return '<p class="muted">The engine listed no gap flag on this result.</p>'
+        return '<p class="muted">Nothing is listed as missing on this result.</p>'
     shown = "".join(items[:5])
     extra = f'<li class="muted">{len(items) - 5} more in Recommendations.</li>' if len(items) > 5 else ""
     return f"<ul class=\"dgaps\">{shown}{extra}</ul>"
@@ -1017,19 +1085,19 @@ def _overview_kpis(result: dict[str, Any], aid: str) -> str:
         sources = (projection.get("sources_and_uses") or {}).get("sources") or {}
         base, downside, _be = _views(projection)
         cards = [
-            _kpi("cost", "Total project cost", d.money(_amount(uses.get("total_project_cost")), missing="Not calculated"), "One-time, calculated", "#key-numbers", help_html=_metric_help("total_project_cost")),
-            _kpi("loan", "Debt service", d.money(sources.get("annual_debt_service"), missing="Not calculated"), "per year, calculated", "#key-numbers", help_html=_metric_help("annual_debt_service")),
-            _kpi("gauge", "Base coverage", d.multiple(base.get("dscr")), _coverage_note(base.get("dscr")), "#key-numbers", help_html=_metric_help("dscr"), tone=_tone(base.get("dscr"))),
-            _kpi("gauge", "Downside coverage", d.multiple(downside.get("dscr")), _coverage_note(downside.get("dscr")), "#key-numbers", help_html=_metric_help("dscr"), tone=_tone(downside.get("dscr"))),
+            _kpi("cost", "Total project cost", d.money(_amount(uses.get("total_project_cost")), missing="Not calculated"), "one-time, calculated by RUGD", "#key-numbers", help_html=_metric_help("total_project_cost")),
+            _kpi("loan", "Loan payments", d.money(sources.get("annual_debt_service"), missing="Not calculated"), "per year, calculated by RUGD", "#key-numbers", help_html=_metric_help("annual_debt_service")),
+            _kpi("gauge", "Loan coverage, typical year", d.multiple(base.get("dscr")), _coverage_note(base.get("dscr")), "#key-numbers", help_html=_metric_help("dscr"), tone=_tone(base.get("dscr"))),
+            _kpi("gauge", "Loan coverage, weaker year", d.multiple(downside.get("dscr")), _coverage_note(downside.get("dscr")), "#key-numbers", help_html=_metric_help("dscr"), tone=_tone(downside.get("dscr"))),
         ]
     else:
         financial = _financial(result)
         if financial:
             months = financial.get("months_to_break_even_base")
             cards = [
-                _kpi("chart", "Base cash flow", d.money(financial.get("base_monthly_cash_flow"), missing="Not calculated"), "per month, calculated", "#key-numbers", help_html=_metric_help("monthly")),
-                _kpi("chart", "Downside cash flow", d.money(financial.get("downside_monthly_cash_flow"), missing="Not calculated"), "per month, calculated", "#key-numbers", help_html=_metric_help("monthly")),
-                _kpi("scale", "Break-even revenue", d.money(financial.get("break_even_monthly_revenue"), missing="Not calculated"), "per month, calculated", "#key-numbers", help_html=_metric_help("monthly")),
+                _kpi("chart", "Base cash flow", d.money(financial.get("base_monthly_cash_flow"), missing="Not calculated"), "per month, calculated by RUGD", "#key-numbers", help_html=_metric_help("monthly")),
+                _kpi("chart", "Downside cash flow", d.money(financial.get("downside_monthly_cash_flow"), missing="Not calculated"), "per month, calculated by RUGD", "#key-numbers", help_html=_metric_help("monthly")),
+                _kpi("scale", "Break-even revenue", d.money(financial.get("break_even_monthly_revenue"), missing="Not calculated"), "per month, calculated by RUGD", "#key-numbers", help_html=_metric_help("monthly")),
                 _kpi("gauge", "Recover initial capital", d.decimal_text(months, 1, "months", missing="Not calculated"), "at the base cash-flow rate", "#key-numbers", help_html=_metric_help("monthly")),
             ]
     if not cards:
@@ -1091,16 +1159,30 @@ def overview_html(
         for i, label in enumerate(status["labels"])
     )
     primary = ""
+    all_flags = [str(f) for f in result.get("blocking_flags") or []] + [str(f) for f in result.get("gap_flags") or []]
     if status["primary"]:
-        flag = escape(status["primary"])
-        primary = (
-            f'<p class="dreason"><strong>Primary reason:</strong> {escape(status["reason"])} <code>{flag}</code></p>'
+        item = wording.finding(status["primary"])
+        buttons = "".join(
+            ui.button(label, href, small=True, ghost=i > 0)
+            for i, (label, href) in enumerate(wording.links_for(status["primary"], aid))
         )
-        if status["action"]:
-            primary += (
-                '<details class="dmore dmore-tight"><summary>What would address it</summary>'
-                f'<p>{escape(status["action"])}</p><p class="muted">Doing this does not clear the flag by itself. An authorized review is still required.</p></details>'
+        official = (
+            f"<p>{escape(status['action'])}</p>" if status["action"] else ""
+        )
+        primary = (
+            '<div class="dfinding">'
+            f'<p class="dreason dfinding-t"><strong>{escape(item.title)}</strong></p>'
+            f"<p><strong>What RUGD found.</strong> {escape(item.found)}</p>"
+            f"<p><strong>Why it matters.</strong> {escape(item.matters)}</p>"
+            f"<p><strong>What you can do.</strong> {escape(item.todo)}</p>"
+            f'<p class="dactions">{buttons}</p>'
+            + ui.details(
+                "What the official record says",
+                f'{official}<p class="muted">Adding information does not lift this on its own. The requirement has to be truly met, and an authorized reviewer has to confirm it.</p>',
+                tight=True,
             )
+            + "</div>"
+        )
     top_recs = "".join(_recommendation_mini(rec) for rec in recs[:3]) or '<p class="muted">No supported recommendation yet.</p>'
     return f"""
 <section class="dstatus">
@@ -1116,13 +1198,13 @@ def overview_html(
 {_overview_kpis(result, aid)}
 {_tiles(record, summary, scenario_count, worksheet_saved, recs, checklist)}
 <div class="dgrid2">
-  <div class="dcard"><h3>Evidence gaps</h3>{_gaps_list(result)}
-    <p><a href="#recommendations" data-goto>See what would address them</a></p></div>
+  <div class="dcard"><h3>What is still missing</h3>{_gaps_list(result, aid)}
+    <p><a href="#recommendations" data-goto>See what would address them</a></p>{wording.tech_ref(*all_flags)}</div>
   <div class="dcard"><h3>Top recommendations</h3>{top_recs}
     <p><a href="#recommendations" data-goto>All recommendations</a></p></div>
 </div>
 <div class="dcard dnext"><h3>{_icon("book")} Your next step</h3><p>{escape(next_step)}</p>
-  <p class="muted">Completing a step does not clear a hard gate, change the recommendation, or make the file investor-ready.</p></div>
+  <p class="muted">Finishing a step helps, but the result stays at not yet ready until the real requirement is met and an authorized person reviews it.</p></div>
 """
 
 

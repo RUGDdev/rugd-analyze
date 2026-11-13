@@ -12,10 +12,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 DISCLAIMER = (
-    "Scenario comparison. Base is a saved copy of the official engine result. "
-    "Downside or Upside is one additional engine run that uses the current inputs "
-    "and the stored downside multiplier. It does not change the official recommendation, "
-    "clear a hard gate, or set human_review_approved."
+    "Scenario comparison. Base is a saved copy of the official result. "
+    "A weaker-year or stronger-year case is one additional what-if calculation that uses the current inputs "
+    "and the saved weaker-year setting. It does not change the official recommendation, "
+    "lift a serious concern, or approve anything."
 )
 
 METRIC_KEYS = (

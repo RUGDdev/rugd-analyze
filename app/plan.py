@@ -145,7 +145,7 @@ def plan_markdown(document: dict[str, Any], *, title: str) -> str:
     lines.append(ASSEMBLED)
     lines.append("A demonstration market snapshot is not copied into this plan.")
     lines.append("Editing this plan does not change the stored assessment or the saved financial figures in this snapshot.")
-    lines.append("This plan does not set human_review_approved and it does not grant investor-ready status.")
+    lines.append("This plan does not approve the assessment and it does not grant investor-ready status.")
     return "\n".join(lines).rstrip() + "\n"
 
 

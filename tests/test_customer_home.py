@@ -28,7 +28,7 @@ NOTE = "Local prototype. Not production security. This screen does not grant inv
 
 class TestCustomerHome(unittest.TestCase):
     def test_status_line_uses_only_stored_engine_output(self) -> None:
-        self.assertEqual(_engine_status_line({}), "Analyze has not been run.")
+        self.assertEqual(_engine_status_line({}), "Not analyzed yet. Run Analyze to see results.")
         missing = _engine_status_line(
             {
                 "engine_ran": True,
@@ -37,7 +37,7 @@ class TestCustomerHome(unittest.TestCase):
                 "projection": {"views": {"base": {"dscr": 1.4}}},
             }
         )
-        self.assertEqual(missing, "Demand evidence missing.")
+        self.assertEqual(missing, "Next step: show evidence that customers will buy.")
         self.assertNotIn("1.4", missing)
         covered = _engine_status_line(
             {
@@ -47,7 +47,7 @@ class TestCustomerHome(unittest.TestCase):
                 "projection": {"views": {"base": {"dscr": 1.4}}},
             }
         )
-        self.assertEqual(covered, "Base case DSCR available.")
+        self.assertEqual(covered, "Loan coverage has been worked out.")
         self.assertNotIn("1.4", covered)
         absent = _engine_status_line(
             {
@@ -57,7 +57,7 @@ class TestCustomerHome(unittest.TestCase):
                 "projection": {"views": {"base": {"dscr": None}}},
             }
         )
-        self.assertEqual(absent, "Stored recommendation: conditional.")
+        self.assertEqual(absent, "Draft recommendation: possible, with conditions (draft).")
         self.assertNotIn("DSCR", absent)
 
     def test_section_welcomes_keep_the_warnings(self) -> None:
@@ -79,7 +79,7 @@ class TestCustomerHome(unittest.TestCase):
         self.assertIn("Partner (demonstration)", pages["Partner"])
         self.assertIn("Market Intelligence (demonstration)", pages["Market Intelligence"])
         self.assertIn("Market Pulse (demonstration)", pages["Market Pulse"])
-        self.assertIn("does not clear a flag", pages["Explore"])
+        self.assertIn("does not lift a concern", pages["Explore"])
         self.assertIn("forces do-not-proceed", pages["Analyze"])
         self.assertIn("cannot approve an assessment", pages["Validate"])
         self.assertIn("Monitoring is not running", pages["Partner"])
@@ -107,11 +107,11 @@ class TestCustomerHome(unittest.TestCase):
         form = assessment_form(draft)
         self.assertIn('id="journey-progress"', form)
         self.assertIn('class="current" aria-current="step">Intake', form)
-        self.assertIn("does not change a flag or a recommendation", form)
+        self.assertIn("does not change a concern or the recommendation", form)
         self.assertIn('id="your-next-step"', form)
         self.assertIn("Your next step", form)
         self.assertIn('href="/assessments/guide-1#intake">Continue Intake', form)
-        self.assertIn("does not clear a hard gate", form)
+        self.assertIn("does not lift a concern", form)
         analyzed = {
             **draft,
             "result": {
@@ -125,16 +125,18 @@ class TestCustomerHome(unittest.TestCase):
         }
         shown = results_page(analyzed, analyzed["result"])
         self.assertIn('class="current" aria-current="step">Analyze', shown)
-        self.assertIn("does not change a flag or a recommendation", shown)
+        self.assertIn("does not change a concern or the recommendation", shown)
         home = dashboard([analyzed], signed_in=True, viewer_id="guide-reader")
         self.assertIn("Guide Cafe", home)
-        self.assertIn("Demand evidence missing.", home)
+        self.assertIn("Next step: show evidence that customers will buy.", home)
         self.assertIn(">View Results<", home)
         self.assertIn('class="card assessment-card ditem"', home)
         self.assertIn('class="journey card-journey"', home)
         self.assertIn('class="current" aria-current="step">Analyze', home)
         self.assertIn('class="badge badge-blocked"', home)
-        self.assertIn("Gate status:</strong> Blocked", home)
+        self.assertIn("Important information still needed", home)
+        self.assertIn("Assessment not yet ready", home)
+        self.assertIn('data-gate="Blocked" data-band="Blocked"', home)
         self.assertIn('class="button primary"', home)
         self.assertIn("Ask about this assessment", home)
         self.assertIn('class="figure-block"', shown)
@@ -147,10 +149,10 @@ class TestCustomerHome(unittest.TestCase):
         self.assertIn('id="intake-start"', form)
         self.assertIn("Leave a blank blank.", form)
         self.assertIn('id="at-a-glance"', shown)
-        self.assertIn(">do-not-proceed<", shown)
+        self.assertIn("Draft recommendation: do-not-proceed", shown)
         self.assertIn('id="results-lead"', shown)
-        self.assertIn("Key engine figures", shown)
-        self.assertIn("In everyday words: a hard gate is still closed", shown)
+        self.assertIn("Key figures", shown)
+        self.assertIn("Something essential, such as proof that customers will buy, is still missing", shown)
         self.assertIn("Draft.", advisor)
         self.assertIn('id="advisor-glance"', advisor)
         self.assertIn("They do not approve the assessment.", advisor)
@@ -161,8 +163,8 @@ class TestCustomerHome(unittest.TestCase):
         self.assertIn('id="pilot-purpose"', shown)
         self.assertIn('id="pilot-purpose"', advisor)
         self.assertIn('id="draft-market-context"', shown)
-        self.assertIn("These figures do not clear a recommend-against flag", shown)
-        self.assertIn("does not override a hard recommend-against flag", shown)
+        self.assertIn("These figures do not lift a serious concern", shown)
+        self.assertIn("does not override a serious concern on file", shown)
         self.assertNotIn("<form", advisor)
         market = market_page()
         self.assertIn('id="market-provenance"', market)

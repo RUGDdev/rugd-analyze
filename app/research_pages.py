@@ -21,8 +21,8 @@ from app.research import (
 )
 
 _NOTE = (
-    "Saved research is not a live feed. It does not change financial inputs, "
-    "a recommend-against flag, or investor readiness."
+    "Saved research is a snapshot, not a live feed. It does not change your figures, "
+    "lift a serious concern, or make a business ready to show investors."
 )
 
 

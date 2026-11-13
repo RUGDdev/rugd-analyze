@@ -53,9 +53,9 @@ class TestInteractiveAnalyze(unittest.TestCase):
         self.assertEqual(points[0]["value"], expected.base_monthly_cash_flow)
         self.assertEqual(points[0]["source"], "engine")
         lines = reading_lines(financial, live=False)
-        self.assertIn("Demonstration reading. No live model was called.", lines[0])
-        self.assertIn(f"base_monthly_cash_flow: {display.money(expected.base_monthly_cash_flow)}. Calculated by the engine.", lines)
-        self.assertIn("The engine does not return a separate expense total. No expense amount is drawn.", lines)
+        self.assertIn("Demonstration reading. No outside AI service was used.", lines[0])
+        self.assertIn(f"Cash left after all costs, typical month: {display.money(expected.base_monthly_cash_flow)}. Calculated by RUGD.", lines)
+        self.assertIn("RUGD does not return a separate expense total. No expense amount is drawn.", lines)
         self.assertIsNone(finite_number(True))
 
     def test_customer_saves_runs_recalculates_and_another_customer_cannot_change_it(self) -> None:
@@ -130,7 +130,7 @@ class TestInteractiveAnalyze(unittest.TestCase):
             self.assertIn(f'data-engine-value="{first.base_monthly_cash_flow}"', page)
             self.assertIn(f'data-engine-value="{first.break_even_monthly_revenue}"', page)
             self.assertIn("No expense amount is drawn.", page)
-            self.assertIn("Demonstration reading. No live model was called.", page)
+            self.assertIn("Demonstration reading. No outside AI service was used.", page)
 
             revised = dict(fields)
             revised["projected_monthly_revenue_base"] = "800"

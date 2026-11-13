@@ -79,7 +79,7 @@ class TestMarketPulse(unittest.TestCase):
             self.assertIn("Educational pillar label:", text)
             self.assertIn(LABEL, text)
             self.assertIn("Static template.", text)
-            self.assertIn("do not clear a recommend-against flag", text)
+            self.assertIn("do not lift a serious concern", text)
             self.assertNotIn("Monitoring active: true", text)
             self.assertNotIn("Live feed connected: true", text)
         after = analyze_record(get_assessment(self.connection, BASELINE_ID))

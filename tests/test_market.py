@@ -646,7 +646,7 @@ class TestMarketDemonstration(unittest.TestCase):
             self.assertIn("lower than the prior period", page)
             self.assertIn("Population change between overlapping ACS 5-year vintages:", page)
             self.assertIn("It is not a recommendation.", page)
-            self.assertIn("does not set human_review_approved", page)
+            self.assertIn("does not approve the assessment", page)
         self.assertIn("Monitoring active: false", partner)
         self.assertNotIn("Monitoring active: true", partner)
         self.assertIn("20", partner)
@@ -741,7 +741,7 @@ class TestMarketDemonstration(unittest.TestCase):
             self.assertTrue(rows[0][field], field)
             self.assertNotIn("bea-test-user", rows[0][field])
         self.assertIn("does not clear INSUFFICIENT_DEMAND_EVIDENCE", rows[0]["limitations"])
-        self.assertIn("does not set human_review_approved", rows[0]["limitations"])
+        self.assertIn("does not approve the assessment", rows[0]["limitations"])
 
         hidden = BeaRegionalProvider(
             year="2023",
@@ -950,7 +950,7 @@ class TestMarketDemonstration(unittest.TestCase):
         ):
             self.assertTrue(rows[0][field], field)
         self.assertIn("do not clear INSUFFICIENT_DEMAND_EVIDENCE", rows[0]["limitations"])
-        self.assertIn("do not set human_review_approved", rows[0]["limitations"])
+        self.assertIn("do not approve the assessment", rows[0]["limitations"])
         hidden = BlsLausProvider(
             year="2024",
             transport=lambda url: body("-"),

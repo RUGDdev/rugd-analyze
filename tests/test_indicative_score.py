@@ -53,7 +53,7 @@ class TestIndicativeScore(unittest.TestCase):
         self.assertFalse(score["changes_investor_readiness"])
         self.assertFalse(score["changes_recommendation"])
         self.assertIn("does not override that flag", score["explanation"])
-        self.assertIn("does not set human_review_approved", score["explanation"])
+        self.assertIn("does not approve the assessment", score["explanation"])
         capacity = _result(
             blocking_flags=["INADEQUATE_OPERATOR_CAPACITY"],
             financial={
@@ -236,9 +236,9 @@ class TestIndicativeScore(unittest.TestCase):
             self.assertIn("Band:</strong> Blocked", shown)
             self.assertIn("Gate recommendation:</strong> do-not-proceed", shown)
             self.assertIn("Overall number (indicative only):</strong>", shown)
-            self.assertIn("Market Validity:", shown)
-            self.assertIn("Financial Viability:", shown)
-            self.assertIn("Stewardship Readiness:", shown)
+            self.assertIn("Market demand:", shown)
+            self.assertIn("Financial strength:", shown)
+            self.assertIn("Long-term sustainability:", shown)
             self.assertIn("Recommendation:</strong> do-not-proceed", shown)
             self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE:</strong> present", shown)
             self.assertIn("Investor readiness:</strong> internal", shown)

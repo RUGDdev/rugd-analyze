@@ -7,7 +7,7 @@ from html import escape
 from typing import Any
 from urllib.parse import urlencode
 
-from app import APP_VERSION, ui
+from app import APP_VERSION, ui, wording
 from app import display as fmt
 from app.analyst import ASSISTANCE_LABEL, STARTER_QUESTIONS, agent_workflow, get_analyst
 from app.adviser_flow import PLACEHOLDER_NAMES, THEMES
@@ -47,7 +47,7 @@ _SURFACE_NOTE = (
 NAV = (
     ("/", "Dashboard", "See saved drafts and the next recommended step."),
     ("/explore", "Explore", "Start or continue an intake and save a draft."),
-    ("/analyze", "Analyze", "Run the engine on a saved draft and read the result."),
+    ("/analyze", "Analyze", "See what RUGD found for a saved draft."),
     (
         "/validate",
         "Validate (demonstration)",
@@ -419,20 +419,20 @@ body.print-view .sidebar {{ display: none; }}
 
 
 def _continue_intake(record: dict[str, Any]) -> str:
-    """Primary link to this draft's Explore intake. Editing does not clear a flag."""
+    """Primary link to this draft's Explore intake. Editing does not lift a concern."""
     assessment_id = escape(str(record.get("id") or ""))
     href = f"/assessments/{assessment_id}#intake"
     analyzed = bool((record.get("result") or {}).get("engine_ran"))
     label = "Edit Intake" if analyzed else "Continue Intake"
     if analyzed:
         note = (
-            "Editing the intake does not clear a recommend-against flag, "
-            "change the stored recommendation, or set human_review_approved."
+            "Editing the intake does not lift a serious concern, "
+            "change the saved recommendation, or approve anything."
         )
     else:
         note = (
-            "Opening the intake does not clear a recommend-against flag "
-            "or set human_review_approved."
+            "Opening the intake does not lift a serious concern "
+            "or approve the assessment."
         )
     return (
         f'<p><a class="button" href="{href}">{label}</a></p>'
@@ -462,8 +462,8 @@ def _guest_dashboard() -> str:
     body = f"""
 <div class="banner" id="guest-welcome">
 <h1>Welcome to RUGD Intelligence</h1>
-<p>RUGD Intelligence helps you write down a business idea, see which evidence is still missing, and read the engine result after you run Analyze.</p>
-<p>This is a local pilot prototype. It does not grant investor-ready status. No feasibility score is calculated.</p>
+<p>RUGD Intelligence helps you write down a business idea, see which evidence is still missing, and read what RUGD found after you run Analyze.</p>
+<p>This is a local pilot prototype. It does not make a business ready to show investors. No feasibility score is calculated.</p>
 <p><a class="button" href="/login">Log in</a>
 <a class="button" href="/register">Register</a></p>
 </div>
@@ -479,15 +479,15 @@ def _pilot_purpose() -> str:
     return """
 <section class="card" id="pilot-purpose">
 <h2>What this review is for</h2>
-<p>This screen is for a pilot review of a draft. It shows the hard evidence gate, the stored engine result when one exists, and where a market figure comes from.</p>
-<p>A hard recommend-against flag keeps the recommendation at do-not-proceed. An indicative number, a market figure, and an assistant reply cannot clear that flag or grant investor-ready status.</p>
-<p class="muted">This local prototype is not a billing system or a live market feed. A pitch deck copies a saved plan and does not grant investor-ready status.</p>
+<p>This is a pilot review of a draft. It shows what is still missing, what RUGD found once you run Analyze, and where each market figure comes from.</p>
+<p>A serious open concern, such as missing evidence of customer demand, keeps the result at not ready to go ahead. A preliminary evaluation, a market figure, or an assistant's reply cannot lift it or make the file ready to show investors.</p>
+<p class="muted">This is a local prototype, not a billing system or a live market feed. A pitch deck copies a saved plan and does not make the file ready to show investors.</p>
 </section>
 """
 
 
 def _draft_market_context(record: dict[str, Any]) -> str:
-    """Name the entered industry. Do not invent a market figure or clear a flag."""
+    """Name the entered industry. Do not invent a market figure or lift a concern."""
     profile = record.get("profile") or {}
     industry = str(profile.get("industry") or "not entered")
     geography = str(profile.get("market") or "not entered")
@@ -499,7 +499,7 @@ def _draft_market_context(record: dict[str, Any]) -> str:
 <p><strong>Industry entered:</strong> {escape(industry)}. <strong>Geography entered:</strong> {escape(geography)}.</p>
 <p>{escape(str(snapshot.get('label') or ''))} Live feed connected: false. Optional public extracts for BLS QCEW, ACS, County Business Patterns, BEA Regional, and LAUS are requested on Market Intelligence. They are not loaded on this page.</p>
 <ul>{examples}</ul>
-<p>These figures do not clear a recommend-against flag and do not grant investor-ready status.</p>
+<p>These figures do not lift a serious concern and do not grant investor-ready status.</p>
 </section>
 """
 
@@ -539,12 +539,12 @@ def dashboard(
         stats = ui.kpi_grid(
             [
                 ui.stat("Assessments", fmt.count(len(owned)), "created by this account", icon_name="layers"),
-                ui.stat("Analyzed", fmt.count(analyzed), "with a stored engine result", icon_name="chart"),
+                ui.stat("Analyzed", fmt.count(analyzed), "with saved results", icon_name="chart"),
                 ui.stat("Not analyzed yet", fmt.count(len(owned) - analyzed), "still in intake", icon_name="flag"),
                 ui.stat(
                     "Evidence flags",
                     fmt.count(flagged),
-                    "with a recommend-against flag",
+                    "with a serious concern on file",
                     icon_name="flag",
                     tone="bad" if flagged else "",
                 ),
@@ -593,8 +593,8 @@ def dashboard(
     notes = ui.details("What this review is for", _pilot_purpose(), cls="dpurpose")
     words = ui.details(
         "Words you will see",
-        '<div class="card"><p>The precise term stays in the heading. The sentence next to it is the plain meaning. '
-        "Learn more keeps the tighter definition.</p>"
+        '<div class="card"><p>Short, plain explanations of terms you may see. '
+        "Choose Learn more for why each matters and what to do.</p>"
         f'{_plain("recommendation")}{_plain("insufficient_demand_evidence")}{_plain("investor_readiness")}</div>',
         cls="dwords",
     )
@@ -606,7 +606,7 @@ def dashboard(
 {empty}
 {grid}
 {starters}
-<p class="muted">These are the assessments this account created. This list does not grant investor-ready status. An indicative assessment is shown after Analyze. It does not override engine flags or human review. No feasibility score is calculated. An owner can create a read-only share. The shared page cannot edit or approve the assessment.</p>
+<p class="muted">These are the assessments created by this account. Nothing here approves an assessment or makes it ready to show investors. A preliminary business evaluation appears after Analyze. No feasibility score is calculated. You can create a read-only share; people with the link cannot edit or approve the assessment.</p>
 {notes}
 {words}
 {_module_guide()}
@@ -624,7 +624,7 @@ def _history_card(item: dict[str, Any]) -> str:
         )
         gate_html = _gate_line(result)
         badges, _sep, rest = gate_html.partition("</p>")
-        gate = badges + "</p>" + ui.details("What the gate means", rest, tight=True)
+        gate = badges + "</p>" + ui.details("What this means", rest, tight=True)
     else:
         action = f'<a class="button primary" href="/assessments/{assessment_id}#intake">Continue Intake</a>'
         gate = ""
@@ -680,31 +680,29 @@ def _gate_line(result: dict[str, Any]) -> str:
     band = str(score.get("band") or "")
     tone = "blocked" if status == "Blocked" else "open" if status == "Open" else "plain"
     return (
-        f'<p class="badges"><span class="badge badge-{tone}">Gate {escape(status)}</span>'
-        f'<span class="badge">Band {escape(band)}</span></p>'
-        f"<p><strong>Gate status:</strong> {escape(status)}. "
-        f"<strong>Band:</strong> {escape(band)}.</p>"
+        f'<p class="badges" data-gate="{escape(status)}" data-band="{escape(band)}">'
+        f'<span class="badge badge-{tone}">{escape(wording.gate_label(status))}</span>'
+        f'<span class="badge">{escape(wording.band_label(band))}</span></p>'
         + _gate_gloss(status, band)
-        + "<p class=\"muted\">Indicative assessment — market validity, financial viability, and "
-        "stewardship readiness. Does not override engine flags or human review.</p>"
+        + f'<p class="muted">{escape(wording.PRELIMINARY)}: market demand, financial strength, and long-term sustainability.</p>'
     )
 
 
 def _engine_status_line(result: dict[str, Any]) -> str:
     """One sentence from stored engine output. Missing figures stay unstated."""
     if not result.get("engine_ran"):
-        return "Analyze has not been run."
+        return "Not analyzed yet. Run Analyze to see results."
     flags = [str(flag) for flag in result.get("blocking_flags") or []]
     if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
-        return "Demand evidence missing."
-    if _base_dscr_present(result):
-        return "Base case DSCR available."
+        return "Next step: show evidence that customers will buy."
     if flags:
-        return f"Recommend-against flag {flags[0]} is active."
+        return f"Needs attention: {wording.title_of(flags[0]).lower()}."
+    if _base_dscr_present(result):
+        return "Loan coverage has been worked out."
     recommendation = str(result.get("recommendation") or "").strip()
     if recommendation:
-        return f"Stored recommendation: {recommendation}."
-    return "An engine result is stored."
+        return f"Draft recommendation: {wording.recommendation_label(recommendation).lower()}."
+    return "A result is saved for this business."
 
 
 def _base_dscr_present(result: dict[str, Any]) -> bool:
@@ -724,23 +722,10 @@ def _draft_label(record: dict[str, Any] | None) -> str:
 
 def _gate_gloss(status: str, band: str) -> str:
     """Everyday words beside the stored gate and band. They do not change either."""
-    status_words = {
-        "Blocked": "In everyday words: a hard gate is still closed, so the recommendation stays do-not-proceed.",
-        "Open": "In everyday words: no hard recommend-against flag is forcing this gate closed. Open is not investor-ready.",
-    }
-    band_words = {
-        "Blocked": "In everyday words: this band follows the closed gate. The number does not override it.",
-        "Strong": "In everyday words: the indicative number is in the strong range. It does not clear a flag.",
-        "Conditional": "In everyday words: the indicative number is in the middle range. It does not clear a flag.",
-        "Weak": "In everyday words: the indicative number is in the low range. It does not clear a flag.",
-    }
-    status_line = status_words.get(
-        status,
-        "In everyday words: this gate reads the stored result. It does not change it.",
-    )
-    band_line = band_words.get(
+    status_line = wording.GATE_MEANING.get(status, "This reads what is stored for the assessment. It does not change it.")
+    band_line = wording.BAND_MEANING.get(
         band,
-        "In everyday words: this band is a label on the indicative number. It does not grant investor-ready status.",
+        "This is a label on the preliminary evaluation. It does not approve the assessment.",
     )
     return f'<p class="muted">{escape(status_line)}</p><p class="muted">{escape(band_line)}</p>'
 
@@ -767,8 +752,8 @@ def _journey_progress(current: str) -> str:
         '<ol class="journey" id="journey-progress">'
         + _journey_items(current)
         + "</ol>"
-        '<p class="muted">This progress indicator is informational. '
-        "It does not change a flag or a recommendation.</p>"
+        '<p class="muted">This progress bar is a guide only. '
+        "It does not change a concern or the recommendation.</p>"
     )
 
 
@@ -790,11 +775,10 @@ def _at_a_glance(record: dict[str, Any], result: dict[str, Any]) -> str:
     gate = str(score.get("gate_status") or "Not run")
     return f"""
 <div class="glance" id="at-a-glance">
-<p><strong>Recommendation</strong><br>{escape(recommendation)}</p>
-<p><strong>Gate status</strong><br>{escape(gate)}</p>
-<p><strong>Next</strong><br>{escape(_next_step_for(record))}</p>
+<p><strong>Draft recommendation</strong><br>{escape(wording.recommendation_label(recommendation) if result.get("engine_ran") else "Not evaluated yet")} {wording.explain("recommendation") if result.get("engine_ran") else ""}</p>
+<p><strong>Where this stands</strong><br>{escape(wording.gate_label(gate))} {wording.explain("important_info") if gate == "Blocked" else ""}</p>
+<p><strong>Next step</strong><br>{escape(_next_step_for(record))}</p>
 </div>
-<p class="muted">These three lines read the stored file. They do not change a flag or a recommendation.</p>
 """
 
 
@@ -805,9 +789,9 @@ def _advisor_glance(assessment: dict[str, Any], indicative: dict[str, Any]) -> s
     readiness = str(assessment.get("readiness_status") or "not run")
     return f"""
 <div class="glance" id="advisor-glance">
-<p><strong>Recommendation</strong><br>{escape(recommendation)}</p>
-<p><strong>Gate status</strong><br>{escape(gate)}</p>
-<p><strong>Investor readiness</strong><br>{escape(readiness)}</p>
+<p><strong>Draft recommendation</strong><br>{escape(wording.recommendation_label(recommendation) if assessment.get("recommendation") else "Not evaluated yet")}</p>
+<p><strong>Where this stands</strong><br>{escape(wording.gate_label(gate))}</p>
+<p><strong>Ready to show investors?</strong><br>{escape(wording.readiness_label(readiness) if assessment.get("readiness_status") else "Not evaluated yet")}</p>
 </div>
 <p class="muted">These three lines read the stored file. They do not approve the assessment.</p>
 """
@@ -819,7 +803,7 @@ def _intake_start() -> str:
 <ol class="start-here" id="intake-start">
 <li><strong>Describe the business.</strong> Industry, stage, customers, and competition stay your assumptions.</li>
 <li><strong>Enter the monthly figures you know.</strong> Leave a blank blank. This form does not invent a number.</li>
-<li><strong>Save, then run Analyze.</strong> The engine writes the result. A suggestion does not clear a gate.</li>
+<li><strong>Save, then run Analyze.</strong> RUGD writes the result. A suggestion does not lift a concern.</li>
 </ol>
 """
 
@@ -849,7 +833,7 @@ def _your_next_step(record: dict[str, Any]) -> str:
 <p><strong>Guidance. Not a decision.</strong></p>
 <p><strong>Next recommended step:</strong> {escape(_next_step_for(record))}</p>
 <p><a class="button" href="{href}">{label}</a></p>
-<p class="muted">Completing this step does not clear a hard gate, change a recommendation, or mark the assessment investor-ready.</p>
+<p class="muted">Completing this step does not lift a concern, change the recommendation, or make the file ready to show investors.</p>
 </div>
 """
 
@@ -884,20 +868,19 @@ def _next_step_for(record: dict[str, Any]) -> str:
     name = record.get("business_name") or "this draft"
     if record.get("read_only"):
         return (
-            f"{name} is the official baseline. INSUFFICIENT_DEMAND_EVIDENCE is present. "
-            "This note does not clear the flag."
+            f"{name} is the official baseline. It still needs real evidence that customers will buy. "
+            "It is not a completed customer study."
         )
     result = record.get("result") or {}
     flags = result.get("blocking_flags") or []
     if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
         return (
-            f"Continue {name}. INSUFFICIENT_DEMAND_EVIDENCE is present. "
-            "This note does not clear the flag."
+            f"Continue {name}. The next step is to add evidence that customers will buy, "
+            "such as signed commitments, deposits, or documented sales."
         )
     if flags:
         return (
-            f"Continue {name}. Recommend-against flag {flags[0]} is still active. "
-            "This note does not clear it."
+            f"Continue {name}. Next, deal with this: {wording.title_of(str(flags[0])).lower()}."
         )
     profile = record.get("profile") or {}
     path = venture_path_of(record)
@@ -907,30 +890,22 @@ def _next_step_for(record: dict[str, Any]) -> str:
         and not result.get("engine_ran")
     ):
         return (
-            f"Continue {name}. A verified demand record is entered. Analyze has not been run. "
-            "This note does not clear a flag."
+            f"Continue {name}. Your evidence of customer demand is entered. Run Analyze to see what it changes."
         )
     if not str(profile.get("demand_evidence") or "").strip():
         return (
-            f"Continue {name}. The next missing required item is demand evidence. "
-            "This note does not clear a flag."
+            f"Continue {name}. The next thing to add is evidence that customers will buy."
         )
     if path != "existing":
         missing = _missing_labels(profile, _STARTUP_REQUIRED)
         if missing:
-            return (
-                f"Continue {name}. The next missing required item is {missing[0]}. "
-                "This note does not change the recommendation."
-            )
+            return f"Continue {name}. The next thing to add is: {missing[0]}."
     monthly = _missing_labels(profile, _MONTHLY_REQUIRED)
     if monthly:
-        return (
-            f"Continue {name}. The next missing required item is {monthly[0]}. "
-            "This note does not change the recommendation."
-        )
+        return f"Continue {name}. The next thing to add is: {monthly[0]}."
     if not result.get("engine_ran"):
-        return f"Continue {name}. Analyze has not been run. This note does not change the recommendation."
-    return f"Review {name}. This note does not change a flag or a recommendation."
+        return f"Continue {name}. Run Analyze to see how the numbers look."
+    return f"Review {name}. Read the results and follow the suggested next steps."
 
 
 def _verified_demand_ready(profile: dict[str, Any]) -> bool:
@@ -1027,16 +1002,16 @@ def _guidance_section(
 <textarea name="note"></textarea>
 <button type="submit">Save educational note</button>
 </form>
-<p class="muted">Saving a note does not run the engine. It does not change the recommendation, flags, readiness, or human_review_approved.</p>
+<p class="muted">Saving a note does not run the analysis. It does not change the recommendation, lift a concern, change readiness, or approve anything.</p>
 """
     return f"""
 <section>
 <h2>Durable Value guidance</h2>
 <p><strong>{escape(view['label'])}</strong></p>
-<p>No score is calculated. These prompts do not change the recommendation, flags, readiness, or human_review_approved.</p>
+<p>No score is calculated. These prompts do not change the recommendation, lift a concern, change readiness, or approve anything.</p>
 {body}
 <h3>Educational notes</h3>
-<p>Optional notes stored on the assessment. Non-authoritative. They are not engine inputs.</p>
+<p>Optional notes saved with this assessment. They are your own notes, not verified evidence, and they do not change any figure.</p>
 {stored}
 {form}
 </section>
@@ -1156,7 +1131,7 @@ def assessment_form(
         banner += (
             '<div class="banner">Existing or expanding business. This shorter intake skips '
             "startup-only cost-build questions and still collects the monthly engine inputs. "
-            "This choice does not clear a flag or grant investor-ready status.</div>"
+            "This choice does not lift a concern or grant investor-ready status.</div>"
         )
     fields = _fields(
         profile,
@@ -1180,7 +1155,7 @@ def assessment_form(
 </details>
 <button type="submit" class="ghost">Save draft</button>
 <button type="submit" class="ghost" formaction="/assessments/{escape(record['id'])}/analyze">Run Analyze</button>
-<span class="muted">Run Analyze when you are ready. The engine writes the result.</span>
+<span class="muted">Run Analyze when you are ready. RUGD then writes the result.</span>
 </div>
 </form>
 """
@@ -1196,7 +1171,7 @@ def assessment_form(
 <h2 id="intake" class="sr-only">Intake</h2>
 {action}
 <p class="muted"><a href="/assessments/{escape(record['id'])}/analyst">Open the Demonstration Analyst</a>
-<a href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
+<a href="/assessments/{escape(record['id'])}/export">Download draft (data file)</a></p>
 <details class="more" id="more-about-draft">
 <summary>Adviser conversation, status, and notes for this draft</summary>
 {_explore_workspace(record)}
@@ -1206,7 +1181,7 @@ def assessment_form(
 {_continue_intake(record)}
 <div class="card">
 <h2>What this means</h2>
-<p><strong>What to do next:</strong> Fill the blank required fields, save the draft, then run Analyze. The engine writes the result. This page does not invent a number.</p>
+<p><strong>What to do next:</strong> Fill in the blank required fields, save the draft, then run Analyze. RUGD will not invent a number for you.</p>
 {_plain("insufficient_demand_evidence")}
 {_plain("investor_readiness")}
 </div>
@@ -1289,29 +1264,29 @@ def shared_assessment_page(
         standing = _view_summary_block(result)
         indicative = _indicative_block(result, notes)
     elif record.get("read_only"):
-        standing = """
-<p><strong>Recommendation:</strong> do-not-proceed</p>
-<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> present</p>
-<p><strong>Investor readiness:</strong> internal</p>
-<p><strong>Human review status:</strong> pending</p>
-<p><strong>human_review_approved:</strong> false</p>
-<p><strong>Score:</strong> Not calculated — methodology pending approval.</p>
+        standing = f"""
+<p><strong>Draft recommendation:</strong> {escape(wording.recommendation_label("do-not-proceed"))}</p>
+<p><strong>Customer demand:</strong> Not enough evidence of customer demand yet.</p>
+<p><strong>Ready to show investors?</strong> {escape(wording.readiness_label("internal"))}</p>
+<p><strong>Expert review:</strong> {escape(wording.review_label("pending"))}</p>
+<p><strong>Overall score:</strong> {escape(wording.score_words(""))}</p>
+<details class="dmore dmore-tight techref"><summary>Technical reference</summary><p><strong>Recommendation:</strong> do-not-proceed</p><p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> present</p><p><strong>Investor readiness:</strong> internal</p><p><strong>Human review status:</strong> pending</p><p><strong>human_review_approved:</strong> false</p><p><strong>Score:</strong> Not calculated — methodology pending approval.</p></details>
 """
         indicative = (
-            "<p>Indicative assessment is shown after Analyze has been run. "
+            "<p>The preliminary business evaluation is shown after Analyze has been run. "
             "No feasibility score is calculated.</p>"
         )
     else:
-        standing = """
-<p><strong>Recommendation:</strong> not run</p>
-<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> not run</p>
-<p><strong>Investor readiness:</strong> not run</p>
-<p><strong>Human review status:</strong> pending</p>
-<p><strong>human_review_approved:</strong> false</p>
-<p><strong>Score:</strong> Not calculated — methodology pending approval.</p>
+        standing = f"""
+<p><strong>Draft recommendation:</strong> not evaluated yet</p>
+<p><strong>Customer demand:</strong> not evaluated yet</p>
+<p><strong>Ready to show investors?</strong> not evaluated yet</p>
+<p><strong>Expert review:</strong> {escape(wording.review_label("pending"))}</p>
+<p><strong>Overall score:</strong> {escape(wording.score_words(""))}</p>
+<details class="dmore dmore-tight techref"><summary>Technical reference</summary><p><strong>Recommendation:</strong> not run</p><p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> not run</p><p><strong>Investor readiness:</strong> not run</p><p><strong>Human review status:</strong> pending</p><p><strong>human_review_approved:</strong> false</p><p><strong>Score:</strong> Not calculated — methodology pending approval.</p></details>
 """
         indicative = (
-            "<p>Indicative assessment is shown after Analyze has been run. "
+            "<p>The preliminary business evaluation is shown after Analyze has been run. "
             "No feasibility score is calculated.</p>"
         )
     advisor_link = ""
@@ -1328,7 +1303,7 @@ def shared_assessment_page(
 {advisor_link}
 <div class="card">
 {standing}
-<p class="muted">Authoritative figures come only from the 0.1 engine. This page does not run the engine.</p>
+<p class="muted">Every figure was worked out by RUGD's official analysis. This page only shows what was saved. It does not run a new analysis.</p>
 </div>
 {indicative}
 <h2>Market context</h2>
@@ -1337,7 +1312,7 @@ def shared_assessment_page(
 <p><strong>Stage:</strong> {escape(stage)}</p>
 <p>{escape(snapshot['label'])} Live feed connected: false. Monitoring active: false.</p>
 <ul>{examples}</ul>
-<p>These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>
+<p>These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other serious concern.</p>
 <h2>Audit summary</h2>
 <div class="card">
 {standing}
@@ -1690,7 +1665,7 @@ def _fields(
     forecast_body = (
         forecast_fields_html(profile, locked)
         + '<div class="finance-workspace" id="financial-workspace"><div class="finance-inputs">'
-        + '<details id="monthly-engine" open><summary>Monthly engine</summary>'
+        + '<details id="monthly-engine" open><summary>Monthly figures</summary>'
         + section_intro("monthly", profile)
         + '<p class="muted">All four are required. Changing them updates the preview only. '
         + "Run Analyze to store an official result.</p>"
@@ -1799,7 +1774,7 @@ def _fields(
                 "demand",
                 "Demand",
                 "What do you already know about demand?",
-                "A yes here is your own view. It does not clear INSUFFICIENT_DEMAND_EVIDENCE.",
+                "A yes here is your own view. It does not count as proof that customers will buy.",
                 "Real evidence comes from sales, orders, or signed interest, not opinion.",
                 choice("demand_evidence", "Is there demand evidence? A yes here is still only a user-supplied assumption.")
                 + _verified_demand_fields(profile, locked)
@@ -1868,9 +1843,9 @@ def _fields(
 <p id="side-next"></p>
 </section>
 <section class="side-card">
-<h3>Adviser <span class="tag">Deterministic</span></h3>
+<h3>Adviser <span class="tag">Built in</span></h3>
 <p id="guided-why"></p>
-<p class="muted small" id="guided-adviser-label">Deterministic adviser. No live model was called.</p>
+<p class="muted small" id="guided-adviser-label">Built-in adviser. No outside AI service was used.</p>
 {adviser_link}
 </section>
 </details>
@@ -2526,13 +2501,13 @@ def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:
     source = str(profile.get("verified_record_source") or "")
     claim = str(profile.get("verified_demand_evidence") or "")
     source_options = [
-        ("", "Not a verified record"),
-        ("verified", "verified"),
+        ("", "Not a documented record"),
+        ("verified", "Documented: I can show the proof"),
     ]
     claim_options = [
         ("", "Not recorded"),
-        ("true", "true"),
-        ("false", "false"),
+        ("true", "Yes, documented evidence that customers will buy"),
+        ("false", "No documented evidence"),
     ]
 
     def options(current: str, choices: list[tuple[str, str]]) -> str:
@@ -2545,15 +2520,15 @@ def _verified_demand_fields(profile: dict[str, Any], locked: str) -> str:
     revenue = escape(str(profile.get("verified_revenue_trailing_12m") or ""))
     rationale = escape(str(profile.get("verified_demand_rationale") or ""))
     return f"""
-<h2 id="verified-demand">Verified demand record</h2>
-<p class="muted">Separate from the customer question above. These fields are applied only when the source is verified and a rationale is present. A customer yes, a hypothetical demonstration, and an AI interpretation cannot clear INSUFFICIENT_DEMAND_EVIDENCE. This record does not approve the assessment.</p>
-<label>Source for this record</label>
+<h2 id="verified-demand">Proof that customers will buy {wording.explain("demand_evidence")}</h2>
+<p class="muted">Use this only for evidence you can document, such as signed commitments, deposits, or sales records. It is separate from the customer question above. It counts only when you mark it documented and explain it. A customer saying yes, a hypothetical demonstration, or an AI suggestion is not proof. Saving it does not approve the assessment.</p>
+<label>How solid is this record?</label>
 <select name="verified_record_source" {locked}>{options(source, source_options)}</select>
-{label_with_help("verified_revenue_trailing_12m", "Verified trailing revenue (revenue_trailing_12m)", profile)}
+{label_with_help("verified_revenue_trailing_12m", "Documented sales from an existing business, last 12 months (if you have them)", profile)}
 <input id="verified_revenue_trailing_12m" name="verified_revenue_trailing_12m" value="{revenue}" {locked}>
-<label>Verified demand_evidence</label>
+<label>Is there documented evidence that customers will buy?</label>
 <select name="verified_demand_evidence" {locked}>{options(claim, claim_options)}</select>
-<label>Rationale for the verified record</label>
+<label>Explain the evidence: what it is, who confirmed it, and where it is kept</label>
 <textarea name="verified_demand_rationale" {locked}>{rationale}</textarea>
 """
 
@@ -2573,15 +2548,15 @@ def results_page(
     if not result.get("engine_ran"):
         body = _results_not_run(record, result, notes, writable=writable)
         return layout("Analyze", body)
-    flags = "".join(f"<li class=\"flag\">{escape(flag)}</li>" for flag in result.get("blocking_flags") or []) or "<li>None</li>"
-    gaps = "".join(f"<li>{escape(flag)}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
+    flags = "".join(f"<li class=\"flag\">{escape(wording.title_of(str(flag)))}{wording.tech_ref(str(flag))}</li>" for flag in result.get("blocking_flags") or []) or "<li>None</li>"
+    gaps = "".join(f"<li>{escape(wording.title_of(str(flag)))}{wording.tech_ref(str(flag))}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
     missing = "".join(f"<li>{escape(item)}</li>" for item in result.get("missing") or []) or "<li>None listed</li>"
     financial = _financial_table(result.get("financial"))
     projection = _projection_view(result)
     summary_approved = (result.get("human_review_approved") is True and result.get("human_review_status") == "approved")
     if summary_approved:
         standing = (
-            "Reviewer approval is recorded. Approval does not clear flags and does not by itself "
+            "Reviewer approval is recorded. Approval does not lift concerns and does not by itself "
             "mark this result investor-ready."
         )
     else:
@@ -2591,19 +2566,19 @@ def results_page(
     startup_missing = [] if venture_path_of(record) == "existing" else _missing_labels(profile, _STARTUP_REQUIRED)
     tables = f"""
 <div class="figure-block">
-<h2>Key engine figures</h2>
-<p>These are the stored engine figures. The sentence under a name explains it. The sentence does not change the number.</p>
-<p class="muted">Engine {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
+<h2>Key figures</h2>
+<p>These are the figures RUGD saved for this assessment. The sentence under each name explains it. The sentence does not change the number.</p>
+<p class="muted">Analysis version {escape(str(result.get('model_version')))}. Service tier on this file: {escape(record['tier'])}. Authoritative financial numbers below come only from the 0.1 engine.</p>
 <h2>Monthly base and downside</h2>{financial}
 {render_engine_charts(result.get("financial") if isinstance(result.get("financial"), dict) else None, live=bool(getattr(get_analyst(), "uses_network", False)))}
-<h2>Sources and uses, scenarios, and DSCR</h2>
+<h2>Where the money comes from and goes, scenarios, and loan coverage</h2>
 {_plain("sources_and_uses")}
 {_plain("dscr")}
 {projection}
 </div>
 """
     engine_cases = (
-        '<details class="dmore"><summary>Base, downside, and upside engine cases</summary>'
+        '<details class="dmore"><summary>Typical, weaker, and stronger cases</summary>'
         f"{_scenario_comparison(record, result)}</details>"
     )
     recommendations_extra = (
@@ -2612,7 +2587,7 @@ def results_page(
         f"{_tier_research(record, result)}</details>"
     )
     official = f"""
-<details class="dmore" id="official-details"><summary>Official gate details and demand evidence</summary>
+<details class="dmore" id="official-details"><summary>Official details and customer-demand evidence</summary>
 <div class="card" id="results-lead">
 {_at_a_glance(record, result)}
 {_view_summary_block(result)}
@@ -2621,7 +2596,7 @@ def results_page(
 </div>
 <h2>Demand evidence</h2>
 {_demand_status(result.get("demand") or {})}
-<h2>Recommend-against flags</h2>
+<h2>Serious concerns on file</h2>
 {_plain("recommend_against")}
 <ul>{flags}</ul>
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
@@ -2749,7 +2724,7 @@ def _results_not_run(
 {_assistant_panel(record, surface="results")}
 <p class="muted">Scenario comparison is available after Analyze has been run. It does not change a recommendation or a hard gate.</p>
 <p><a class="button" href="/assessments/{escape(record['id'])}">Return to the draft</a>
-<a class="button" href="/assessments/{escape(record['id'])}/export">Export draft as JSON</a></p>
+<a class="button" href="/assessments/{escape(record['id'])}/export">Download draft (data file)</a></p>
 {_guidance_section("explore", notes=notes, record=record)}
 """
 
@@ -2767,12 +2742,12 @@ def _intake_status(record: dict[str, Any]) -> str:
         return f"<div class=\"card\">{_view_summary_block(result)}</div>"
     return """
 <div class="card">
-<p><strong>Recommendation:</strong> not run</p>
-<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> not run</p>
-<p><strong>Investor readiness:</strong> not run</p>
-<p><strong>Human review status:</strong> pending</p>
-<p><strong>human_review_approved:</strong> false</p>
-<p><strong>Demand evidence provenance:</strong> placeholder until Analyze records verified, user, or placeholder.</p>
+<p><strong>Draft recommendation:</strong> not evaluated yet</p>
+<p><strong>Customer demand:</strong> not evaluated yet</p>
+<p><strong>Ready to show investors?</strong> not evaluated yet</p>
+<p><strong>Expert review:</strong> waiting for an authorized review</p>
+<p class="muted">Run Analyze to see how RUGD reads this business. Nothing here is approved.</p>
+<details class="dmore dmore-tight techref"><summary>Technical reference</summary><p><strong>Recommendation:</strong> not run</p><p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> not run</p><p><strong>Investor readiness:</strong> not run</p><p><strong>Human review status:</strong> pending</p><p><strong>human_review_approved:</strong> false</p></details>
 </div>
 """
 
@@ -2783,6 +2758,11 @@ def _indicative_block(result: dict[str, Any], notes: list[dict[str, Any]] | None
     score = indicative_score(result, notes)
     components = score["components"]
     lines = []
+    plain_names = {
+        "market_validity": "Market demand",
+        "financial_viability": "Financial strength",
+        "stewardship_readiness": "Long-term sustainability",
+    }
     for key, item in (
         ("market_validity", components["market_validity"]),
         ("financial_viability", components["financial_viability"]),
@@ -2791,24 +2771,36 @@ def _indicative_block(result: dict[str, Any], notes: list[dict[str, Any]] | None
         width = max(0, min(100, int(item["score"])))
         lines.append(
             "<li>"
-            f"<strong>{escape(item['name'])}:</strong> {item['score']} of 100. "
-            f"Weight {score['weights'][key]}."
+            f"<strong>{escape(plain_names[key])}:</strong> {item['score']} of 100."
             f'<div class="bar-track"><div class="bar" style="width: {width}%"></div></div>'
             "</li>"
         )
     rendered = "".join(lines)
+    status, band = str(score["gate_status"]), str(score["band"])
+    how = ui.details(
+        "How these numbers were worked out",
+        f'<p>Each part is scored out of 100 and combined with weights of {score["weights"]["market_validity"]}, '
+        f'{score["weights"]["financial_viability"]}, and {score["weights"]["stewardship_readiness"]} percent. '
+        f'The combined number is {score["score"]} of 100. It is a reading aid only and does not override a serious concern on file.</p>'
+        f'<p class="muted">{escape(score["explanation"])}</p>'
+        f'<p class="muted"><strong>{escape(score["label"])}</strong></p>'
+        f'<p><strong>Gate status:</strong> {escape(status)}</p>'
+        f'<p><strong>Band:</strong> {escape(band)}</p>'
+        f'<p><strong>Gate recommendation:</strong> {escape(str(score["gate_recommendation"]))}</p>'
+        f'<p><strong>Overall number (indicative only):</strong> {score["score"]} of 100.</p>',
+        tight=True,
+        cls="techref",
+    )
     return f"""
-<section class="indicative-score card">
-<h2>Indicative assessment</h2>
-<p><strong>{escape(score['label'])}</strong></p>
+<section class="indicative-score card" data-gate="{escape(status)}" data-band="{escape(band)}">
+<h2>{escape(wording.PRELIMINARY)}</h2>
+<p>{escape(wording.PRELIMINARY_NOTE)}</p>
 {_plain("indicative_score")}
-<p><strong>Gate status:</strong> {escape(score['gate_status'])}</p>
-<p><strong>Band:</strong> {escape(score['band'])}</p>
-{_gate_gloss(str(score['gate_status']), str(score['band']))}
-<p><strong>Gate recommendation:</strong> {escape(score['gate_recommendation'])}</p>
+<p><strong>Where this stands:</strong> {escape(wording.gate_label(status))} {wording.explain("important_info")}</p>
+<p><strong>Overall reading:</strong> {escape(wording.band_label(band))} {wording.explain("not_ready")}</p>
+{_gate_gloss(status, band)}
 <ul>{rendered}</ul>
-<p class="muted"><strong>Overall number (indicative only):</strong> {score['score']} of 100. This indicative number does not override a hard recommend-against flag and does not grant investor-ready status.</p>
-<p>{escape(score['explanation'])}</p>
+{how}
 </section>
 """
 
@@ -2822,19 +2814,21 @@ def _view_summary_block(result: dict[str, Any]) -> str:
         for row in summary.get("demand_provenance") or []
     ) or "<li>placeholder</li>"
     approved = "true" if summary["human_review_approved"] else "false"
+    demand_missing = summary.get("insufficient_demand_evidence") == "present"
+    demand_line = (
+        "Not enough evidence of customer demand yet." if demand_missing else "No demand-evidence concern is recorded."
+    )
     return f"""
-<p><strong>Recommendation:</strong> {escape(str(summary.get('recommendation')))}</p>
+<p><strong>Draft recommendation:</strong> {escape(wording.recommendation_label(str(summary.get('recommendation') or '')))} {wording.explain("recommendation")}</p>
 {_plain("recommendation")}
-<p><strong>Score:</strong> {escape(result.get('score_line', ''))}</p>
+<p><strong>Overall score:</strong> {escape(wording.score_words(str(result.get('score_line', ''))))}</p>
 {_plain("indicative_score")}
-<p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> {escape(str(summary.get('insufficient_demand_evidence')))}</p>
+<p><strong>Customer demand:</strong> {escape(demand_line)}</p>
 {_plain("insufficient_demand_evidence")}
-<p><strong>Investor readiness:</strong> {escape(str(summary.get('investor_readiness')))}</p>
+<p><strong>Ready to show investors?</strong> {escape(wording.readiness_label(str(summary.get('investor_readiness') or '')))}</p>
 {_plain("investor_readiness")}
-<p><strong>Human review status:</strong> {escape(str(summary.get('human_review_status')))}</p>
-<p><strong>human_review_approved:</strong> {approved}</p>
-<p><strong>Demand evidence provenance:</strong></p>
-<ul>{provenance}</ul>
+<p><strong>Expert review:</strong> {escape(wording.review_label(str(summary.get('human_review_status') or 'pending')))}</p>
+{ui.details("Technical reference", f'<p>The exact values stored on this assessment, for your adviser or a reviewer.</p><p><strong>Recommendation:</strong> {escape(str(summary.get("recommendation")))}</p><p><strong>INSUFFICIENT_DEMAND_EVIDENCE:</strong> {escape(str(summary.get("insufficient_demand_evidence")))}</p><p><strong>Investor readiness:</strong> {escape(str(summary.get("investor_readiness")))}</p><p><strong>Human review status:</strong> {escape(str(summary.get("human_review_status")))}</p><p><strong>human_review_approved:</strong> {approved}</p><p><strong>Demand evidence provenance:</strong></p><ul>{provenance}</ul>', tight=True, cls="techref")}
 """
 
 
@@ -2843,7 +2837,7 @@ def _tier_research(record: dict[str, Any], result: dict[str, Any]) -> str:
     if tier == "explore":
         return """
 <h2>Research depth</h2>
-<p>Explore lists the engine flags and missing fields above. Analyze adds Evidence Gaps, Key Assumptions, Risk Summary, and Suggested Next Research Steps. This note does not change a flag and it does not set human_review_approved.</p>
+<p>Explore lists what is still open and missing above. Analyze adds evidence gaps, key assumptions, a risk summary, and suggested next research steps. This note does not lift a concern and does not approve anything.</p>
 """
     return _analyze_research(result, record)
 
@@ -2877,15 +2871,15 @@ def _analyze_research(result: dict[str, Any], record: dict[str, Any]) -> str:
         assumption_items = "<li>No intake assumptions are attached to this result. None are invented.</li>"
     if blocking:
         risk_lines = [
-            f"Active recommend-against flag: {flag}. The draft recommendation is {result.get('recommendation') or 'not loaded'}."
+            f"Active serious concern: {flag}. The draft recommendation is {result.get('recommendation') or 'not loaded'}."
             for flag in blocking
         ]
     else:
         risk_lines = [
-            "No recommend-against flag is active on this result. Gap flags remain unevaluated criteria."
+            "No serious concern is active on this result. Gap flags remain unevaluated criteria."
         ]
     risk_lines.append(
-        "This summary restates engine flags. It is not a new score and it does not clear a recommend-against flag."
+        "This summary restates engine flags. It is not a new score and it does not lift a serious concern."
     )
     risk_items = "".join(f"<li>{escape(line)}</li>" for line in risk_lines)
     steps = _research_steps(blocking, gap_flags, missing, record)
@@ -2936,7 +2930,7 @@ def _research_steps(
             "No market observation is loaded. Live feed connected: false. No market fact is invented."
         )
     steps.append(
-        "These steps do not set human_review_approved and do not change investor readiness."
+        "These steps do not approve the assessment and do not change investor readiness."
     )
     return steps
 
@@ -2949,13 +2943,20 @@ def _demand_status(demand: dict[str, Any]) -> str:
         "uncleared": "INSUFFICIENT_DEMAND_EVIDENCE is active.",
     }
     caption = captions.get(status, captions["uncleared"])
-    evidence = escape(str(demand.get("evidence") or ""))
+    plain_caption = {
+        "cleared": "Documented support meets the rule, so no demand concern is open.",
+        "unverified": "A customer claim is on file but it is not verified yet, so the concern is still open.",
+        "uncleared": "Not enough evidence of customer demand yet. Save signed commitments, deposits, or sales records in Research.",
+    }.get(status, "Not enough evidence of customer demand yet.")
+    plain_status = {"cleared": "Met", "unverified": "Claim not yet verified"}.get(status, "Still open")
+    evidence = escape(wording.humanize_lines(str(demand.get("evidence") or "")))
     return f"""
 <div class="card">
-<p><strong>Status:</strong> {escape(status)}</p>
-<p>{escape(caption)}</p>
+<p><strong>Status:</strong> {escape(plain_status)}</p>
+<p>{escape(plain_caption)}</p>
 <p>{evidence}</p>
-<p class="muted">Clearing or leaving this flag does not mark the result investor-ready.</p>
+<p class="muted">Meeting or missing this requirement does not make the result ready to show investors.</p>
+<details class="techref"><summary>Technical reference</summary><p>Stored status: {escape(status)}. {escape(caption)}</p></details>
 </div>
 """
 
@@ -3005,7 +3006,7 @@ def _saved_explore_context(profile: dict[str, Any]) -> str:
     return f"""
 <div class="card" id="saved-explore-context">
 <h2>Saved business notes</h2>
-<p>These notes come from this draft. A blank note stays blank. They are user-supplied assumptions, not engine results.</p>
+<p>These notes come from this draft. A blank note stays blank. They are your own estimates, not results RUGD calculated.</p>
 <ul>{''.join(rows)}</ul>
 </div>
 """
@@ -3013,7 +3014,7 @@ def _saved_explore_context(profile: dict[str, Any]) -> str:
 
 def _projection_view(result: dict[str, Any]) -> str:
     projection = result.get("projection") or {}
-    engine_text = f"<details><summary>Engine text</summary><pre>{escape(result.get('projection_text') or '')}</pre></details>"
+    engine_text = f"<details><summary>Written projection</summary><pre>{escape(result.get('projection_text') or '')}</pre></details>"
     if not projection.get("calculated"):
         note = str(projection.get("note") or result.get("projection_text") or "")
         return (
@@ -3146,12 +3147,13 @@ def _scenario_comparison(record: dict[str, Any], result: dict[str, Any]) -> str:
     flags = [str(flag) for flag in result.get("blocking_flags") or []]
     if flags:
         gate_line = (
-            "<p><strong>Official hard gates:</strong> "
-            + escape(", ".join(flags))
-            + ". This comparison did not clear them.</p>"
+            "<p><strong>Official serious concerns:</strong> "
+            + escape(", ".join(wording.title_of(flag) for flag in flags))
+            + ". This comparison did not lift them.</p>"
+            + wording.tech_ref(*flags)
         )
     else:
-        gate_line = "<p><strong>Official hard gates:</strong> none on this result. This comparison did not add or clear one.</p>"
+        gate_line = "<p><strong>Official serious concerns:</strong> none on this result. This comparison did not add or clear one.</p>"
     assessment_id = escape(str(record.get("id") or ""))
     return f"""
 <section class="card" id="scenario-comparison">
@@ -3164,10 +3166,10 @@ def _scenario_comparison(record: dict[str, Any], result: dict[str, Any]) -> str:
 {render_scenario_chart(stored)}
 <form method="post" action="/assessments/{assessment_id}/scenarios">
 <button type="submit" name="case" value="base">Save current result as Base</button>
-<button type="submit" name="case" value="downside">Run Downside case</button>
-<button type="submit" name="case" value="upside">Run Upside case</button>
+<button type="submit" name="case" value="downside">Run a weaker-year case</button>
+<button type="submit" name="case" value="upside">Run a stronger-year case</button>
 </form>
-<p class="muted">One alternative case is kept. Running Downside or Upside replaces the previous alternative. The official engine result stays in place.</p>
+<p class="muted">One alternative case is kept. Running a weaker-year or stronger-year case replaces the previous alternative. The official result stays in place.</p>
 </section>
 """
 
@@ -3236,7 +3238,7 @@ def _objective_chooser() -> str:
     return f"""
 <section class="card" id="customer-objectives">
 <h2>What would you like to accomplish with your business?</h2>
-<p>Choose one. A signed-in account opens a workspace and keeps it. The choice does not grant investor-ready status and does not clear a flag.</p>
+<p>Choose one. A signed-in account opens a workspace and keeps it. The choice does not make a file ready to show investors and does not lift a concern.</p>
 <ul class="objectives">{''.join(items)}</ul>
 </section>
 """
@@ -3268,7 +3270,7 @@ def _explore_workspace(record: dict[str, Any]) -> str:
 <button type="submit" name="decision" value="save">Save this answer</button>
 <button type="submit" name="decision" value="discard">Discard</button>
 </form>
-<p class="muted">Saving writes one user-supplied assumption. It does not clear a flag, run the engine, or set human_review_approved.</p>
+<p class="muted">Saving writes one user-supplied assumption. It does not lift a concern, run the engine, or approve the assessment.</p>
 """
     else:
         decision = f"""
@@ -3304,7 +3306,7 @@ def _explore_workspace(record: dict[str, Any]) -> str:
     return f"""
 <section class="card" id="adviser">
 <h2>Talk it through with the Adviser</h2>
-<p class="muted">{escape(objective_label(objective))}. Deterministic guidance unless a provider is configured. A field changes only when you choose Save this answer.</p>
+<p class="muted">{escape(objective_label(objective))}. Built-in guidance unless an outside AI service has been set up. A field changes only when you choose Save this answer.</p>
 <ul class="adviser-log">{log}</ul>
 {decision}
 </section>
@@ -3327,11 +3329,11 @@ def _module_guide() -> str:
     return """
 <details class="card" id="what-rugd-helps">
 <summary>What can RUGD help with?</summary>
-<h2>Available in this prototype</h2>
+<h2>What you can do here</h2>
 <ul>
 <li>Explore intake for a startup idea or an existing business, including example phrases for the industry you type.</li>
-<li>Analyze, which runs the deterministic engine. A hard recommend-against flag stays do-not-proceed.</li>
-<li>An AI Business Adviser that explains the stored file. It cannot change a number, a flag, or an approval.</li>
+<li>Analyze, which works out your numbers and shows what is still missing. A serious concern stays on file until real evidence and an authorized review change it.</li>
+<li>An AI Business Adviser that explains the stored file. It cannot change a number, lift a concern, or approve anything.</li>
 <li>Advisor Summary, a read-only share, and optional public market extracts when one is requested. The source and the period stay visible.</li>
 </ul>
 <h2>Demonstration only</h2>
@@ -3359,7 +3361,7 @@ def _adviser_nudge(record: dict[str, Any], surface: str) -> str:
         monthly_href = "#monthly-engine"
         intake_href = "#intake"
     if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
-        text = "Demand evidence is still missing on this stored result. This note does not clear the flag."
+        text = "Demand evidence is still missing on this stored result. This note does not lift the concern."
         href, label = demand_href, "Open the verified demand record"
     else:
         monthly = _missing_labels(profile or {}, _MONTHLY_REQUIRED)
@@ -3375,10 +3377,10 @@ def _adviser_nudge(record: dict[str, Any], surface: str) -> str:
     key = escape(f"{assessment_id}:{surface}")
     return f"""
 <aside class="card nudge" id="adviser-nudge" data-key="{key}">
-<p><strong>A suggestion from the adviser.</strong> {escape(text)}</p>
+<p><strong>A suggestion for your next step.</strong> {escape(text)}</p>
 <p><a class="button" href="{escape(href)}">{escape(label)}</a>
 <button type="button" id="dismiss-nudge">Dismiss</button></p>
-<p class="muted">Dismissing this note does not clear a flag or change a result.</p>
+<p class="muted">Dismissing this note does not change any result.</p>
 </aside>
 <script>
 (function () {{
@@ -3490,7 +3492,7 @@ def analyst_page(record: dict[str, Any], lines: list[str]) -> str:
 {_SURFACE_NOTE}
 <p class="muted">Service tier on this file: {escape(str(record.get('tier') or 'not recorded'))}. The analyst explanation is sourced commentary and is not authoritative.</p>
 <div class="banner">{escape(label)}</div>
-<p class="muted">Optional explanation. The analyst cannot alter authoritative results, clear flags, set human_review_approved, or change investor readiness.</p>
+<p class="muted">Optional explanation. The analyst cannot alter authoritative results, lift concerns, approve the assessment, or change investor readiness.</p>
 <ul>{items}</ul>
 <p><a href="/assessments/{escape(record['id'])}/results">Return to results</a></p>
 """
@@ -3501,7 +3503,7 @@ def _analyst_panel(record: dict[str, Any], result: dict[str, Any]) -> str:
     analyst = get_analyst()
     note = (
         "Optional explanation. The analyst cannot alter authoritative results, "
-        "clear flags, set human_review_approved, or change investor readiness."
+        "lift concerns, approve the assessment, or change investor readiness."
     )
     href = f"/assessments/{escape(record['id'])}/analyst"
     if getattr(analyst, "uses_network", False):
@@ -3511,6 +3513,7 @@ def _analyst_panel(record: dict[str, Any], result: dict[str, Any]) -> str:
         )
     else:
         lines = analyst.explain(record, result)
+        lines = [wording.humanize_lines(str(line)) for line in lines]
         items = "".join(f"<li>{escape(line)}</li>" for line in lines)
         shown = lines[0] if lines else analyst.label
         body = (
@@ -3562,7 +3565,7 @@ def _synthetic_market_page(
 {_section_welcome(
     "Welcome to RUGD Market Intelligence",
     "This page shows a market snapshot for a place and an industry.",
-    "The figures are a labeled demonstration unless a public extract was requested. They do not clear a flag.",
+    "The figures are a labeled demonstration unless a public extract was requested. They do not lift a concern.",
     demonstration="Market Intelligence (demonstration)",
 )}
 {_SURFACE_NOTE}
@@ -3613,14 +3616,14 @@ def _public_market_page(
     if not notes:
         notes.append("No customer draft has an industry and stage to reference. No market fact is invented.")
     notes.append(
-        "These public figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag."
+        "These public figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other serious concern."
     )
     implications = "".join(f"<li>{escape(line)}</li>" for line in notes)
     body = f"""
 {_section_welcome(
     "Welcome to RUGD Market Intelligence",
     "This page shows a market snapshot for a place and an industry.",
-    "A public extract is shown only when one was requested. The figures do not clear a flag.",
+    "A public extract is shown only when one was requested. The figures do not lift a concern.",
 )}
 {_SURFACE_NOTE}
 {_market_provenance_card(view)}
@@ -3663,7 +3666,7 @@ def _fallback_market_page(
 {_section_welcome(
     "Welcome to RUGD Market Intelligence",
     "This page shows a market snapshot for a place and an industry.",
-    "The figures are a labeled demonstration unless a public extract was requested. They do not clear a flag.",
+    "The figures are a labeled demonstration unless a public extract was requested. They do not lift a concern.",
     demonstration="Market Intelligence (demonstration)",
 )}
 {_SURFACE_NOTE}
@@ -3685,7 +3688,7 @@ def _fallback_market_page(
 {_market_block(snapshot)}
 <h2>Implications for this assessment</h2>
 <ul>{implications}</ul>
-<p class="muted">These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>
+<p class="muted">These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other serious concern.</p>
 """
     return layout("Market Intelligence", body)
 
@@ -3714,7 +3717,7 @@ def _synthetic_view(snapshot: dict[str, Any]) -> dict[str, Any]:
 
 
 def _market_provenance_card(view: dict[str, Any] | None = None) -> str:
-    """Source, period, and limits sit above the figures. The card does not clear a flag."""
+    """Source, period, and limits sit above the figures. The card does not lift a concern."""
     view = view or {}
     observations = [item for item in view.get("observations") or [] if isinstance(item, dict)]
     first = observations[0] if observations else {}
@@ -3723,14 +3726,14 @@ def _market_provenance_card(view: dict[str, Any] | None = None) -> str:
         period = str(first.get("measurement_period") or "not recorded")
         limits = str(
             first.get("limitations")
-            or "These figures do not clear a recommend-against flag."
+            or "These figures do not lift a serious concern."
         )
         extra = " Each figure below repeats its own source, period, and limits."
     else:
         source = "Synthetic demonstration. No Census, BLS, or BEA extract is loaded."
         period = "Not a public measurement period."
         limits = (
-            "These figures do not clear a recommend-against flag "
+            "These figures do not lift a serious concern "
             "and do not grant investor-ready status."
         )
         extra = ""
@@ -3779,7 +3782,7 @@ def _market_summary(
         "<h2>Combined summary</h2>"
         f"<p>{_active_provider(view)}</p>"
         f"<ul>{''.join(rows)}</ul>"
-        "<p>These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>"
+        "<p>These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other serious concern.</p>"
         f"<p><a href=\"/market/export?{query}\">Download market observations (JSON)</a></p>"
     )
 
@@ -3871,7 +3874,7 @@ def _research_summary(observations: list[dict[str, str]]) -> str:
         "<h2>Market Research Summary</h2>"
         "<p>This overview is derived from the cited public sources in this section. "
         "It is not a recommendation. It does not clear INSUFFICIENT_DEMAND_EVIDENCE "
-        "or any other recommend-against flag, and it does not set human_review_approved.</p>"
+        "or any other serious concern, and it does not approve the assessment.</p>"
         f"{body}"
     )
 
@@ -3925,7 +3928,7 @@ def _partial_synthetic(view: dict[str, Any]) -> str:
         "<h2>Synthetic examples</h2>"
         f"<ul>{examples}</ul>"
         "<p class=\"muted\">These synthetic examples do not clear INSUFFICIENT_DEMAND_EVIDENCE "
-        "or any other recommend-against flag.</p>"
+        "or any other serious concern.</p>"
     )
 
 
@@ -3982,12 +3985,12 @@ def audit_html_page(
     if summary.get("human_review_approved"):
         standing = (
             "Reviewer approval is recorded. Investor readiness stays on the existing gate. "
-            "Approval does not clear recommend-against flags and does not by itself mark this assessment investor-ready."
+            "Approval does not clear serious concerns and does not by itself mark this assessment investor-ready."
         )
     else:
         standing = "Draft. Human review is pending. This is not an approved or investor-ready result."
-    blocking = "".join(f"<li class=\"flag\">{escape(flag)}</li>" for flag in result.get("blocking_flags") or []) or "<li>None</li>"
-    gaps = "".join(f"<li>{escape(flag)}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
+    blocking = "".join(f"<li class=\"flag\">{escape(wording.title_of(str(flag)))}{wording.tech_ref(str(flag))}</li>" for flag in result.get("blocking_flags") or []) or "<li>None</li>"
+    gaps = "".join(f"<li>{escape(wording.title_of(str(flag)))}{wording.tech_ref(str(flag))}</li>" for flag in result.get("gap_flags") or []) or "<li>None</li>"
     provenance = "".join(
         f"<li>{escape(str(row.get('field')))}: {escape(str(row.get('provenance')))}</li>"
         for row in summary.get("demand_provenance") or []
@@ -4027,7 +4030,7 @@ def audit_html_page(
 <p><strong>human_review_approved:</strong> {"true" if summary.get("human_review_approved") else "false"}</p>
 </div>
 {_indicative_block(result, notes)}
-<h2>Recommend-against flags</h2><ul>{blocking}</ul>
+<h2>Serious concerns on file</h2><ul>{blocking}</ul>
 <h2>Evidence gaps</h2><ul>{gaps}</ul>
 <h2>Demand evidence provenance</h2>
 <ul>{provenance}</ul>
@@ -4048,12 +4051,12 @@ def validate_page(
             _section_welcome(
                 "Welcome to RUGD Validate",
                 "This page shows how a human review request looks.",
-                "You can ask for a review. This demonstration cannot approve an assessment or set human_review_approved.",
+                "You can ask for a review. This demonstration cannot approve an assessment or approve the assessment.",
                 demonstration="Validate (demonstration)",
             )
             + _SURFACE_NOTE
             + "<div class=\"banner\">Demonstration only. Customers can request review. "
-            "This screen cannot set human_review_approved. Not live monitoring.</div>"
+            "This screen cannot approve an assessment. Not live monitoring.</div>"
             + "<p>Open an assessment from My Assessments to request a review.</p>"
             + f"{_review_package(None)}"
             + f"{_guidance_section('demonstration')}"
@@ -4064,11 +4067,11 @@ def validate_page(
 {_section_welcome(
     "Welcome to RUGD Validate",
     "This page shows how a human review request looks.",
-    "You can ask for a review. This demonstration cannot approve an assessment or set human_review_approved.",
+    "You can ask for a review. This demonstration cannot approve an assessment or approve the assessment.",
     demonstration="Validate (demonstration)",
 )}
 {_SURFACE_NOTE}
-<div class="banner">Demonstration only. Customers can request review. This screen cannot set human_review_approved. Not live monitoring. Prototype-grade review request.</div>
+<div class="banner">Demonstration only. Customers can request review. This screen cannot approve an assessment. Not live monitoring. Prototype-grade review request.</div>
 <p>{escape(record['business_name'])}: {escape(requested)}</p>
 <p><strong>Human review status:</strong> pending</p>
 <p>Human review status stays pending on this customer screen. Requesting a review does not approve it. Investor readiness stays on the existing gate.</p>
@@ -4077,7 +4080,7 @@ def validate_page(
 <form method="post" action="/assessments/{escape(record['id'])}/review-request">
 <button type="submit">Request review</button>
 </form>
-<p class="muted">Approval stays on the reviewer screen. This customer screen cannot set human_review_approved.</p>
+<p class="muted">Approval stays on the reviewer screen. This customer screen cannot approve an assessment.</p>
 """
     return layout("Validate", body)
 
@@ -4095,14 +4098,14 @@ def _review_package(record: dict[str, Any] | None) -> str:
     examples = "".join(f"<li>{escape(str(item))}</li>" for item in snapshot.get("synthetic_examples") or [])
     return f"""
 <h2>Review Package</h2>
-<p>Prototype review package. Not an approval. This summary does not set human_review_approved and it does not clear a recommend-against flag.</p>
+<p>Prototype review package. Not an approval. This summary does not approve the assessment and it does not lift a serious concern.</p>
 <h3>Current flags</h3>
 <ul>{flag_items}</ul>
 <h3>Market context</h3>
 <p>{escape(str(snapshot.get('label')))} Industry: {escape(str(snapshot.get('industry')))}. Geographic market: {escape(str(snapshot.get('geographic_market')))}.</p>
 <p>Live feed connected: false. Monitoring active: false. Source dataset: none.</p>
 <ul>{examples}</ul>
-<p>These observations do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag.</p>
+<p>These observations do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other serious concern.</p>
 <h3>Evidence gaps</h3>
 <ul>{gap_items}</ul>
 <ul>{missing_items}</ul>
@@ -4374,7 +4377,7 @@ def register_page(message: str = "") -> str:
 <h1>Register</h1>
 {_SURFACE_NOTE}
 <div class="banner">Local pilot registration. Passwords are stored as a scrypt hash. This is not production authentication.</div>
-<p>Self-registration creates a customer account. It does not create a reviewer, it does not change an existing role, and it does not grant investor-ready status. A customer account cannot set human_review_approved. This local pilot does not ask for a subscription or a payment method.</p>
+<p>Self-registration creates a customer account. It does not create a reviewer, it does not change an existing role, and it does not grant investor-ready status. A customer account cannot approve an assessment. This local pilot does not ask for a subscription or a payment method.</p>
 {notice}
 <form method="post" action="/register">
 <label>Email</label>
@@ -4396,7 +4399,7 @@ def reviewer_accounts_page(message: str = "") -> str:
 <h1>Create a reviewer account</h1>
 {_SURFACE_NOTE}
 <div class="banner">Reviewer control. Not a customer feature. Not production authentication. This screen does not grant investor-ready status.</div>
-<p>An existing reviewer can create another reviewer account. This does not change a customer account into a reviewer. It does not approve an assessment, clear a flag, or set human_review_approved.</p>
+<p>An existing reviewer can create another reviewer account. This does not change a customer account into a reviewer. It does not approve an assessment, lift a concern, or approve the assessment.</p>
 {notice}
 <form method="post" action="/reviewer/accounts">
 <label>Email</label>
@@ -4500,7 +4503,7 @@ def _market_pulse_section() -> str:
 <h3>External examples</h3>
 {external}
 <h3>Actionable recommendation questions</h3>
-<p>Static template. These questions are not answers. They are not a recommendation. They do not clear a recommend-against flag and they do not set human_review_approved.</p>
+<p>Static template. These questions are not answers. They are not a recommendation. They do not lift a serious concern and they do not approve the assessment.</p>
 <ol>{questions}</ol>
 """
 
@@ -4515,7 +4518,7 @@ def _ongoing_intelligence(snapshot: dict[str, Any]) -> str:
         )
         actions.append(
             "Hypothetical management action: read this synthetic note before changing a plan. "
-            f"{text} This is not a recommendation. It does not clear a flag and it does not set human_review_approved."
+            f"{text} This is not a recommendation. It does not lift a concern and it does not approve the assessment."
         )
     if not alerts:
         alerts.append("Hypothetical trend alert. No synthetic example is loaded. Monitoring is not active.")
@@ -4572,27 +4575,31 @@ def advisor_summary_page(
             item = components.get(key) or {}
             width = max(0, min(100, int(item.get("score") or 0)))
             weight = (indicative.get("weights") or {}).get(key, "")
+            plain_name = {
+                "market_validity": "Market demand",
+                "financial_viability": "Financial strength",
+                "stewardship_readiness": "Long-term sustainability",
+            }[key]
             rows.append(
                 "<li>"
-                f"<strong>{escape(str(item.get('name') or ''))}:</strong> {escape(str(item.get('score')))} of 100. "
-                f"Weight {escape(str(weight))}."
+                f"<strong>{plain_name}:</strong> {escape(str(item.get('score')))} of 100."
                 f'<div class="bar-track"><div class="bar" style="width: {width}%"></div></div>'
                 "</li>"
             )
+        gate_status = str(indicative.get("gate_status") or "")
+        band_value = str(indicative.get("band") or "")
         score_block = f"""
-<p><strong>{escape(str(indicative.get('label') or ''))}</strong></p>
-<p><strong>Gate status:</strong> {escape(str(indicative.get('gate_status') or ''))}</p>
-<p><strong>Band:</strong> {escape(str(indicative.get('band') or ''))}</p>
-{_gate_gloss(str(indicative.get('gate_status') or ''), str(indicative.get('band') or ''))}
-<p><strong>Gate recommendation:</strong> {escape(str(indicative.get('gate_recommendation') or ''))}</p>
+<p>{escape(wording.PRELIMINARY_NOTE)}</p>
+<p><strong>Where this stands:</strong> {escape(wording.gate_label(gate_status))}</p>
+<p><strong>Overall reading:</strong> {escape(wording.band_label(band_value))}</p>
+{_gate_gloss(gate_status, band_value)}
 <ul>{''.join(rows)}</ul>
-<p class="muted"><strong>Overall number (indicative only):</strong> {escape(str(indicative.get('score')))} of 100</p>
+{ui.details("Technical reference", f'<p><strong>Gate status:</strong> {escape(gate_status)}</p><p><strong>Band:</strong> {escape(band_value)}</p><p><strong>Gate recommendation:</strong> {escape(str(indicative.get("gate_recommendation") or ""))}</p><p><strong>Overall number (indicative only):</strong> {escape(str(indicative.get("score")))} of 100. Weights: {escape(str(indicative.get("weights") or ""))}.</p><p class="muted">{escape(str(indicative.get("label") or ""))}</p>', tight=True, cls="techref")}
 """
     else:
         score_block = """
-<p><strong>Gate status:</strong> Not run</p>
-<p><strong>Band:</strong> Not run</p>
-<p>Indicative assessment is shown after Analyze has been run. No feasibility score is calculated.</p>
+<p><strong>Where this stands:</strong> Not evaluated yet</p>
+<p>The preliminary business evaluation is shown after Analyze has been run. No feasibility score is calculated.</p>
 """
     flags = package.get("key_flags") or []
     flag_list = "".join(f'<li class="flag">{escape(str(flag))}</li>' for flag in flags) or "<li>None</li>"
@@ -4633,14 +4640,14 @@ def advisor_summary_page(
 {_advisor_glance(assessment, indicative)}
 <div class="card" id="advisor-sheet">
 <p><strong>Business:</strong> {escape(str(assessment.get('business_name') or ''))}</p>
-<p><strong>Stored recommendation:</strong> {escape(str(assessment.get('recommendation')))}</p>
-<p><strong>Score:</strong> {escape(str(assessment.get('score_line') or ''))}</p>
-<p><strong>Investor readiness:</strong> {escape(str(assessment.get('readiness_status')))}</p>
-<p><strong>Human review status:</strong> {escape(str(assessment.get('human_review_status')))}</p>
-<p><strong>human_review_approved:</strong> {"true" if assessment.get("human_review_approved") else "false"}</p>
+<p><strong>Draft recommendation:</strong> {escape(wording.recommendation_label(str(assessment.get('recommendation') or '')))}</p>
+<p><strong>Overall score:</strong> {escape(wording.score_words(str(assessment.get('score_line') or '')))}</p>
+<p><strong>Ready to show investors?</strong> {escape(wording.readiness_label(str(assessment.get('readiness_status') or '')))}</p>
+<p><strong>Expert review:</strong> {escape(wording.review_label(str(assessment.get('human_review_status') or 'pending')))}</p>
+{ui.details("Technical reference", f'<p><strong>Stored recommendation:</strong> {escape(str(assessment.get("recommendation")))}</p><p><strong>Score:</strong> {escape(str(assessment.get("score_line") or ""))}</p><p><strong>Investor readiness:</strong> {escape(str(assessment.get("readiness_status")))}</p><p><strong>Human review status:</strong> {escape(str(assessment.get("human_review_status")))}</p><p><strong>human_review_approved:</strong> {"true" if assessment.get("human_review_approved") else "false"}</p>', tight=True, cls="techref")}
 <p class="muted">{escape(str(assessment.get('status_source') or ''))}</p>
 </div>
-<h2>Indicative assessment</h2>
+<h2>{wording.PRELIMINARY}</h2>
 {score_block}
 <h2>Key flags</h2>
 <ul>{flag_list}</ul>
@@ -4649,7 +4656,7 @@ def advisor_summary_page(
 <h2>Source, period, and limits</h2>
 <p><strong>Source:</strong> {escape(str(provenance.get('source') or 'none'))}</p>
 <p><strong>Period:</strong> {escape(str(provenance.get('measurement_period') or 'not recorded'))}</p>
-<p><strong>Limitations:</strong> {escape(str(provenance.get('limitations') or 'These figures do not clear a recommend-against flag.'))}</p>
+<p><strong>Limitations:</strong> {escape(str(provenance.get('limitations') or 'These figures do not lift a serious concern.'))}</p>
 </section>
 <p><strong>Industry:</strong> {escape(str(market.get('industry') or ''))}</p>
 <p><strong>Geography:</strong> {escape(str(market.get('geography') or ''))}</p>
@@ -4700,7 +4707,7 @@ def research_brief_page(package: dict[str, Any]) -> str:
         market_list = "".join(cited)
     else:
         market_list = "<li>No market observation is attached. No market fact is invented.</li>"
-    analyst = "".join(f"<li>{escape(str(line))}</li>" for line in package.get("analyst_explanation") or []) or "<li>Analyst explanation is not available.</li>"
+    analyst = "".join(f"<li>{escape(wording.humanize_lines(str(line)))}</li>" for line in package.get("analyst_explanation") or []) or "<li>Analyst explanation is not available.</li>"
     body = f"""
 <h1>Research Brief</h1>
 <p class="no-print">Print-friendly research brief. Use the browser print dialog. This view does not change the assessment.</p>
@@ -4721,13 +4728,13 @@ def research_brief_page(package: dict[str, Any]) -> str:
 <h2>Market observations</h2>
 <p>{escape(str(market.get('label') or 'No public market provider is attached.'))}</p>
 <ul>{market_list}</ul>
-<p>Source citations are the source, coverage, period, retrieval date, and limitations on each observation. These figures do not clear a recommend-against flag.</p>
+<p>Source citations are the source, coverage, period, retrieval date, and limitations on each observation. These figures do not lift a serious concern.</p>
 <h2>Analyst explanation</h2>
 <ul>{analyst}</ul>
 <section class="limitations">
 <h2>Limitations</h2>
 <p>{escape(str(package.get('prototype_disclaimer') or ''))}</p>
-<p>Customer-entered values remain user-supplied assumptions. This brief does not set human_review_approved and it does not change investor readiness.</p>
+<p>Customer-entered values remain user-supplied assumptions. This brief does not approve the assessment and it does not change investor readiness.</p>
 </section>
 """
     return layout("Research Brief", body, printable=True)
@@ -4751,7 +4758,7 @@ def _workspace_links(record: dict[str, Any], current: str = "") -> str:
         '<details class="dmore dmore-tight no-print" id="journey-context">'
         "<summary>About this workflow</summary>"
         '<p class="muted">Saved research can inform an assumption you choose to enter. '
-        "A financial scenario is a separate engine run and does not replace the official result. "
+        "A financial scenario is a separate what-if calculation and does not replace the official result. "
         "Opening this workflow does not change the assessment.</p></details>"
     )
 
@@ -4857,7 +4864,7 @@ def assessment_reports_page(
 {_ws_header(record, 'Reports for ' + str(record.get('business_name') or 'Assessment'), 'reports', extra_chips=(ui.pill(f'{len(reports)} saved'),))}
 {_SURFACE_NOTE}
 {banner}
-{ui.card('Generate a report', '<p>Generating a report copies the saved business information and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>' + form, icon_name='doc')}
+{ui.card('Generate a report', '<p>Generating a report copies the saved business information and the saved results. It does not run a new calculation and it does not change the assessment.</p>' + form, icon_name='doc')}
 {items}
 <p><a href="/history">Open History</a></p>
 """
@@ -4895,7 +4902,7 @@ def saved_report_page(
     blocks = []
     toc = []
     for title, lines, section_id in sections:
-        items = "".join(f"<li>{escape(str(line))}</li>" for line in (lines or ["Not available. This value is not stored."]))
+        items = "".join(f"<li>{escape(wording.humanize_lines(str(line)))}</li>" for line in (lines or ["Not available. This value is not stored."]))
         blocks.append(f'<section class="card" id="{section_id}"><h2>{escape(title)}</h2><ul>{items}</ul></section>')
         toc.append((title, f"#{section_id}"))
     report_id = escape(str(report.get("id") or ""))
@@ -5007,13 +5014,13 @@ def assessment_actions_page(
                 flags.append(text)
     if flags:
         flag_list = "".join(
-            f"<li>{escape(flag)}"
-            + (f' <span class="muted">— {escape(_FLAG_SHORT[flag])}</span>' if flag in _FLAG_SHORT else "")
+            f"<li>{escape(wording.title_of(flag))}"
+            + wording.tech_ref(flag)
             + "</li>"
             for flag in flags
         )
     elif result and result.get("engine_ran"):
-        flag_list = "<li>None stored.</li>"
+        flag_list = "<li>No open concerns on file.</li>"
     else:
         flag_list = "<li>Not calculated. Analyze has not been run.</li>"
     counts = {"open": 0, "in_progress": 0, "completed": 0}
@@ -5055,7 +5062,7 @@ def assessment_actions_page(
     else:
         saved = (
             '<div id="saved-actions">'
-            + ui.empty_state("No action items are saved yet.", "Create one from a stored flag above, or write your own.", icon_name="flag")
+            + ui.empty_state("No action items are saved yet.", "Start one from an open concern above, or write your own.", icon_name="flag")
             + "</div>"
         )
     if writable and flags and result and result.get("engine_ran"):
@@ -5064,8 +5071,8 @@ def assessment_actions_page(
             + aid
             + "/actions\">"
             f"<input type=\"hidden\" name=\"source_flag\" value=\"{escape(flag)}\">"
-            f"<input type=\"hidden\" name=\"description\" value=\"Follow up on {escape(flag)}. Completing this action does not clear the flag.\">"
-            f"<button type=\"submit\">Create action from {escape(flag)}</button></form></li>"
+            f"<input type=\"hidden\" name=\"description\" value=\"Follow up: {escape(wording.title_of(flag))}. Completing this action does not lift the concern.\">"
+            f"<button type=\"submit\">Create an action: {escape(wording.title_of(flag))}</button></form></li>"
             for flag in flags
         )
     else:
@@ -5090,18 +5097,18 @@ def assessment_actions_page(
         [
             ui.stat("Stored flags", fmt.count(len(flags)), "from the official result", icon_name="shield", tone="bad" if flags else ""),
             ui.stat("To do", fmt.count(counts["open"] + counts["in_progress"]), "open or in progress", icon_name="flag"),
-            ui.stat("Completed", fmt.count(counts["completed"]), "does not clear a flag", icon_name="check"),
+            ui.stat("Completed", fmt.count(counts["completed"]), "does not lift a concern", icon_name="check"),
         ]
     )
     body = f"""
 {_ws_header(record, 'Action Center for ' + str(record.get('business_name') or 'Assessment'), 'actions')}
 {_SURFACE_NOTE}
 {banner}
-<p>Stored recommendation flags are listed below. Creating an action does not verify evidence, clear a flag, or change the recommendation.</p>
+<p>Open concerns are listed below. Creating an action does not verify evidence, lift a concern, or change the recommendation.</p>
 {stats}
-<section class="card" id="stored-flags"><h2>Stored flags</h2><ul>{flag_list}</ul></section>
-<h2>Create from a stored flag</h2>
-<ul class="ditem-links">{starters or '<li>No stored flag is available to start an action.</li>'}</ul>
+<section class="card" id="stored-flags"><h2>Open concerns</h2><ul>{flag_list}</ul></section>
+<h2>Start an action from a concern</h2>
+<ul class="ditem-links">{starters or '<li>No open concern is available to start an action.</li>'}</ul>
 <h2>New action</h2>
 {ui.card('', create)}
 <h2>Saved actions</h2>
@@ -5291,7 +5298,7 @@ def assessment_plans_page(
     body = f"""
 {_ws_header(record, 'Business plans for ' + str(record.get('business_name') or 'Assessment'), 'plan', extra_chips=(ui.pill(f'{len(plans)} saved'),))}
 {banner}
-{ui.card('Generate a business plan', '<p>A business plan copies the saved intake and the stored engine result. It does not run a new calculation and it does not change the assessment.</p>' + generate, icon_name='plan')}
+{ui.card('Generate a business plan', '<p>A business plan copies the saved intake and the saved results. It does not run a new calculation and it does not change the assessment.</p>' + generate, icon_name='plan')}
 {saved}
 <p><a href="/history">Open History</a></p>
 """
@@ -5327,7 +5334,7 @@ def business_plan_page(
             "<p>Funding requirements for a new startup are not part of this existing or expanding business.</p>"
         )
     else:
-        capital_items = "".join(f"<li>{escape(line)}</li>" for line in capital_lines(document.get("projection")))
+        capital_items = "".join(f"<li>{escape(wording.humanize_lines(line))}</li>" for line in capital_lines(document.get("projection")))
         capital = f"<ul>{capital_items}</ul>{graphics.get('allocation') or ''}"
         funding = f"<ul>{capital_items}</ul><p class=\"muted\">Use of proceeds is limited to the stored sources and uses. No extra category was added.</p>"
     ordered = (
@@ -5377,7 +5384,7 @@ def business_plan_page(
         ("durable-value", "Durable Value Considerations", blocks["durable_value"]),
         ("funding", "Funding Requirements and Use of Proceeds", funding),
         ("implementation", "Implementation Priorities and Next Steps", blocks["implementation"]),
-        ("recommendation", "Stored recommendation", _fact_list(snapshot, "recommendation") + _fact_list(snapshot, "limitations")),
+        ("recommendation", "Draft recommendation", _fact_list(snapshot, "recommendation") + _fact_list(snapshot, "limitations")),
     )
     nav = "".join(f'<a href="#{section_id}">{escape(title)}</a>' for section_id, title, _body in ordered)
     rendered = [
@@ -5426,7 +5433,7 @@ def business_plan_page(
 {head}
 {banner}
 <p id="plan-source" class="dnote dnote-note" role="note">{escape(str(document.get('narrative_source') or ASSEMBLED))}</p>
-<p>Saved {ui.when(plan.get('created_at'))}. Updated {ui.when(plan.get('updated_at'))}. Narrative edits do not change the copied financial figures or the assessment. Completing this plan does not set human_review_approved and does not grant investor-ready status.</p>
+<p>Saved {ui.when(plan.get('created_at'))}. Updated {ui.when(plan.get('updated_at'))}. Narrative edits do not change the copied financial figures or the assessment. Completing this plan does not approve the assessment and does not grant investor-ready status.</p>
 {status}
 <nav class="plan-nav" aria-label="Business plan sections">{nav}</nav>
 {tools}
@@ -5664,7 +5671,7 @@ def _narrative_block(key: str, label: str, text: str, *, printable: bool) -> str
 def _fact_list(snapshot: dict[str, Any], key: str) -> str:
     values = snapshot.get(key)
     if isinstance(values, list) and values:
-        items = "".join(f"<li>{escape(str(item))}</li>" for item in values)
+        items = "".join(f"<li>{escape(wording.humanize_lines(str(item)))}</li>" for item in values)
     else:
         items = "<li>Not available. This section was not in the saved snapshot.</li>"
     return f"<ul>{items}</ul>"
@@ -5703,7 +5710,7 @@ def adviser_index_page(
     elif mode == "fallback":
         status = "The selected adviser provider is not available. Replies stay on the deterministic adviser."
     else:
-        status = "Deterministic adviser. No live model is called until a provider and a server-side credential are configured."
+        status = "Built-in adviser. No outside AI service is used until one is set up by the site owner."
     if not records:
         items = ui.empty_state(
             "No assessment to ask about yet",
@@ -5791,19 +5798,19 @@ def adviser_conversation_page(
     )
     facts = context.get("customer_facts") if isinstance(context.get("customer_facts"), dict) else {}
     calculations = context.get("verified_calculations") if isinstance(context.get("verified_calculations"), dict) else {}
-    fact_lines = "".join(f"<li>{escape(key)}: {escape(str(value))}</li>" for key, value in facts.items()) or "<li>No Explore note is stored.</li>"
+    fact_lines = "".join(f"<li>{escape(wording.field_label(key))}: {escape(str(value))}</li>" for key, value in facts.items()) or "<li>No Explore note is stored.</li>"
     calc_lines = "".join(
-        f"<li>{escape(key)}: {escape(str(value))}. Stored calculation.</li>" for key, value in calculations.items()
-    ) or "<li>No stored engine figure is available.</li>"
+        f"<li>{escape(wording.field_label(key))}: {escape(wording.humanize_lines(str(value)))}. Calculated by RUGD from your saved figures.</li>" for key, value in calculations.items()
+    ) or "<li>No calculated figure is available yet.</li>"
     flags = context.get("risk_flags") if isinstance(context.get("risk_flags"), list) else []
-    flag_lines = "".join(f"<li>{escape(str(item))}</li>" for item in flags) or "<li>No recommend-against flag is listed.</li>"
+    flag_lines = "".join(f"<li>{escape(wording.title_of(str(item)))}{wording.tech_ref(str(item))}</li>" for item in flags) or "<li>No serious concern is listed.</li>"
     banner = f'<div class="banner">{escape(notice)}</div>' if notice else ""
     assessment_id = escape(str(record.get("id") or ""))
     mode = str(provider.get("mode") or "deterministic")
     if mode == "configured":
         mode_line = "A provider is configured. Live connectivity is unverified. Ask sends one request."
     else:
-        mode_line = "Deterministic adviser. No live model was called by opening this page."
+        mode_line = "Built-in adviser. No outside AI service was used to open this page."
     ask = ""
     if can_ask:
         action = f"/assessments/{assessment_id}/advice"
@@ -5834,7 +5841,7 @@ def adviser_conversation_page(
 {proposal_block}
 <h2>Approved suggestions</h2>
 <ul>{approved_block or '<li>No suggestion has been approved.</li>'}</ul>
-{ui.details('Saved context the adviser reads', f'<section class="card" id="adviser-context"><h2>Saved context</h2><ul>{fact_lines}</ul><h3>Stored calculations</h3><ul>{calc_lines}</ul><h3>Flags</h3><ul>{flag_lines}</ul></section>', open_=False)}
+{ui.details('Saved context the adviser reads', f'<section class="card" id="adviser-context"><h2>Saved context</h2><ul>{fact_lines}</ul><h3>Calculated figures</h3><ul>{calc_lines}</ul><h3>Open concerns</h3><ul>{flag_lines}</ul></section>', open_=False)}
 <h2>Saved conversations</h2>
 <ul>{others or '<li>No conversation is saved yet.</li>'}</ul>
 """
@@ -5856,7 +5863,7 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
 <section class="card">
 <h2>Email preferences</h2>
 <p>Sign in with a local account to store which notices this account receives.</p>
-<p class="muted">The preference is stored on the account. With SMTP_HOST unset, the server records the subject and does not write the address. Verification and password-reset messages stay available. A notice does not approve an assessment, clear a recommend-against flag, change a role, or set human_review_approved.</p>
+<p class="muted">The preference is stored on the account. With SMTP_HOST unset, the server records the subject and does not write the address. Verification and password-reset messages stay available. A notice does not approve an assessment, lift a serious concern, change a role, or approve the assessment.</p>
 </section>
 """
     else:
@@ -5880,8 +5887,8 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
             + "".join(boxes)
             + "<button type=\"submit\">Save email preferences</button>"
             "</form>"
-            "<p class=\"muted\">A notice does not approve an assessment, clear a recommend-against flag, "
-            "change a role, or set human_review_approved.</p>"
+            "<p class=\"muted\">A notice does not approve an assessment, lift a serious concern, "
+            "change a role, or approve the assessment.</p>"
             "</section>"
         )
     body = f"""
@@ -5896,15 +5903,15 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>
 <p>Educational guidance on the tier pages is not a DVT evaluation. LongArc / DVT is not connected. The Webflow site is not connected.</p>
-<p>Market Pulse is a hypothetical demonstration. Monitoring is not active. No scheduled job or connector is configured. Account email preferences on this page are stored for the signed-in account. A chosen notice can be written to the server log. The notice does not approve an assessment or clear a flag.</p>
+<p>Market Pulse is a hypothetical demonstration. Monitoring is not active. No scheduled job or connector is configured. Account email preferences on this page are stored for the signed-in account. A chosen notice can be written to the server log. The notice does not approve an assessment or lift a concern.</p>
 <p>Only the RUGD Intelligence assessment is the official baseline. Bunny Hive and Small Town Pub stay empty named-pilot drafts until evidence is entered. They are not completed assessments.</p>
-<p>Authoritative calculations remain in the 0.1 Python engine.</p>
+<p>All figures come from RUGD's fixed analysis, which this page cannot change.</p>
 """
     return layout("Settings", body)
 
 
 def _settings_technical_note() -> str:
-    return """<p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, the server records the subject and does not write the address or the link. You can sign in before the email is verified. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>"""
+    return """<p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, the server records the subject and does not write the address or the link. You can sign in before the email is verified. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot approve an assessment or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>"""
 
 
 def new_assessment_page(
@@ -6016,7 +6023,7 @@ def _evidence_checklist(
 <section class="card" id="evidence-checklist-{assessment_id}">
 <h2>Evidence checklist</h2>
 <p>{escape(str(view["disclaimer"]))}</p>
-<p><strong>Guidance progress:</strong> {view["noted_or_recorded"]} of {view["total"]} items noted or recorded. This progress does not clear a recommend-against flag.</p>
+<p><strong>Guidance progress:</strong> {view["noted_or_recorded"]} of {view["total"]} items noted or recorded. Ticking items does not lift a serious concern.</p>
 {controls}
 </section>
 """
@@ -6057,7 +6064,7 @@ def explore_page(
         )
     intro = (
         '<p class="muted">Service tier: Explore.</p>'
-        '<div class="banner">Explore is an intake and gap check. It is not a completed feasibility study. It does not clear a flag.</div>'
+        '<div class="banner">Explore is an intake and gap check. It is not a completed feasibility study. It does not lift a concern.</div>'
         "<p>Use a saved draft to clarify the concept, capital assumptions, and missing evidence. Run Analyze only when you want the deterministic engine.</p>"
         "<p>Open a draft to ask the assistant about that assessment. The assistant is assistance only and cannot change the draft.</p>"
         "<p>Saved research can inform a question. It stays separate from customer assumptions and from the engine result.</p>"
@@ -6071,7 +6078,7 @@ def explore_page(
         _section_welcome(
             "Welcome to RUGD Explore",
             "This page is where a draft starts.",
-            "You can describe the business, see which evidence is still missing, and save the intake. It does not clear a flag.",
+            "You can describe the business, see which evidence is still missing, and save the intake. It does not lift a concern.",
         )
         + _SURFACE_NOTE
         + intro
@@ -6095,7 +6102,7 @@ def analyze_index(records: list[dict[str, Any]]) -> str:
         )
     return layout(
         "Analyze",
-        f"{_section_welcome('Welcome to RUGD Analyze', 'This page runs a saved draft through the assessment engine and shows the stored result.', 'Financial figures come only from that engine. A hard recommend-against flag still forces do-not-proceed.')}{_SURFACE_NOTE}"
+        f"{_section_welcome('Welcome to RUGD Analyze', 'This page runs a saved draft through the assessment engine and shows the stored result.', 'Financial figures come only from that engine. A serious concern still forces do-not-proceed.')}{_SURFACE_NOTE}"
         "<p class=\"muted\">Service tier: Analyze.</p>"
         "<p>Results come from the 0.1 deterministic engine. Authoritative financial numbers come only from the 0.1 engine. "
         "This list does not mark a draft or the official baseline investor-ready.</p>"

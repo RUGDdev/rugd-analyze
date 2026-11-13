@@ -408,7 +408,7 @@ def build_cards(
                 "contingency_pct",
                 "none",
                 "Ask what the bid already carries",
-                "This is blank or still at the engine's placeholder. Your contractor can say how much contingency their estimate includes.",
+                "This is blank or still at a starting number from RUGD. Your contractor can say how much contingency their estimate includes.",
                 source="No contingency benchmark is loaded. The placeholder is not a market figure.",
             )
         )
@@ -418,7 +418,7 @@ def build_cards(
                 "annual_interest_rate",
                 "none",
                 "Rate and term come from a lender",
-                "A rate or term that is blank or still at the engine's placeholder is not a lender's figure. Get a term sheet or an indication before relying on it.",
+                "A rate or term that is blank or still at a starting number from RUGD is not a lender's figure. Get a term sheet or an indication before relying on it.",
                 source="No lending benchmark is loaded. A Small Business Development Center advisor can help you compare lenders.",
                 links=[("Find a free advisor", "https://www.sba.gov/local-assistance/resource-partners/small-business-development-centers-sbdc")],
             )

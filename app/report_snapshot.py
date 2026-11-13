@@ -48,7 +48,7 @@ _LIMITATIONS = (
     "Customer-entered values are user-supplied assumptions.",
     "This report copies stored figures. It does not calculate a new result.",
     "No feasibility score is calculated.",
-    "This report does not set human_review_approved and it does not change investor readiness.",
+    "This report does not approve the assessment and it does not change investor readiness.",
     "Completing an action does not verify evidence or change the stored recommendation.",
     "Local prototype. Not production security. This screen does not grant investor-ready status.",
 )
@@ -186,7 +186,7 @@ def _base_results(financial: dict[str, Any] | None, engine_ran: bool) -> list[st
         if number is None:
             lines.append(f"{key}: not calculated.")
         else:
-            lines.append(f"{key}: {display.figure(key, number)}. Calculated by the engine.")
+            lines.append(f"{key}: {display.figure(key, number)}. Calculated by RUGD.")
     flags = financial.get("flags") if isinstance(financial.get("flags"), list) else []
     if flags:
         lines.append("Engine flags: " + ", ".join(str(flag) for flag in flags) + ".")
@@ -211,7 +211,7 @@ def _downside(record: dict[str, Any]) -> list[str]:
         if number is None:
             lines.append(f"{label}: not calculated.")
         else:
-            lines.append(f"{label}: {display.figure(key, number)}. Calculated by the engine.")
+            lines.append(f"{label}: {display.figure(key, number)}. Calculated by RUGD.")
     return lines
 
 

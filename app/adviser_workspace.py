@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-DETERMINISTIC = "Deterministic adviser. No live model was called."
+DETERMINISTIC = "Built-in adviser. No outside AI service was used."
 LIVE = "Live adviser reply. This is not a deterministic fallback."
 FALLBACK = "The configured adviser could not be reached. No live reply was invented."
 NOT_SAVED = "This suggestion is not part of the saved plan or deck until you approve it."

@@ -52,7 +52,7 @@ MAX_HISTORY_MESSAGES = 6
 
 
 ASSISTANCE_LABEL = (
-    "Assistance only. It cannot change numbers, flags, approval, or investor readiness."
+    "Assistance only. It cannot change numbers, lift a concern, or approve anything."
 )
 
 # Internal text. It goes to the provider as the system message and is never shown to a customer.
@@ -82,7 +82,7 @@ STARTER_QUESTIONS = (
     "What should I do next?",
     "What should I work on next?",
     "What does the recommendation mean?",
-    "What does this gate mean?",
+    "Why does it say important information is still needed?",
     "Am I investor-ready?",
     "How is this different from a business plan?",
 )
@@ -258,6 +258,12 @@ class ExternalAnalyst:
         return self._complete(packet)
 
 
+def _plain_title(code: str) -> str:
+    from app import wording
+
+    return wording.title_of(code)
+
+
 def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[str, Any]:
     """Name the assistance stage for this file. Reading it does not write a result."""
     record = record or {}
@@ -268,7 +274,7 @@ def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[s
     assessment_id = str(record.get("id") or "")
     if not ran:
         current = "intake"
-        action = "Save the draft, then run Analyze. This suggestion does not run the engine."
+        action = "Save the draft, then run Analyze to see what RUGD finds."
         href = f"/assessments/{assessment_id}#intake" if surface == "results" else "#intake"
         link_label = "Open the intake fields"
         questions = (
@@ -280,29 +286,29 @@ def agent_workflow(record: dict[str, Any], *, surface: str = "intake") -> dict[s
         current = "results"
         if flags:
             action = (
-                f"Read the active recommend-against flag {flags[0]}. "
-                "This suggestion does not clear it."
+                f"Start with the main open concern: {_plain_title(flags[0]).lower()}. "
+                "Reading about it does not resolve it."
             )
         else:
-            action = "Read the stored recommendation. This suggestion does not change it."
+            action = "Read the saved recommendation and the next steps."
         href = "#results-lead"
-        link_label = "Read the stored result"
+        link_label = "Read the saved result"
         questions = (
             "Explain this result",
             "What should I do next?",
-            "What does this gate mean?",
+            "Why does it say important information is still needed?",
         )
     else:
         current = "gaps"
         if missing:
             action = (
-                "The engine already lists missing items on this draft. "
-                "This suggestion does not fill them."
+                "RUGD already lists the missing items on this draft. "
+                "This suggestion does not fill them in."
             )
         elif flags:
             action = (
-                f"Recommend-against flag {flags[0]} is still active. "
-                "This suggestion does not clear it."
+                f"Still open: {_plain_title(flags[0]).lower()}. "
+                "This suggestion does not resolve it."
             )
         else:
             action = "Read the stored result. This suggestion does not change it."
@@ -418,7 +424,9 @@ def _grounded_reply(
     question: str,
     market_notes: list[str] | None,
 ) -> list[str]:
-    """Sentences drawn from this assessment. No figure is invented."""
+    """Sentences drawn from this assessment, in a supportive adviser's voice. No figure is invented."""
+    from app import wording
+
     asked = " ".join(str(question or "").split()).strip()
     folded = asked.lower()
     lines = [
@@ -426,99 +434,96 @@ def _grounded_reply(
     ]
     if record.get("read_only"):
         lines.append(
-            "This is the official baseline. Its draft stays do-not-proceed until the intake itself "
-            "and an authorized review change it. This reply does not change the intake."
+            "This is the official RUGD Intelligence baseline. It still needs real evidence of customer demand "
+            "and an authorized review before its draft recommendation can change. Nothing I say changes that."
         )
     if "different" in folded or "business plan" in folded:
         lines.append(
-            "RUGD keeps a hard recommend-against flag in force. A business-plan narrative, "
-            "an indicative number, and a market example do not clear that flag or grant investor-ready status. "
-            "When a public extract is requested, Market Intelligence shows the source and the period. "
-            "This reply does not change the recommendation."
+            "A business plan tells your story. RUGD checks whether the evidence behind the story is there. "
+            "A well-written plan, a preliminary evaluation, or a market example cannot stand in for proof that customers will buy, "
+            "and none of them makes a business ready to show investors. "
+            "When you ask for a public market extract, Market Intelligence shows its source and period."
         )
     if not result or not result.get("engine_ran"):
         lines.append(
-            "Analyze has not been run yet. Save the draft, then run Analyze. "
-            "This reply does not run the engine and does not fill a blank field."
+            "RUGD has not analyzed this business yet. Save your answers, then run Analyze, and I can walk you through what it finds. "
+            "This reply does not run the analysis, and I will not fill in a blank for you."
         )
-        lines.append("Return to the intake on this draft. Blank fields stay blank.")
+        lines.append("Return to the intake on this draft and complete what you know. A blank stays blank.")
         return lines
     flags = [str(flag) for flag in result.get("blocking_flags") or []]
     if "score" in folded:
-        lines.append(f"The feasibility score line is {result.get('score_line')}.")
+        lines.append(
+            f"The saved score line reads: {result.get('score_line')}. "
+            "In plain terms, RUGD does not give one overall feasibility score yet."
+        )
         lines.extend(_indicative_reading(result))
     if "demand" in folded:
         if "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
             lines.append(
-                "Demand evidence is missing because INSUFFICIENT_DEMAND_EVIDENCE is still active. "
-                "The engine needs a verified demand record: source verified, a rationale, and a true demand claim "
-                "or trailing revenue above zero. This reply does not create that record and does not clear the flag."
+                "Customer demand is the missing piece. RUGD has no documented proof yet that customers will buy. "
+                "What helps is real evidence: signed commitments, pre-orders, deposits, or documented sales from an existing business, "
+                "saved as verified evidence in Research. Telling me it is true is not enough, and this reply does not lift the concern."
             )
         else:
             lines.append(
-                "INSUFFICIENT_DEMAND_EVIDENCE is not in the active recommend-against flags on this stored result. "
-                "This reply does not change that list."
+                "No demand-evidence concern is on file for this assessment right now. "
+                "This reply does not add or remove one."
             )
     if "explain" in folded:
         lines.append(
-            f"The stored recommendation is {result.get('recommendation')}. "
-            f"Investor readiness is {result.get('readiness_status')}. "
-            "This reply explains the stored result and does not change it."
+            f"Where things stand: {wording.recommendation_label(str(result.get('recommendation') or '')).lower()}, "
+            f"and {wording.readiness_label(str(result.get('readiness_status') or '')).lower()}. "
+            "That is a draft reading of what is saved. Explaining it does not change it."
         )
         lines.extend(_indicative_reading(result))
     if "evidence" in folded or "missing" in folded:
         missing = [str(item) for item in result.get("missing") or []]
         if missing:
-            shown = "; ".join(missing[:6])
+            shown = "; ".join(item.rstrip(". ") for item in missing[:6])
             lines.append(
-                f"The engine already lists these missing items: {shown}. "
-                "This reply does not fill them and does not clear a flag."
+                f"These items are still missing: {shown}. "
+                "You fill them in on the draft. I will not fill them in for you."
             )
         if flags:
-            listed = "; ".join(flags)
-            lines.append(
-                f"Recommend-against flags still active: {listed}. This reply does not clear them."
-            )
+            listed = "; ".join(wording.title_of(flag) for flag in flags)
+            lines.append(f"Still open: {listed}. Nothing I say closes them.")
         elif not missing:
-            lines.append(
-                "No recommend-against flag is listed on this stored result. "
-                "This reply does not add or remove one."
-            )
+            lines.append("Nothing is listed as missing on this saved result. This reply does not add or remove anything.")
     if "next" in folded or "what should i do" in folded:
         missing = [str(item) for item in result.get("missing") or []]
         if missing:
-            shown = "; ".join(missing[:6])
+            shown = "; ".join(item.rstrip(". ") for item in missing[:6])
             lines.append(
-                f"Next, the engine already lists these missing items: {shown}. "
-                "Entering them is your edit on the draft. This reply does not write them."
+                f"A good next step is to enter the missing items: {shown}. "
+                "Those are your edits on the draft. I will not write them in for you, and this reply does not lift the concern."
             )
         elif "INSUFFICIENT_DEMAND_EVIDENCE" in flags:
             lines.append(
-                "Next, gather verified demand evidence and save it on the draft. "
-                "This reply does not clear the flag."
+                "A good next step is to gather evidence that customers will buy, such as signed commitments, deposits, or documented sales, "
+                "and save it in Research. This reply does not lift the concern; real evidence and an authorized review do."
             )
         else:
             lines.append(
-                "Next, read the recommend-against flags and the evidence checklist on this file. "
-                "This reply does not close them."
+                "A good next step is to read what is still open and work through the evidence checklist on this file. "
+                "This reply does not close anything."
             )
-    if "gate" in folded:
+    if "gate" in folded or "important information" in folded:
         lines.extend(_indicative_reading(result))
         lines.append(
-            "In everyday words: a blocked gate means a hard recommend-against flag is still active, "
-            "so the recommendation stays do-not-proceed. An open gate is not investor-ready. "
-            "This reply does not change the gate."
+            "\"Important information still needed\" means something essential, usually proof that customers will buy, is missing. "
+            "Until it is on file, the draft stays at not ready to go ahead, and a result that is not blocked is still not ready to show investors. "
+            "This reply does not change that."
         )
     if "recommend" in folded:
         lines.append(
-            f"The stored recommendation is {result.get('recommendation')}. "
-            "A hard recommend-against flag keeps the gate at do-not-proceed. "
-            "This reply does not change the recommendation."
+            f"RUGD's draft recommendation is: {wording.recommendation_label(str(result.get('recommendation') or '')).lower()}. "
+            "A serious concern on file keeps it there. This reply does not change the recommendation."
         )
     if "investor" in folded:
         lines.append(
-            f"Investor readiness on this stored result is {result.get('readiness_status')}. "
-            "Asking a question does not set human_review_approved and does not grant investor-ready status."
+            f"Right now the file is marked: {wording.readiness_label(str(result.get('readiness_status') or '')).lower()}. "
+            "Asking a question does not approve anything and does not grant investor-ready status."
         )
     if "market" in folded:
         notes = [str(item) for item in (market_notes or []) if str(item).strip()]
@@ -526,36 +531,37 @@ def _grounded_reply(
             lines.append(
                 "Market observations already attached to this question, as observations only: "
                 + "; ".join(notes[:4])
-                + ". They do not clear a flag."
+                + ". They do not lift a concern."
             )
         else:
             lines.append(
-                "No market observation is stored on this engine result. "
+                "No market observation is saved on this result. "
                 "The Market Intelligence page is a labeled demonstration unless a public extract was requested. "
                 "This reply does not add a market figure."
             )
     lines.append(
-        f"Stored recommendation: {result.get('recommendation')}. "
-        f"Investor readiness: {result.get('readiness_status')}. "
-        f"human_review_approved: {str(bool(result.get('human_review_approved'))).lower()}."
+        f"Where things stand: {wording.recommendation_label(str(result.get('recommendation') or '')).lower()}; "
+        f"{wording.readiness_label(str(result.get('readiness_status') or '')).lower()}; "
+        f"{wording.review_label('approved' if result.get('human_review_approved') else 'pending').lower()}."
     )
     for flag in flags:
-        lines.append(f"Recommend-against flag still active: {flag}.")
+        lines.append(f"Still open: {wording.title_of(flag)}.")
     if not flags:
-        lines.append("No recommend-against flag is listed on this stored result. This reply does not add or remove one.")
+        lines.append("No serious concern is listed on this saved result. This reply does not add or remove one.")
     return lines
 
 
 def _indicative_reading(result: dict[str, Any]) -> list[str]:
+    from app import wording
     from app.indicative_score import indicative_score
 
     score = indicative_score(copy.deepcopy(result))
     return [
         (
-            f"Indicative gate status is {score.get('gate_status')}, band {score.get('band')}, "
-            f"gate recommendation {score.get('gate_recommendation')}. "
-            "A recommend-against flag forces Blocked and do-not-proceed. "
-            "The indicative number does not replace the feasibility line."
+            f"The preliminary business evaluation reads: {wording.gate_label(str(score.get('gate_status')))}, "
+            f"{wording.band_label(str(score.get('band'))).lower()}. "
+            "A serious concern on file holds it there, whatever the numbers say. "
+            "It is a reading aid and does not replace the saved recommendation."
         )
     ]
 

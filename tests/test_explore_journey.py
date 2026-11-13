@@ -70,7 +70,7 @@ class TestExploreJourney(unittest.TestCase):
             page = self._get(base + location.split("#")[0], cookie)
             self.assertIn("id=\"adviser\"", page)
             self.assertIn("What should we call this business?", page)
-            self.assertIn("Deterministic guidance, no live model. Nothing is saved until you approve it.", page)
+            self.assertIn("Built-in guidance, no outside AI service. Nothing is saved until you approve it.", page)
             self.assertNotIn("ANALYST_PROVIDER", page)
             self.assertNotIn("Streaming is not available", page)
             self.assertNotIn("You are the RUGD analyst", page)

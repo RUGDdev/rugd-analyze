@@ -426,7 +426,7 @@ class TestImprovementScenarios(unittest.TestCase):
         spec, _ = improve.parse_scenario({"ov_average_ticket": "16"}, base)
         scenario = improve.build_scenario(base, spec)
         text = " ".join(item["verify"] for item in scenario["needs"])
-        self.assertIn("coded placeholder", text)
+        self.assertIn("starting number from RUGD", text)
         self.assertIn("menu prices", text)
 
     def test_apply_touches_only_scenario_fields_and_records_the_previous_value(self) -> None:

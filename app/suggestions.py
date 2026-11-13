@@ -14,9 +14,9 @@ from pathlib import Path
 CATALOG_PATH = Path(__file__).with_name("explore_suggestions.json")
 
 SUGGESTION_NOTE = (
-    "Examples only. Guidance. Selecting a suggestion fills the field as a user-supplied assumption. "
-    "It does not affect the engine result, a recommend-against flag, demand evidence, "
-    "or investor readiness."
+    "Examples only. Choosing a suggestion fills the field with your own estimate to edit. "
+    "It does not change the analysis, lift a serious concern, count as proof of demand, "
+    "or make a business ready to show investors."
 )
 
 SUGGESTION_FIELDS = ("stage", "products", "customers", "competition")

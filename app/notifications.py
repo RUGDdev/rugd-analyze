@@ -4,8 +4,8 @@ The preference is a record on the account. Delivery uses the existing mail
 path: the server log when SMTP_HOST is unset, or SMTP when it is set.
 A notice goes only to the owner of that assessment, and only when that owner
 turned the event on. Verification and password-reset mail are separate and
-stay available. A notice does not approve an assessment, clear a flag, change
-a role, or set human_review_approved.
+stay available. A notice does not approve an assessment, lift a concern, change
+a role, or approve the assessment.
 """
 
 from __future__ import annotations
@@ -74,7 +74,7 @@ def _message(event: str, name: str) -> tuple[str, str]:
             "RUGD Analyze: a read-only link was created",
             (
                 f"{name}: a read-only link was created. The link cannot edit the assessment or approve it. "
-                "This notice does not set human_review_approved or clear a recommend-against flag."
+                "This notice does not approve the assessment or lift a serious concern."
             ),
         )
     if event == "review_requested":
@@ -82,14 +82,14 @@ def _message(event: str, name: str) -> tuple[str, str]:
             "RUGD Analyze: a review was requested",
             (
                 f"{name}: a review was requested. This notice does not approve the assessment, "
-                "clear a recommend-against flag, or set human_review_approved."
+                "lift a serious concern, or approve the assessment."
             ),
         )
     return (
         "RUGD Analyze: a review was recorded",
         (
             f"{name}: a reviewer recorded a decision. That decision does not by itself clear a "
-            "recommend-against flag or grant investor-ready status. "
-            "This notice does not set human_review_approved."
+            "serious concern or grant investor-ready status. "
+            "This notice does not approve the assessment."
         ),
     )

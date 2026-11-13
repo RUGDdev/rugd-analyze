@@ -133,7 +133,7 @@ class TestReadOnlyShare(unittest.TestCase):
             page = self._get(base + f"/share/{token}")
             self.assertIn("Local prototype. Not production security. This screen does not grant investor-ready status.", page)
             self.assertIn("Read-only share.", page)
-            self.assertIn("Indicative assessment — market validity, financial viability, and stewardship readiness.", page)
+            self.assertIn("Preliminary business evaluation", page)
             self.assertIn("Market context", page)
             self.assertIn("Restaurant", page)
             self.assertIn("These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE", page)

@@ -112,7 +112,7 @@ class TestIndustryGuidance(unittest.TestCase):
         self.assertIn('id="name-seed"', page)
         self.assertNotIn("You are the RUGD analyst", page)
         self.assertNotIn("ANALYST_PROVIDER", page)
-        self.assertIn("Deterministic adviser. No live model was called.", page)
+        self.assertIn("Built-in adviser. No outside AI service was used.", page)
         self.assertIn("Covers and average check", page)
         self.assertIn(BENCHMARK_NOTE, page)
         self.assertIn('id="suggestion-note"', page)

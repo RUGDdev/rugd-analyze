@@ -101,28 +101,28 @@ CPS_SOURCE = "U.S. Bureau of Labor Statistics, Current Population Survey"
 ACS_LABEL = (
     "Public source: U.S. Census Bureau, American Community Survey 5-year estimates. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
-    "or any recommend-against flag."
+    "or any serious concern."
 )
 PUBLIC_LABEL = (
     "Public source: U.S. Bureau of Labor Statistics, Quarterly Census of Employment and Wages. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
-    "or any recommend-against flag."
+    "or any serious concern."
 )
 CBP_LABEL = (
     "Public source: U.S. Census Bureau, County Business Patterns. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
-    "or any recommend-against flag."
+    "or any serious concern."
 )
 BEA_LABEL = (
     "Public source: U.S. Bureau of Economic Analysis, Regional Economic Accounts. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
-    "or any recommend-against flag."
+    "or any serious concern."
 )
 LAUS_LABEL = (
     "Public source: U.S. Bureau of Labor Statistics, Local Area Unemployment Statistics. "
     "The United States row uses the Current Population Survey national series. "
     "Not a live feed. Not monitoring. These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE "
-    "or any recommend-against flag."
+    "or any serious concern."
 )
 FALLBACK_LABEL = (
     "Fallback: synthetic snapshot. The public market provider did not return observations. "
@@ -140,7 +140,7 @@ _PUBLIC_LIMITATION = (
     "Annual average for private ownership in the Quarterly Census of Employment and Wages. "
     "This is covered employment and wages for an industry and geography, not revenue or demand "
     "for any one business. It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any other "
-    "recommend-against flag, and it does not set human_review_approved. "
+    "serious concern, and it does not approve the assessment. "
     "It is not a live feed. Monitoring is not active. BLS may suppress a cell or revise a release."
 )
 _INDUSTRIES = {
@@ -258,8 +258,8 @@ _ACS_LIMITATION = (
     "American Community Survey 5-year estimates, tables B01003 (total population) and "
     "B19013 (median household income). These are residence-based survey estimates, not revenue "
     "or demand for any one business. Margins of error are not shown. "
-    "It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag, "
-    "and it does not set human_review_approved. It is not a live feed. Monitoring is not active. "
+    "It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any other serious concern, "
+    "and it does not approve the assessment. It is not a live feed. Monitoring is not active. "
     "Census may suppress a cell or revise a release."
 )
 
@@ -353,7 +353,7 @@ class CensusAcsProvider:
                 "Derived by subtracting the prior ACS 5-year total population, table B01003, "
                 "from the selected vintage. The two 5-year periods overlap, so this is not a "
                 "one-year population change. It does not clear INSUFFICIENT_DEMAND_EVIDENCE or "
-                "any other recommend-against flag, and it does not set human_review_approved."
+                "any other serious concern, and it does not approve the assessment."
             ),
             "measure": "Population change between overlapping ACS 5-year vintages",
             "value": str(int(current_value) - int(prior_value)),
@@ -383,7 +383,7 @@ class CensusAcsProvider:
             "The note uses the published count under $10,000 and the published count at "
             "$200,000 or more. A whole-number share is derived from those counts and is rounded down. "
             "This is not a recommendation. It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any "
-            "other recommend-against flag, and it does not set human_review_approved."
+            "other serious concern, and it does not approve the assessment."
         )
         base = {
             "source": CENSUS_SOURCE,
@@ -460,7 +460,7 @@ class CensusCbpProvider:
             "Annual payroll is published in thousands of dollars. "
             "These are establishment counts, employment, and payroll, not revenue or demand for any "
             "one business. They do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other "
-            "recommend-against flag, and they do not set human_review_approved. "
+            "serious concern, and they do not approve the assessment. "
             "This is not a live feed. Monitoring is not active."
         )
         base = {
@@ -506,8 +506,8 @@ _BEA_LIMITATION = (
     "CAGDP2 line 1 is current-dollar GDP for all industries, in thousands of dollars. "
     "CAINC1 line 1 is personal income, in thousands of dollars. "
     "These are geography totals, not revenue or demand for any one business, and not one NAICS industry. "
-    "It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag, "
-    "and it does not set human_review_approved. It is not a live feed. Monitoring is not active. "
+    "It does not clear INSUFFICIENT_DEMAND_EVIDENCE or any other serious concern, "
+    "and it does not approve the assessment. It is not a live feed. Monitoring is not active. "
     "BEA may suppress a cell or revise a release."
 )
 _CBP_API_GEO = {
@@ -613,8 +613,8 @@ _LAUS_LIMITATION = (
     "Local Area Unemployment Statistics annual average, period M13, not seasonally adjusted. "
     "Measure 03 is the unemployment rate in percent. Measure 06 is the civilian labor force. "
     "These are area labor-market estimates, not revenue or demand for any one business, and not a NAICS industry. "
-    "They do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag, "
-    "and they do not set human_review_approved. This is not a live feed. Monitoring is not active. "
+    "They do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other serious concern, "
+    "and they do not approve the assessment. This is not a live feed. Monitoring is not active. "
     "BLS may revise a release."
 )
 
@@ -821,7 +821,7 @@ def _synthetic_observations(view: dict[str, Any]) -> list[dict[str, str]]:
     snapshot = view.get("snapshot") or {}
     limitations = (
         "Synthetic example only. Not market research and not a public dataset. "
-        "These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other recommend-against flag."
+        "These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any other serious concern."
     )
     return [
         {
@@ -971,7 +971,7 @@ def _load_combined(
             "Public sources: "
             + "; ".join(active)
             + ". Not a live feed. Not monitoring. "
-            "These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any recommend-against flag."
+            "These figures do not clear INSUFFICIENT_DEMAND_EVIDENCE or any serious concern."
         ),
         "reason": None,
         "provider_name": "combined",

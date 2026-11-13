@@ -10,7 +10,7 @@ from __future__ import annotations
 from html import escape
 from typing import Any
 
-from app import advisory, benchmarks, display, improve
+from app import advisory, benchmarks, display, improve, wording
 from app import revenue_worksheet as rw
 from app.field_help import DAYS
 from app.pages import _workspace_links, _ws_header, layout
@@ -102,11 +102,26 @@ def _official_strip(record: dict[str, Any]) -> str:
             '<div class="adv-note"><strong>Official result:</strong> Analyze has not been run for this draft. '
             "Nothing on this page changes that.</div>"
         )
+    from app import wording
+
     flags = ", ".join(escape(flag) for flag in official["flags"]) or "none"
+    plain = wording.official_line(
+        {
+            "engine_ran": True,
+            "recommendation": official["recommendation"],
+            "blocking_flags": list(official["flags"]),
+            "readiness_status": official["readiness"],
+            "human_review_status": official["review"],
+        }
+    )
     return (
-        '<div class="adv-note"><strong>Official result, unchanged by this page:</strong> '
+        '<div class="adv-note"><strong>Where the official result stands.</strong> '
+        f"{escape(plain)} Nothing on this page changes it."
+        '<details class="techref"><summary>Technical reference</summary>'
+        "<p><strong>Official result, unchanged by this page:</strong> "
         f"{escape(official['recommendation'] or 'not stated')} · blocking flags: {flags} · "
-        f"readiness: {escape(official['readiness'] or 'not stated')} · human review: {escape(official['review'])}.</div>"
+        f"readiness: {escape(official['readiness'] or 'not stated')} · human review: {escape(official['review'])}.</p>"
+        "</details></div>"
     )
 
 
@@ -281,6 +296,7 @@ def benchmarks_page(
         + _official_strip(record)
         + intro
         + "<h2>Stored figures</h2>"
+        + f'<p class="muted">What is a benchmark? {wording.explain("benchmark", _id(record))}</p>'
         + loaded
         + unresolved
         + "<h2>Not loaded</h2>"
@@ -478,13 +494,13 @@ _METRIC_ROWS = (
     ("total_project_cost", "Total project cost", _n),
     ("debt", "Debt", _n),
     ("equity", "Your equity", _n),
-    ("annual_debt_service", "Yearly debt service", _n),
-    ("base_revenue", "Base revenue", _n),
+    ("annual_debt_service", "Loan payments, per year", _n),
+    ("base_revenue", "Expected sales", _n),
     ("base_cash_flow", "Base cash flow before debt service", _n),
-    ("base_dscr", "Base coverage", _x),
+    ("base_dscr", "Loan coverage, typical year", _x),
     ("downside_cash_flow", "Downside cash flow before debt service", _n),
-    ("downside_dscr", "Downside coverage", _x),
-    ("break_even_revenue", "Break-even revenue", _n),
+    ("downside_dscr", "Loan coverage, weaker year", _x),
+    ("break_even_revenue", "Sales needed to break even", _n),
 )
 
 
@@ -607,7 +623,7 @@ def improve_page(
         step = 0.25
     official = improve.explain_official(record)
     head = banner + f'<div class="adv-note"><strong>{escape(improve.NOT_APPROVED)}</strong></div>' + _official_strip(record)
-    explain = _explain_html(official)
+    explain = _explain_html(official, _id(record))
     base = improve.base_inputs(profile)
     if base["missing"]:
         labels = ", ".join(improve.LABELS[key] for key in base["missing"])
@@ -634,11 +650,11 @@ def improve_page(
         f'<div class="adv-stat"><b>{fmt(base_metrics[key])}</b><span>{escape(label)}</span></div>'
         for key, label, fmt in (
             ("total_project_cost", "Total project cost", _n),
-            ("annual_debt_service", "Yearly debt service", _n),
-            ("base_dscr", "Base coverage", _x),
-            ("downside_dscr", "Downside coverage", _x),
-            ("base_revenue", "Base revenue", _n),
-            ("break_even_revenue", "Break-even revenue", _n),
+            ("annual_debt_service", "Loan payments, per year", _n),
+            ("base_dscr", "Loan coverage, typical year", _x),
+            ("downside_dscr", "Loan coverage, weaker year", _x),
+            ("base_revenue", "Expected sales", _n),
+            ("break_even_revenue", "Sales needed to break even", _n),
         )
     )
     finding_html = (
@@ -648,7 +664,7 @@ def improve_page(
     )
     placeholders = [improve.LABELS[key] for key in base["placeholders"]]
     placeholder_note = (
-        f'<p class="muted">Blank or still at the engine\'s coded placeholders: {escape(", ".join(placeholders))}. These are not market figures.</p>'
+        f'<p class="muted">Still blank, or at RUGD\'s starting numbers: {escape(", ".join(placeholders))}. These are not market figures. Confirm or replace each one.</p>'
         if placeholders
         else ""
     )
@@ -666,7 +682,7 @@ def improve_page(
         f"<tr><th scope=\"row\">Funding needed from you</th><td class=\"num\">{_n(gap['base']['owner_funding_needed'])}</td><td class=\"num\">{_n(gap['downside']['owner_funding_needed'])}</td></tr>"
         f"<tr><th scope=\"row\">Gap against the cash you entered</th>{cash_row}</tr>"
         "</tbody></table></div>"
-        f"<p class=\"muted\">Revenue short of break-even: {_n(gap['revenue_gap'])} a year. Debt capacity uses the same level-payment method as the engine. "
+        f"<p class=\"muted\">Revenue short of break-even: {_n(gap['revenue_gap'])} a year. Debt capacity uses the same level-payment method as the main assessment. "
         "A lender, not this page, decides what debt is available.</p>"
     )
 
@@ -800,14 +816,14 @@ def improve_page(
     body = (
         head
         + explain
-        + "<h2>Where your working numbers stand</h2>"
+        + f"<h2>Where your working numbers stand</h2><p class=\"muted\">What is loan coverage? {wording.explain('dscr', _id(record))}</p>"
         + f'<div class="adv-grid">{stats}</div>'
         + finding_html
         + placeholder_note
-        + f'<p class="muted">Coverage level: {target_links}. The readiness gate looks at downside coverage.</p>'
-        + "<h2>Funding and cash-flow gaps</h2>"
+        + f'<p class="muted">Coverage level: {target_links}. The investor-readiness check looks at the weaker year.</p>'
+        + f"<h2>Funding and cash-flow gaps</h2><p class=\"muted\">What is break-even? {wording.explain('break_even', _id(record))}</p>"
         + gap_table
-        + "<h2>Realistic alternatives</h2>"
+        + f"<h2>Realistic alternatives</h2><p class=\"muted\">What is a scenario? {wording.explain('scenario', _id(record))}</p>"
         + f'<p class="muted">Solved options show the arithmetic. What-ifs use a {step * 100:g}% step you can change in the link: add step=0.2 for 20%.</p>'
         + preset_html
         + "<h2>Test your own scenario</h2>"
@@ -818,20 +834,32 @@ def improve_page(
     return _shell(record, "Improve feasibility", "improve", body)
 
 
-def _explain_html(official: dict[str, Any]) -> str:
+def _explain_html(official: dict[str, Any], aid: str = "") -> str:
     if not official["ran"]:
         return ""
+    from app import wording
 
     def rows(items: list[dict[str, Any]]) -> str:
-        return "".join(
-            f"<li><strong>{escape(item['flag'])}</strong>{' (blocking)' if item['blocking'] else ''}. {escape(item['action'])}</li>"
-            for item in items
-        ) or "<li>None stored.</li>"
+        out = []
+        for item in items:
+            found = wording.finding(item["flag"])
+            links = " ".join(
+                f'<a href="{escape(href)}">{escape(label)}</a>'
+                for label, href in (wording.links_for(item["flag"], aid) if aid else [])
+            )
+            tag = " <span class=\"adv-tag warn\">Holding the assessment back</span>" if item["blocking"] else ""
+            out.append(
+                f"<li><strong>{escape(found.title)}</strong>{tag}<br>{escape(found.todo)}"
+                f"{'<br>' + links if links else ''}"
+                '<details class="techref"><summary>Technical reference</summary>'
+                f"<p><code>{escape(item['flag'])}</code>. {escape(item['action'])}</p></details></li>"
+            )
+        return "".join(out) or "<li>Nothing on file.</li>"
 
     return (
-        "<h2>What the official result says</h2>"
-        "<p><strong>Evidence issues.</strong> A scenario cannot fix these. Only real evidence and an authorized review can.</p>"
+        "<h2>What RUGD found</h2>"
+        "<p><strong>Evidence still needed.</strong> A what-if scenario cannot fix these. Only real evidence and an authorized review can.</p>"
         f"<ul>{rows(official['evidence'])}</ul>"
-        "<p><strong>Financial issues.</strong> Better assumptions can change these, but only a new Analyze run changes the official result.</p>"
+        "<p><strong>Money questions.</strong> Better figures can help here, but only a new Analyze run changes the official result.</p>"
         f"<ul>{rows(official['financial'])}</ul>"
     )

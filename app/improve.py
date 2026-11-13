@@ -26,8 +26,8 @@ from engine.startup_projection import (
 from scoring.rules import DEFAULT_DOWNSIDE_DSCR_MINIMUM, LENDER_DOWNSIDE_DSCR_MINIMUM
 
 NOT_APPROVED = (
-    "A scenario is a projection from assumptions. It is not approved, it does not change the official "
-    "result, flags, scoring, or human review, and it does not supply the evidence a flag asks for."
+    "A scenario is a what-if projection from your own assumptions. It is not approved, it does not change the official "
+    "result, scoring, or human review, and it does not supply the evidence a serious concern asks for."
 )
 
 REQUIRED = (
@@ -506,7 +506,7 @@ def customer_needs(changed: list[str], dependent: list[dict[str, Any]], placehol
         rows.append(
             {
                 "field": "Placeholders (" + ", ".join(LABELS.get(key, key) for key in open_placeholders) + ")",
-                "verify": "Blank or still at the engine's coded placeholder. A placeholder is not a market figure. Confirm each or replace it.",
+                "verify": "Blank or still at a starting number from RUGD. A starting number is not a market figure. Confirm each or replace it.",
             }
         )
     return rows

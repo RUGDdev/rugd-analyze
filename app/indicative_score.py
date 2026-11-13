@@ -2,7 +2,7 @@
 
 The feasibility score in scoring.rules stays uncalculated. This module reads an
 engine result and optional educational notes. It does not write them, clear a
-recommend-against flag, set human_review_approved, or change investor readiness.
+serious concern, approve the assessment, or change investor readiness.
 """
 
 from __future__ import annotations
@@ -13,8 +13,8 @@ from app.durable_value import PILLARS
 from scoring.rules import RECOMMEND_AGAINST_FLAGS
 
 LABEL = (
-    "Indicative assessment — market validity, financial viability, and stewardship readiness. "
-    "Does not override engine flags or human review."
+    "Preliminary business evaluation — market demand, financial strength, and long-term sustainability. "
+    "Does not override a serious concern on file or a human review."
 )
 
 WEIGHTS = {
@@ -94,7 +94,7 @@ def _market(result: dict[str, Any], observations: list[dict[str, Any]] | None) -
         "uncleared": "Demand evidence is not verified, so this portion is 0.",
     }[status]
     signal_detail = (
-        "A stored public market figure adds 20. It does not clear a recommend-against flag."
+        "A stored public market figure adds 20. It does not lift a serious concern."
         if signal
         else "No market-size or growth figure is stored on this result, so this portion is 0."
     )
@@ -288,7 +288,7 @@ def _explanation(
     durable_text = " ".join(item["detail"] for item in durable["inputs"])
     return (
         f"{opening} {market_text} {profit_text} {durable_text} "
-        "This indicative score does not set human_review_approved and does not change investor readiness."
+        "This indicative score does not approve the assessment and does not change investor readiness."
     )
 
 

@@ -753,3 +753,12 @@ Owner input required before replacing `billing_hooks`:
 - The owner approved the Analyze dashboard as the standard. Reuse beats rebuild: `app/ui.py` holds the components and is injected once in `layout()`, so any page, including ones not yet redesigned, gets the same cards, buttons, banners, and header.
 - Money, percent, ratio, and month figures in saved text are formatted by `app/display.py` when the text is generated. Cents are kept when the stored number has them. Stored numbers are never rounded. The deck parser reads both forms.
 - Navigation: one workspace row per business, current page marked, one title per page. Long reference pages keep their content and move optional material into collapsed sections.
+
+## Decision: Plain language is a display layer, not a rewrite of results
+
+- Date: 2026-11-13
+- Status: Accepted for the local pilot. Presentation only. No change to formulas, scoring weights, recommend-against criteria, the Investor Readiness Gate, human review controls, evidence requirements, saved assessments, or the official baseline. No deployment.
+- `app/wording.py` translates at render time. Stored results, flag codes, exports, and saved report, plan, and deck text keep their original codes and keys, so audits, reviewers, and the deck parser still read the same data.
+- Codes stay reachable. They sit in collapsed "Technical reference" blocks and in `data-gate` / `data-band` attributes. A reviewer can still see exactly what is stored.
+- Every important finding states what RUGD found, why it matters, what the customer can do, and where to go. Links point only at workflows that exist.
+- The wording never implies that AI text is verified evidence or that a scenario is approved. A blocked assessment stays blocked until real evidence and an authorized review change it.

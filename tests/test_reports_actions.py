@@ -112,12 +112,12 @@ class TestReportsAndActions(unittest.TestCase):
             self.assertIn("Report Cafe", page[1])
             self.assertIn("Start a Business", page[1])
             self.assertIn("Neighbors", page[1])
-            self.assertIn(f"base_monthly_cash_flow: {display.dollars(expected['base_monthly_cash_flow'])}", page[1])
+            self.assertIn(f"Cash left after all costs, typical month: {display.dollars(expected['base_monthly_cash_flow'])}", page[1])
             self.assertIn(f'data-engine-value="{expected["base_monthly_cash_flow"]}"', page[1])
             self.assertIn("No expense amount is drawn.", page[1])
             self.assertIn("Saved Downside scenario.", page[1])
-            self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", page[1])
-            self.assertIn("human_review_approved: false", page[1])
+            self.assertIn("Not enough evidence of customer demand", page[1])
+            self.assertIn("Authorized review approved: No", page[1])
             self.assertIn("do-not-proceed", page[1])
             exported = self._get(base + report_path.split("?", 1)[0] + "/export", cookie)
             self.assertEqual(exported[0], 200)
@@ -125,7 +125,7 @@ class TestReportsAndActions(unittest.TestCase):
             printed = self._get(base + report_path.split("?", 1)[0] + "/print", cookie)
             self.assertEqual(printed[0], 200)
             self.assertIn("print-view", printed[1])
-            self.assertIn(f"base_monthly_cash_flow: {display.dollars(expected['base_monthly_cash_flow'])}", printed[1])
+            self.assertIn(f"Cash left after all costs, typical month: {display.dollars(expected['base_monthly_cash_flow'])}", printed[1])
 
             changed = {
                 "initial_capital": "10000",
@@ -139,10 +139,10 @@ class TestReportsAndActions(unittest.TestCase):
             second = self._raw(base + f"/assessments/{assessment_id}/reports", {}, cookie)
             self.assertEqual(second[0], 303)
             kept = self._get(base + report_path.split("?", 1)[0], cookie)
-            self.assertIn(f"base_monthly_cash_flow: {display.dollars(expected['base_monthly_cash_flow'])}", kept[1])
+            self.assertIn(f"Cash left after all costs, typical month: {display.dollars(expected['base_monthly_cash_flow'])}", kept[1])
             later = result_to_dict(run_financials(FinancialInputs(10000, 400, 0.5, 800, 0.6)))
             new_page = self._get(base + (second[2].get("Location") or ""), cookie)
-            self.assertIn(f"base_monthly_cash_flow: {display.dollars(later['base_monthly_cash_flow'])}", new_page[1])
+            self.assertIn(f"Cash left after all costs, typical month: {display.dollars(later['base_monthly_cash_flow'])}", new_page[1])
             self.assertNotEqual(expected["base_monthly_cash_flow"], later["base_monthly_cash_flow"])
 
             history = self._get(base + "/history", cookie)
@@ -159,7 +159,7 @@ class TestReportsAndActions(unittest.TestCase):
             self.assertEqual(created[0], 303)
             actions = self._get(base + f"/assessments/{assessment_id}/actions", cookie)
             self.assertIn("Call three customers", actions[1])
-            self.assertIn("Create action from INSUFFICIENT_DEMAND_EVIDENCE", actions[1])
+            self.assertIn("Create an action: Not enough evidence of customer demand", actions[1])
             from_flag = self._raw(
                 base + f"/assessments/{assessment_id}/actions",
                 {

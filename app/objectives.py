@@ -19,7 +19,7 @@ OBJECTIVES: tuple[dict[str, str], ...] = (
         "purpose": "startup_feasibility",
         "venture_path": "startup",
         "availability": "Available now",
-        "note": "Opens a startup draft. The engine runs only when you choose Analyze.",
+        "note": "Opens a startup draft. RUGD analyzes it only when you choose Analyze.",
     },
     {
         "id": "existing-business",
@@ -59,7 +59,7 @@ OBJECTIVES: tuple[dict[str, str], ...] = (
         "purpose": "expansion_feasibility",
         "venture_path": "existing",
         "availability": "Available now",
-        "note": "Opens an expansion draft. The choice does not clear a gate.",
+        "note": "Opens an expansion draft. The choice does not lift a concern.",
     },
     {
         "id": "prepare-investment",
@@ -75,7 +75,7 @@ OBJECTIVES: tuple[dict[str, str], ...] = (
         "purpose": "acquisition",
         "venture_path": "existing",
         "availability": "Available now",
-        "note": "The workspace opens. The 0.1 engine does not score an acquisition purpose.",
+        "note": "The workspace opens. RUGD does not score a sale or exit yet.",
     },
     {
         "id": "durable-value",

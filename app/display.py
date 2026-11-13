@@ -24,8 +24,8 @@ NOT_CALCULATED = "Not calculated"
 # Engine evidence labels, in everyday words.
 STATE_LABELS = {
     "calculated": "Calculated",
-    "estimated": "Your assumption",
-    "placeholder": "Default placeholder",
+    "estimated": "Your estimate",
+    "placeholder": "Starting number, not yours",
     "missing": "Missing",
     "zero": "Entered as zero",
     "benchmark": "Benchmark context",
@@ -134,7 +134,7 @@ def figure(key: str, value: Any, *, missing: str = NOT_CALCULATED) -> str:
     name = str(key).lower()
     if "multiplier" in name:
         return f"{number:g}×"
-    if name == "dscr" or "coverage" in name:
+    if "dscr" in name or "coverage" in name:
         return multiple(number)
     if "months" in name:
         return decimal_text(number, 1, "months")

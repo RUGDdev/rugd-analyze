@@ -351,7 +351,7 @@ _HELP: dict[str, dict[str, Any]] = {
         "what": "Revenue the business actually collected in the last 12 months, taken from a record you can show.",
         "why": "It is the only revenue figure here that can count as verified evidence, and only together with a verified source and a written reason.",
         "how": "Use tax returns, bank statements, or point-of-sale reports. Leave it blank for a business that has not started selling.",
-        "avoid": "Entering a forecast here. A customer entry, a note, or a hypothetical demonstration is not verified evidence and does not clear a demand flag.",
+        "avoid": "Entering a forecast here. A customer entry, a note, or a hypothetical demonstration is not verified evidence and does not count as proof that customers will buy.",
         "method": "Method: your records, stated for the last 12 months. It is applied only when the source is marked verified and a rationale is present.",
         "example": {"general": "The total sales line from your last 12 months of bank deposits, with the statements saved. Illustration only."},
     },

@@ -312,7 +312,7 @@ class TestScenarios(AdvisoryServerCase):
         page = self.request(f"/assessments/{assessment_id}/improve", None, cookie)[1]
         for text in (
             "not approved",
-            "What the official result says",
+            "What RUGD found",
             "INSUFFICIENT_DEMAND_EVIDENCE",
             "Funding and cash-flow gaps",
             "Funding needed from you",
@@ -321,7 +321,7 @@ class TestScenarios(AdvisoryServerCase):
             "Lower the build cost",
             "Build a smaller venue",
             "Ask for a longer repayment term",
-            "Official result, unchanged by this page",
+            "Where the official result stands",
         ):
             self.assertIn(text, page)
 

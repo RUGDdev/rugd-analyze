@@ -6,7 +6,7 @@ import math
 from html import escape
 from typing import Any
 
-from app import display
+from app import display, wording
 
 CASH_FLOW_KEYS = (
     ("base_monthly_cash_flow", "Base monthly cash flow"),
@@ -59,8 +59,8 @@ def reading_lines(financial: dict[str, Any] | None, *, live: bool) -> list[str]:
         )
     else:
         lead = (
-            "Demonstration reading. No live model was called. "
-            "Each figure below is copied from the stored engine result."
+            "Demonstration reading. No outside AI service was used. "
+            "Each figure below is copied from the saved result."
         )
     if not isinstance(financial, dict):
         return [lead, "No calculated monthly figures are stored. No chart was drawn."]
@@ -68,10 +68,10 @@ def reading_lines(financial: dict[str, Any] | None, *, live: bool) -> list[str]:
     for key in _READING_KEYS:
         number = finite_number(financial.get(key))
         if number is None:
-            lines.append(f"{key}: not calculated.")
+            lines.append(f"{wording.field_label(key)}: not calculated.")
         else:
-            lines.append(f"{key}: {display.figure(key, number)}. Calculated by the engine.")
-    lines.append("The engine does not return a separate expense total. No expense amount is drawn.")
+            lines.append(f"{wording.field_label(key)}: {display.figure(key, number)}. Calculated by RUGD.")
+    lines.append("RUGD does not return a separate expense total. No expense amount is drawn.")
     return lines
 
 
@@ -87,7 +87,7 @@ def render_engine_charts(financial: dict[str, Any] | None, *, live: bool) -> str
         "cash-flow",
         "Cash flow",
         series(financial, CASH_FLOW_KEYS),
-        "Calculated by the engine. Bar length is the absolute value. The label is the stored number.",
+        "Calculated by RUGD. Bar length is the absolute value. The label is the stored number.",
     )
     revenue = _bar_chart(
         "revenue-contribution",
@@ -115,7 +115,7 @@ def render_engine_charts(financial: dict[str, Any] | None, *, live: bool) -> str
                     "source": "engine",
                 }
             ],
-            "Calculated by the engine. The customer's projected revenue is an assumption and is not drawn on this bar.",
+            "Calculated by RUGD. The customer's projected revenue is an assumption and is not drawn on this bar.",
         )
     return f"""
 <section class="card" id="engine-charts">
@@ -279,7 +279,7 @@ def _revenue_block(
         _assumption_line("Monthly revenue", assumed_revenue),
         _engine_line(financial, "base_monthly_contribution", "Monthly contribution"),
         _assumption_line("Monthly fixed costs", assumed_fixed_costs),
-        "<li>The engine does not return a separate expense total. No expense total is shown.</li>",
+        "<li>RUGD does not return a separate expense total. No expense total is shown.</li>",
         _engine_line(financial, "base_monthly_cash_flow", "Monthly cash flow"),
         _engine_line(financial, "downside_monthly_revenue", "Downside monthly revenue"),
         _engine_line(financial, "downside_monthly_contribution", "Downside monthly contribution"),
@@ -326,7 +326,7 @@ def _break_even_block(
         gap_attr = ""
     else:
         lines.append(
-            f"<li>break_even_monthly_revenue: {display.dollars(break_even)}. Calculated by the engine.</li>"
+            f"<li>{wording.field_label("break_even_monthly_revenue")}: {display.dollars(break_even)}. Calculated by RUGD.</li>"
         )
         if assumed_revenue is None:
             lines.append("<li>The difference is not shown because monthly revenue was not entered. A blank is not treated as zero.</li>")
@@ -486,20 +486,20 @@ def _engine_line(financial: dict[str, Any] | None, key: str, label: str) -> str:
     number = finite_number(financial.get(key)) if isinstance(financial, dict) else None
     if number is None:
         return f"<li>{escape(label)}: not calculated.</li>"
-    return f"<li>{escape(key)}: {display.figure(key, number)}. Calculated by the engine.</li>"
+    return f"<li>{escape(wording.field_label(key))}: {display.figure(key, number)}. Calculated by RUGD.</li>"
 
 
 def _engine_text(financial: dict[str, Any] | None, key: str) -> str:
     number = finite_number(financial.get(key)) if isinstance(financial, dict) else None
     if number is None:
         return "Not calculated."
-    return escape(f"{display.figure(key, number)}. Calculated by the engine.")
+    return escape(f"{display.figure(key, number)}. Calculated by RUGD.")
 
 
 def _money_text(value: float | None, *, assumed: bool) -> str:
     if value is None:
         return "Missing. This blank is not stored as zero."
-    suffix = "Customer-supplied assumption." if assumed else "Calculated by the engine."
+    suffix = "Customer-supplied assumption." if assumed else "Calculated by RUGD."
     return escape(f"{display.dollars(value)}. {suffix}")
 
 

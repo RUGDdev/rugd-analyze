@@ -57,7 +57,7 @@ THEMES: dict[str, tuple[str, str]] = {
     ),
     "prepare-sale": (
         "Steward for the Next Generation",
-        "A sale or exit question is saved here. The 0.1 engine does not score that purpose.",
+        "A sale or exit question is saved here. RUGD does not score that purpose yet.",
     ),
     "durable-value": (
         "Leave It Stronger",
@@ -120,7 +120,7 @@ def start_conversation(profile: dict[str, Any], objective_label: str) -> dict[st
     _add(
         profile,
         "adviser",
-        f"{question} Deterministic guidance, no live model. Nothing is saved until you approve it.",
+        f"{question} Built-in guidance, no outside AI service. Nothing is saved until you approve it.",
     )
     return profile
 

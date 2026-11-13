@@ -117,7 +117,7 @@ class TestScenarioComparison(unittest.TestCase):
         self.assertIn("<th>Downside</th>", page)
         self.assertIn("Official recommendation:</strong> do-not-proceed", page)
         self.assertIn("INSUFFICIENT_DEMAND_EVIDENCE", page)
-        self.assertIn("This comparison did not clear them.", page)
+        self.assertIn("This comparison did not lift them.", page)
         self.assertIn("100.0", page)
         self.assertIn("-100.0", page)
 
