@@ -5885,13 +5885,13 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
             "</section>"
         )
     body = f"""
-<h1>Settings</h1>
+{ui.page_header("Settings", subtitle="Preferences for this local account.", help_html=ui.simple_help("About Settings", "This page stores preferences for this local account. It does not approve an assessment or change a role."))}
 <p>This page stores preferences for this local account. It does not approve an assessment or change a role.</p>
 {_SURFACE_NOTE}
 <p>Service tiers on this prototype: Explore, Analyze, Validate (demonstration), and Partner (demonstration). Changing tier does not change a recommendation.</p>
 <p><a href="/settings/usage">Usage and simulated plan</a>. The included local pilot is not a paid subscription. No charge is created.</p>
-<p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, the server records the subject and does not write the address or the link. You can sign in before the email is verified. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>
 {preferences}
+{ui.details("How accounts and sessions work on this prototype", _settings_technical_note())}
 <h2>Owner decisions not activated</h2>
 <p>These seams are disabled. They do not authenticate a user, calculate a score, deploy the app, or create a charge.</p>
 <ul>{rows}</ul>
@@ -5901,6 +5901,10 @@ def settings_page(user: dict[str, Any] | None = None) -> str:
 <p>Authoritative calculations remain in the 0.1 Python engine.</p>
 """
     return layout("Settings", body)
+
+
+def _settings_technical_note() -> str:
+    return """<p>Local runs use 127.0.0.1. RUGD_ENV=production listens for the Render host and marks the session cookie Secure. Local accounts use an email and a scrypt password hash. Self-registration creates a customer account. The first reviewer is created from the bootstrap environment variables, and later reviewers are created by a signed-in reviewer. A new account can log in before the email is verified, and the screen shows that the email is unverified. The verification link expires in 24 hours. A forgot-password link expires in one hour. Without SMTP_HOST, the server records the subject and does not write the address or the link. You can sign in before the email is verified. Neither link changes a role. The session cookie is HttpOnly and SameSite=Lax. It is marked Secure when RUGD_ENV=production or SECURE_COOKIES=true. A customer account cannot set human_review_approved or change its own role. This is not production authentication. There is no payment processing. Prototype warnings stay on. Business profiles are local records. They do not authenticate a user.</p>"""
 
 
 def new_assessment_page(
@@ -6071,8 +6075,8 @@ def explore_page(
         )
         + _SURFACE_NOTE
         + intro
-        + _guidance_section("explore")
         + links
+        + ui.details("Durable Value guidance and questions to think about", _guidance_section("explore"), cls="dguidance")
         + "".join(checklist_blocks),
     )
 

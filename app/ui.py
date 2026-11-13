@@ -406,6 +406,7 @@ main .adviser-log { list-style: none; padding: 0; margin: 0.6rem 0; display: fle
 main .adviser-log li { border: 1px solid var(--line); border-left: 1px solid var(--line); border-radius: 16px; padding: 0.65rem 0.9rem; background: var(--card); max-width: 46rem; }
 main .adviser-log li.you { align-self: flex-end; background: #EEF1F4; }
 main .adviser-log li.adviser { align-self: flex-start; }
+main .adviser-log li.you { border-left-color: var(--line); }
 main .adviser-log li p { margin: 0.15rem 0; }
 @media (max-width: 800px) {
   .dpagehead h1 { font-size: 1.45rem; }
@@ -425,6 +426,7 @@ main .button, main button { border-radius: 999px; }
 main .button.primary { padding: 0.6rem 1.2rem; }
 main input, main select, main textarea { border-radius: 10px; border-color: #cfc9bb; }
 main details.plain > summary { color: #4d5b66; }
+main input[type=checkbox], main input[type=radio] { width: auto; display: inline-block; margin: 0 0.5rem 0 0; vertical-align: middle; }
 """
 
 
